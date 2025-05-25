@@ -1,0 +1,186 @@
+/* Ranking.css */
+.ranking-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.ranking-container h2 {
+    color: rgb(5, 152, 210);
+    border-bottom: 2px solid rgb(5, 152, 210);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ddd;
+}
+
+.tab {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #666;
+    border-bottom: 3px solid transparent;
+    margin-right: 5px;
+}
+
+.tab.active {
+    color: rgb(5, 152, 210);
+    border-bottom: 3px solid rgb(5, 152, 210);
+    font-weight: bold;
+}
+
+.tab:hover:not(.active) {
+    color: rgb(4, 132, 190);
+}
+
+.add-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 20px;
+    font-size: 1rem;
+}
+
+.add-btn:hover {
+    background-color: rgb(4, 132, 190);
+}
+
+.edit-player-form,
+.add-player-form,
+.edit-team-form,
+.add-team-form {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.edit-player-form h3,
+.add-player-form h3,
+.edit-team-form h3,
+.add-team-form h3 {
+    margin-top: 0;
+    color: rgb(5, 152, 210);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.save-btn,
+.edit-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cancel-btn {
+    background-color: #888;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-btn:hover,
+.edit-btn:hover {
+    background-color: rgb(4, 132, 190);
+}
+
+.cancel-btn:hover {
+    background-color: #666;
+}
+
+.ranking-table,
+.points-table {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th,
+td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    font-weight: bold;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+td:last-child {
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    th,
+    td {
+        padding: 8px;
+        font-size: 0.9rem;
+    }
+}

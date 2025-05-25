@@ -1,0 +1,190 @@
+/* Fixtures.css */
+.fixtures-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.fixtures-container h2 {
+    color: rgb(5, 152, 210);
+    border-bottom: 2px solid rgb(5, 152, 210);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.fixtures-status-control {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+}
+
+.status-indicator {
+    padding: 4px 8px;
+    margin: 0 10px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.status-indicator.active {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.status-indicator.inactive {
+    background-color: #888;
+    color: white;
+}
+
+.toggle-status-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.toggle-status-btn:hover {
+    background-color: rgb(4, 132, 190);
+}
+
+.edit-fixture-form,
+.add-fixture-form {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.edit-fixture-form h3,
+.add-fixture-form h3 {
+    margin-top: 0;
+    color: rgb(5, 152, 210);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.save-btn,
+.add-fixture-btn,
+.edit-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cancel-btn {
+    background-color: #888;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-btn:hover,
+.add-fixture-btn:hover,
+.edit-btn:hover {
+    background-color: rgb(4, 132, 190);
+}
+
+.cancel-btn:hover {
+    background-color: #666;
+}
+
+.add-fixture-btn {
+    margin-bottom: 20px;
+}
+
+.fixtures-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.fixture-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.fixture-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.fixture-header {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.fixture-header h3 {
+    margin: 0;
+    color: rgb(5, 152, 210);
+}
+
+.fixture-teams {
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.fixture-result,
+.fixture-score,
+.fixture-time {
+    margin: 8px 0;
+    color: #333;
+}
+
+.fixture-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 15px;
+}
+
+.no-fixtures {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    grid-column: 1 / -1;
+}
+
+.fixtures-inactive {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    margin-top: 20px;
+    color: #666;
+}

@@ -1,0 +1,245 @@
+/* Teams.css */
+.teams-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.teams-container h2 {
+    color: rgb(5, 152, 210);
+    border-bottom: 2px solid rgb(5, 152, 210);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.add-team-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 20px;
+    font-size: 1rem;
+}
+
+.add-team-btn:hover {
+    background-color: rgb(4, 132, 190);
+}
+
+.edit-team-form,
+.add-team-form,
+.edit-player-form,
+.add-player-form {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.edit-team-form h3,
+.add-team-form h3,
+.edit-player-form h3,
+.add-player-form h3 {
+    margin-top: 0;
+    color: rgb(5, 152, 210);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.save-btn,
+.edit-btn,
+.add-player-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-btn.extra {
+    background-color: #6c757d;
+}
+
+.save-btn.extra:hover {
+    background-color: #5a6268;
+}
+
+.cancel-btn {
+    background-color: #888;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.delete-btn {
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-btn:hover,
+.edit-btn:hover,
+.add-player-btn:hover {
+    background-color: rgb(4, 132, 190);
+}
+
+.cancel-btn:hover {
+    background-color: #666;
+}
+
+.delete-btn:hover {
+    background-color: #cc0000;
+}
+
+.teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.team-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.team-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.team-header {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.team-header h3 {
+    margin: 0 0 5px;
+    color: rgb(5, 152, 210);
+}
+
+.team-captain {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.team-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.players-section {
+    margin-top: 15px;
+}
+
+.players-section h4 {
+    margin: 0 0 10px;
+    color: #555;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.players-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.player-card {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.player-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+
+.player-icon.bat {
+    background-color: #28a745;
+}
+
+.player-icon.ball {
+    background-color: #dc3545;
+}
+
+.player-icon.all-rounder {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.player-icon.extra {
+    background-color: #6c757d;
+}
+
+.player-info {
+    flex: 1;
+}
+
+.player-name {
+    font-weight: bold;
+}
+
+.player-role {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.player-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.no-teams {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    grid-column: 1 / -1;
+}
