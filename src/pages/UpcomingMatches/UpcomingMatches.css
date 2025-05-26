@@ -3,9 +3,11 @@
     max-width: 1000px;
     margin: 0 auto;
     padding: 20px;
-    background-color: white;
+    background-color: rgba(6, 179, 247, 0.05);
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 60px;
+    margin-bottom: 60px;
 }
 
 .upcoming-matches-container h2 {
@@ -18,25 +20,23 @@
 .upcoming-status-control {
     margin-bottom: 20px;
     padding: 10px;
-    background-color: #f5f5f5;
+    background-color: rgba(5, 152, 210, 0.2);
     border-radius: 4px;
 }
 
-.status-indicator {
+.upComingStatus-indicator {
     padding: 4px 8px;
     margin: 0 10px;
     border-radius: 4px;
     font-weight: bold;
 }
 
-.status-indicator.active {
-    background-color: #4CAF50;
-    color: white;
+.upComingStatus-indicator.active {
+    color: #4CAF50;
 }
 
-.status-indicator.inactive {
-    background-color: #888;
-    color: white;
+.upComingStatus-indicator.inactive {
+    color: #888;
 }
 
 .toggle-status-btn {
@@ -77,7 +77,8 @@
     font-weight: bold;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
@@ -91,7 +92,10 @@
     margin-top: 20px;
 }
 
-.save-btn,
+.save-btn {
+    position: relative;
+}
+
 .add-match-btn,
 .edit-btn {
     background-color: rgb(5, 152, 210);
@@ -100,6 +104,30 @@
     padding: 8px 15px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Disabled state for form elements during upload */
+button:disabled,
+input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .cancel-btn {
@@ -118,6 +146,25 @@
     padding: 8px 15px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+.status-toggle {
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.status-toggle.active {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.status-toggle.inactive {
+    background-color: #888;
+    color: white;
 }
 
 .save-btn:hover,
@@ -152,12 +199,20 @@
     transition: transform 0.3s, box-shadow 0.3s;
 }
 
+.match-card.inactive {
+    opacity: 0.7;
+    background-color: #f9f9f9;
+}
+
 .match-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .match-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     margin-bottom: 10px;
 }
 
@@ -168,7 +223,9 @@
 
 .match-teams {
     font-weight: bold;
-    margin-top: 5px;
+    margin: 5px 0;
+    flex: 1;
+    min-width: 100%;
 }
 
 .match-details {

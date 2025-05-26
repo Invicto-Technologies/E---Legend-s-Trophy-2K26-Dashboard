@@ -18,6 +18,42 @@ const Fixtures = () => {
         time: ''
     });
 
+    //date format sorting
+    const parseMatchTime = (timeStr) => {
+        // Split into date and time parts
+        const [datePart, timePart] = timeStr.split(' ');
+
+        // Extract date components
+        const [year, month, day] = datePart.split('.').map(Number);
+
+        // Extract time components
+        const timeValue = timePart.slice(0, -2); // Remove AM/PM
+        const period = timePart.slice(-2); // Get AM/PM
+        const [hours, minutes] = timeValue.split('.').map(Number);
+
+        // Convert to 24-hour format
+        let hours24 = hours;
+        if (period === 'PM' && hours !== 12) {
+            hours24 += 12;
+        } else if (period === 'AM' && hours === 12) {
+            hours24 = 0;
+        }
+
+        return new Date(year, month - 1, day, hours24, minutes);
+    };
+
+    // Sort matches by datetime
+    const getSortedMatches = () => {
+        return Object.entries(finishedMatches)
+            .map(([key, match]) => ({
+                key,
+                match,
+                datetime: parseMatchTime(match.time)
+            }))
+            .sort((a, b) => a.datetime - b.datetime)
+            .map(({ key, match }) => [key, match]);
+    };
+
     useEffect(() => {
         const fixturesRef = ref(database, 'FixturesData');
         onValue(fixturesRef, (snapshot) => {
@@ -41,6 +77,16 @@ const Fixtures = () => {
                 ...prev,
                 [name]: value
             }));
+        }
+    };
+
+    const toggleMatchStatus = async (matchId, currentStatus) => {
+        try {
+            const matchRef = ref(database, `FixturesData/finishedMatches/${matchId}/active`);
+            await set(matchRef, currentStatus === 1 ? 0 : 1);
+        } catch (error) {
+            console.error('Error toggling match status:', error);
+            alert('Failed to toggle match status');
         }
     };
 
@@ -246,33 +292,39 @@ const Fixtures = () => {
 
                             <div className="fixtures-list">
                                 {Object.keys(finishedMatches).length > 0 ? (
-                                    Object.entries(finishedMatches)
-                                        .sort((a, b) => new Date(b[1].time) - new Date(a[1].time)) // Sort by time (newest first)
-                                        .map(([key, match]) => (
-                                            <div key={key} className="fixture-card">
-                                                <div className="fixture-header">
+                                    getSortedMatches().map(([key, match]) => (
+                                        <div key={key} className={`fixture-card ${match.active ? '' : 'inactive'}`}>
+                                            <div className="fixture-header">
+                                                <div style={{ display: 'flex', flexDirection: 'row' }}>
                                                     <h3>{match.title}</h3>
-                                                    <div className="fixture-teams">{match.teams}</div>
-                                                </div>
-                                                <div className="fixture-result">
-                                                    <strong>Result:</strong> {match.result}
-                                                </div>
-                                                <div className="fixture-score">
-                                                    <strong>Score:</strong> {match.score}
-                                                </div>
-                                                <div className="fixture-time">
-                                                    <strong>Time:</strong> {match.time}
-                                                </div>
-                                                <div className="fixture-actions">
                                                     <button
-                                                        onClick={() => setEditingMatch({ ...match, id: key })}
-                                                        className="edit-btn"
+                                                        onClick={() => toggleMatchStatus(key, match.active)}
+                                                        className={`status-toggle ${match.active ? 'active' : 'inactive'}`}
                                                     >
-                                                        Edit
+                                                        {match.active ? 'Active' : 'Inactive'}
                                                     </button>
                                                 </div>
+                                                <div className="fixture-teams">{match.teams}</div>
                                             </div>
-                                        ))
+                                            <div className="fixture-result">
+                                                <strong>Result:</strong> {match.result}
+                                            </div>
+                                            <div className="fixture-score">
+                                                <strong>Score:</strong> {match.score}
+                                            </div>
+                                            <div className="fixture-time">
+                                                <strong>Time:</strong> {match.time}
+                                            </div>
+                                            <div className="fixture-actions">
+                                                <button
+                                                    onClick={() => setEditingMatch({ ...match, id: key })}
+                                                    className="edit-btn"
+                                                >
+                                                    Edit
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
                                 ) : (
                                     <p className="no-fixtures">No fixtures available</p>
                                 )}

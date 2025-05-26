@@ -10,23 +10,6 @@ const Ranking = () => {
     const [pointsTable, setPointsTable] = useState({});
     const [editingPlayer, setEditingPlayer] = useState(null);
     const [editingTeam, setEditingTeam] = useState(null);
-    const [showAddForm, setShowAddForm] = useState(null);
-    const [newPlayer, setNewPlayer] = useState({
-        id: '',
-        name: '',
-        team: '',
-        rating: 0
-    });
-    const [newTeam, setNewTeam] = useState({
-        id: '',
-        team: '',
-        played: 0,
-        won: 0,
-        lost: 0,
-        nr: 0,
-        pts: 0,
-        nrr: 0
-    });
     const [activeTab, setActiveTab] = useState('batters');
 
     useEffect(() => {
@@ -41,15 +24,27 @@ const Ranking = () => {
         });
     }, []);
 
+    // Sort players by rating (highest to lowest)
+    const getSortedPlayers = (players) => {
+        return Object.values(players)
+            .sort((a, b) => b.rating - a.rating)
+            .map((player, index) => ({ ...player, rank: index + 1 }));
+    };
+
+    // Sort teams by points then NRR (highest to lowest)
+    const getSortedTeams = (teams) => {
+        return Object.values(teams)
+            .sort((a, b) => {
+                if (b.pts !== a.pts) return b.pts - a.pts;
+                return b.nrr - a.nrr;
+            })
+            .map((team, index) => ({ ...team, rank: index + 1 }));
+    };
+
     const handlePlayerInputChange = (e) => {
         const { name, value } = e.target;
         if (editingPlayer) {
             setEditingPlayer(prev => ({
-                ...prev,
-                [name]: name === 'rating' || name === 'id' ? Number(value) : value
-            }));
-        } else {
-            setNewPlayer(prev => ({
                 ...prev,
                 [name]: name === 'rating' || name === 'id' ? Number(value) : value
             }));
@@ -65,71 +60,6 @@ const Ranking = () => {
                     name === 'lost' || name === 'nr' || name === 'pts' ?
                     Number(value) : value
             }));
-        } else {
-            setNewTeam(prev => ({
-                ...prev,
-                [name]: name === 'id' || name === 'played' || name === 'won' ||
-                    name === 'lost' || name === 'nr' || name === 'pts' ?
-                    Number(value) : value
-            }));
-        }
-    };
-
-    const addNewPlayer = async (type) => {
-        try {
-            const playersRef = ref(database, `RankingData/${type}`);
-            const newPlayerRef = push(playersRef);
-
-            // Generate a simple ID based on timestamp
-            const playerId = new Date().getTime();
-
-            await set(newPlayerRef, {
-                ...newPlayer,
-                id: playerId
-            });
-
-            setNewPlayer({
-                id: '',
-                name: '',
-                team: '',
-                rating: 0
-            });
-            setShowAddForm(null);
-            alert(`New ${type.slice(0, -1)} added successfully!`);
-        } catch (error) {
-            console.error(`Error adding new ${type.slice(0, -1)}:`, error);
-            alert(`Failed to add new ${type.slice(0, -1)}`);
-        }
-    };
-
-    const addNewTeam = async () => {
-        try {
-            const teamsRef = ref(database, 'RankingData/pointsTable');
-            const newTeamRef = push(teamsRef);
-
-            // Generate a simple ID based on timestamp
-            const teamId = new Date().getTime();
-
-            await set(newTeamRef, {
-                ...newTeam,
-                id: teamId
-            });
-
-            setNewTeam({
-                id: '',
-                team: '',
-                played: 0,
-                won: 0,
-                lost: 0,
-                nr: 0,
-                pts: 0,
-                nrr: 0
-            });
-            setShowAddForm(null);
-            alert('New team added to points table successfully!');
-        } catch (error) {
-            console.error('Error adding new team:', error);
-            alert('Failed to add new team');
         }
     };
 
@@ -196,7 +126,7 @@ const Ranking = () => {
                                 type="text"
                                 name="name"
                                 value={editingPlayer.name}
-                                onChange={handlePlayerInputChange}
+                                disabled
                             />
                         </div>
                         <div className="form-group">
@@ -205,9 +135,8 @@ const Ranking = () => {
                                 type="text"
                                 name="team"
                                 value={editingPlayer.team}
-                                onChange={handlePlayerInputChange}
                                 maxLength="3"
-                                placeholder="3-letter code (e.g., IND)"
+                                disabled
                             />
                         </div>
                         <div className="form-group">
@@ -236,66 +165,8 @@ const Ranking = () => {
                             </button>
                         </div>
                     </div>
-                ) : showAddForm === activeTab ? (
-                    <div className="add-player-form">
-                        <h3>Add New {activeTab.slice(0, -1)}</h3>
-                        <div className="form-group">
-                            <label>Name:</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={newPlayer.name}
-                                onChange={handlePlayerInputChange}
-                                placeholder="Player's name"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Team:</label>
-                            <input
-                                type="text"
-                                name="team"
-                                value={newPlayer.team}
-                                onChange={handlePlayerInputChange}
-                                maxLength="3"
-                                placeholder="3-letter code (e.g., IND)"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Rating:</label>
-                            <input
-                                type="number"
-                                name="rating"
-                                value={newPlayer.rating}
-                                onChange={handlePlayerInputChange}
-                                min="0"
-                                max="1000"
-                                placeholder="Rating points"
-                            />
-                        </div>
-                        <div className="form-actions">
-                            <button
-                                onClick={() => addNewPlayer(getPlayerType())}
-                                className="save-btn"
-                            >
-                                Add {activeTab.slice(0, -1)}
-                            </button>
-                            <button
-                                onClick={() => setShowAddForm(null)}
-                                className="cancel-btn"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
                 ) : (
                     <>
-                        <button
-                            onClick={() => setShowAddForm(activeTab)}
-                            className="add-btn"
-                        >
-                            Add New {activeTab.slice(0, -1)}
-                        </button>
-
                         <div className="ranking-table">
                             <table>
                                 <thead>
@@ -303,29 +174,27 @@ const Ranking = () => {
                                         <th>Rank</th>
                                         <th>Name</th>
                                         <th>Team</th>
-                                        <th>Rating</th>
+                                        <th>{activeTab === 'batters' ? "Runs" : "Wickets"}</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {Object.entries(activeTab === 'batters' ? batters : bowlers)
-                                        .sort((a, b) => b[1].rating - a[1].rating)
-                                        .map(([key, player], index) => (
-                                            <tr key={key}>
-                                                <td>{index + 1}</td>
-                                                <td>{player.name}</td>
-                                                <td>{player.team}</td>
-                                                <td>{player.rating}</td>
-                                                <td>
-                                                    <button
-                                                        onClick={() => setEditingPlayer(player)}
-                                                        className="edit-btn"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                    {getSortedPlayers(activeTab === 'batters' ? batters : bowlers).map((player) => (
+                                        <tr key={player.id} className={player.rank <= 3 ? 'top-three' : ''}>
+                                            <td>{player.rank}</td>
+                                            <td>{player.name}</td>
+                                            <td>{player.team}</td>
+                                            <td>{player.rating}</td>
+                                            <td>
+                                                <button
+                                                    onClick={() => setEditingPlayer(player)}
+                                                    className="edit-btn"
+                                                >
+                                                    Edit
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -340,8 +209,7 @@ const Ranking = () => {
                             type="text"
                             name="team"
                             value={editingTeam.team}
-                            onChange={handleTeamInputChange}
-                            placeholder="Team name (e.g., E21)"
+                            disabled
                         />
                     </div>
                     <div className="form-row">
@@ -353,6 +221,7 @@ const Ranking = () => {
                                 value={editingTeam.played}
                                 onChange={handleTeamInputChange}
                                 min="0"
+                                style={{ width: '60px' }}
                             />
                         </div>
                         <div className="form-group">
@@ -363,6 +232,7 @@ const Ranking = () => {
                                 value={editingTeam.won}
                                 onChange={handleTeamInputChange}
                                 min="0"
+                                style={{ width: '60px' }}
                             />
                         </div>
                         <div className="form-group">
@@ -373,18 +243,20 @@ const Ranking = () => {
                                 value={editingTeam.lost}
                                 onChange={handleTeamInputChange}
                                 min="0"
+                                style={{ width: '60px' }}
                             />
                         </div>
                     </div>
                     <div className="form-row">
                         <div className="form-group">
-                            <label>No Result:</label>
+                            <label>Tied:</label>
                             <input
                                 type="number"
                                 name="nr"
                                 value={editingTeam.nr}
                                 onChange={handleTeamInputChange}
                                 min="0"
+                                style={{ width: '60px' }}
                             />
                         </div>
                         <div className="form-group">
@@ -394,6 +266,7 @@ const Ranking = () => {
                                 name="pts"
                                 value={editingTeam.pts}
                                 onChange={handleTeamInputChange}
+                                style={{ width: '60px' }}
                                 min="0"
                             />
                         </div>
@@ -405,6 +278,7 @@ const Ranking = () => {
                                 value={editingTeam.nrr}
                                 onChange={handleTeamInputChange}
                                 step="0.01"
+                                style={{ width: '60px' }}
                             />
                         </div>
                     </div>
@@ -420,104 +294,8 @@ const Ranking = () => {
                         </button>
                     </div>
                 </div>
-            ) : showAddForm === 'pointsTable' ? (
-                <div className="add-team-form">
-                    <h3>Add New Team</h3>
-                    <div className="form-group">
-                        <label>Team:</label>
-                        <input
-                            type="text"
-                            name="team"
-                            value={newTeam.team}
-                            onChange={handleTeamInputChange}
-                            placeholder="Team name (e.g., E21)"
-                        />
-                    </div>
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label>Played:</label>
-                            <input
-                                type="number"
-                                name="played"
-                                value={newTeam.played}
-                                onChange={handleTeamInputChange}
-                                min="0"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Won:</label>
-                            <input
-                                type="number"
-                                name="won"
-                                value={newTeam.won}
-                                onChange={handleTeamInputChange}
-                                min="0"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Lost:</label>
-                            <input
-                                type="number"
-                                name="lost"
-                                value={newTeam.lost}
-                                onChange={handleTeamInputChange}
-                                min="0"
-                            />
-                        </div>
-                    </div>
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label>No Result:</label>
-                            <input
-                                type="number"
-                                name="nr"
-                                value={newTeam.nr}
-                                onChange={handleTeamInputChange}
-                                min="0"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Points:</label>
-                            <input
-                                type="number"
-                                name="pts"
-                                value={newTeam.pts}
-                                onChange={handleTeamInputChange}
-                                min="0"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>NRR:</label>
-                            <input
-                                type="number"
-                                name="nrr"
-                                value={newTeam.nrr}
-                                onChange={handleTeamInputChange}
-                                step="0.01"
-                            />
-                        </div>
-                    </div>
-                    <div className="form-actions">
-                        <button onClick={addNewTeam} className="save-btn">
-                            Add Team
-                        </button>
-                        <button
-                            onClick={() => setShowAddForm(null)}
-                            className="cancel-btn"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
             ) : (
                 <>
-                    <button
-                        onClick={() => setShowAddForm('pointsTable')}
-                        className="add-btn"
-                    >
-                        Add New Team
-                    </button>
-
                     <div className="points-table">
                         <table>
                             <thead>
@@ -527,35 +305,33 @@ const Ranking = () => {
                                     <th>Played</th>
                                     <th>Won</th>
                                     <th>Lost</th>
-                                    <th>NR</th>
+                                    <th>Tied</th>
                                     <th>Pts</th>
                                     <th>NRR</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.entries(pointsTable)
-                                    .sort((a, b) => b[1].pts - a[1].pts || b[1].nrr - a[1].nrr)
-                                    .map(([key, team], index) => (
-                                        <tr key={key}>
-                                            <td>{index + 1}</td>
-                                            <td>{team.team}</td>
-                                            <td>{team.played}</td>
-                                            <td>{team.won}</td>
-                                            <td>{team.lost}</td>
-                                            <td>{team.nr}</td>
-                                            <td>{team.pts}</td>
-                                            <td>{team.nrr > 0 ? `+${team.nrr}` : team.nrr}</td>
-                                            <td>
-                                                <button
-                                                    onClick={() => setEditingTeam(team)}
-                                                    className="edit-btn"
-                                                >
-                                                    Edit
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                {getSortedTeams(pointsTable).map((team) => (
+                                    <tr key={team.id}>
+                                        <td>{team.rank}</td>
+                                        <td>{team.team}</td>
+                                        <td>{team.played}</td>
+                                        <td>{team.won}</td>
+                                        <td>{team.lost}</td>
+                                        <td>{team.nr}</td>
+                                        <td>{team.pts}</td>
+                                        <td>{team.nrr > 0 ? `+${team.nrr}` : team.nrr}</td>
+                                        <td>
+                                            <button
+                                                onClick={() => setEditingTeam(team)}
+                                                className="edit-btn"
+                                            >
+                                                Edit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>

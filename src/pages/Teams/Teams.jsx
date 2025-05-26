@@ -1,6 +1,6 @@
 // pages/Teams.jsx
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, set, push, remove, update } from 'firebase/database';
+import { ref, onValue, set, update } from 'firebase/database';
 import { database } from '../../components/firebase';
 import './Teams.css';
 
@@ -8,23 +8,20 @@ const Teams = () => {
     const [teamsData, setTeamsData] = useState({});
     const [editingTeam, setEditingTeam] = useState(null);
     const [editingPlayer, setEditingPlayer] = useState(null);
-    const [showAddTeam, setShowAddTeam] = useState(false);
+    const [editingPlayerCategory, setEditingPlayerCategory] = useState(null);
     const [showAddPlayer, setShowAddPlayer] = useState(false);
-    const [newTeam, setNewTeam] = useState({
-        id: '',
-        name: '',
-        captain: '',
-        players: {},
-        extraPlayers: {}
-    });
+    const [selectedTeam, setSelectedTeam] = useState(null);
+    const [showExchangeModal, setShowExchangeModal] = useState(false);
+    const [mainSquadPlayer, setMainSquadPlayer] = useState(null);
+    const [extraPlayer, setExtraPlayer] = useState(null);
     const [newPlayer, setNewPlayer] = useState({
         id: '',
         name: '',
         role: '',
         icon: 'bat'
     });
-    const [selectedTeam, setSelectedTeam] = useState(null);
 
+    //Get firebase data 
     useEffect(() => {
         const teamsRef = ref(database, 'teamData');
         onValue(teamsRef, (snapshot) => {
@@ -35,15 +32,11 @@ const Teams = () => {
         });
     }, []);
 
+    //Handle input data
     const handleTeamInputChange = (e) => {
         const { name, value } = e.target;
         if (editingTeam) {
             setEditingTeam(prev => ({
-                ...prev,
-                [name]: value
-            }));
-        } else {
-            setNewTeam(prev => ({
                 ...prev,
                 [name]: value
             }));
@@ -57,43 +50,12 @@ const Teams = () => {
                 ...prev,
                 [name]: value
             }));
-        } else {
-            setNewPlayer(prev => ({
-                ...prev,
-                [name]: value
-            }));
-        }
-    };
-
-    const addNewTeam = async () => {
-        try {
-            const teamKey = `E${newTeam.id}`;
-            const teamRef = ref(database, `teamData/${teamKey}`);
-
-            await set(teamRef, {
-                ...newTeam,
-                players: {},
-                extraPlayers: {}
-            });
-
-            setNewTeam({
-                id: '',
-                name: '',
-                captain: '',
-                players: {},
-                extraPlayers: {}
-            });
-            setShowAddTeam(false);
-            alert('New team added successfully!');
-        } catch (error) {
-            console.error('Error adding new team:', error);
-            alert('Failed to add new team');
         }
     };
 
     const updateTeam = async () => {
         try {
-            const teamKey = `E${editingTeam.id}`;
+            const teamKey = `E2${editingTeam.id}`;
             const teamRef = ref(database, `teamData/${teamKey}`);
 
             await update(teamRef, {
@@ -109,16 +71,18 @@ const Teams = () => {
         }
     };
 
-    const deleteTeam = async (teamKey) => {
-        if (window.confirm('Are you sure you want to delete this team and all its players?')) {
-            try {
-                const teamRef = ref(database, `teamData/${teamKey}`);
-                await remove(teamRef);
-                alert('Team deleted successfully!');
-            } catch (error) {
-                console.error('Error deleting team:', error);
-                alert('Failed to delete team');
-            }
+    const updatePlayer = async (isExtraPlayer) => {
+        try {
+            const playerRef = ref(database, `teamData/${selectedTeam}/${isExtraPlayer}/${editingPlayer.id}`);
+
+            await set(playerRef, editingPlayer);
+
+            setEditingPlayer(null);
+            setEditingPlayerCategory(null);
+            alert('Player updated successfully!');
+        } catch (error) {
+            console.error('Error updating player:', error);
+            alert('Failed to update player');
         }
     };
 
@@ -147,42 +111,44 @@ const Teams = () => {
         }
     };
 
-    const updatePlayer = async (isExtraPlayer = false) => {
+    //Exchange player
+    const handleExchangePlayers = async () => {
+        if (!mainSquadPlayer || !extraPlayer || !selectedTeam) return;
+
         try {
-            const playerPath = isExtraPlayer ? 'extraPlayers' : 'players';
-            const playerRef = ref(database, `teamData/${selectedTeam}/${playerPath}/${editingPlayer.id}`);
+            const teamRef = ref(database, `teamData/${selectedTeam}`);
 
-            await set(playerRef, editingPlayer);
+            // Prepare updates
+            const updates = {
+                [`players/${mainSquadPlayer.id}`]: null, // Remove from main squad
+                [`extraPlayers/${extraPlayer.id}`]: null, // Remove from extras
+                [`players/${extraPlayer.id}`]: { // Add to main squad
+                    id: extraPlayer.id,
+                    name: extraPlayer.name,
+                    role: extraPlayer.role || 'Player',
+                    icon: extraPlayer.icon || 'bat'
+                },
+                [`extraPlayers/${mainSquadPlayer.id}`]: { // Add to extras
+                    id: mainSquadPlayer.id,
+                    name: mainSquadPlayer.name,
+                    ...(mainSquadPlayer.role && { role: mainSquadPlayer.role }),
+                    ...(mainSquadPlayer.icon && { icon: mainSquadPlayer.icon })
+                }
+            };
 
-            setEditingPlayer(null);
-            alert('Player updated successfully!');
+            await update(teamRef, updates);
+            resetExchange();
+            alert('Players exchanged successfully!');
         } catch (error) {
-            console.error('Error updating player:', error);
-            alert('Failed to update player');
+            console.error('Error exchanging players:', error);
+            alert('Failed to exchange players');
         }
     };
 
-    const deletePlayer = async (playerId, isExtraPlayer = false) => {
-        if (window.confirm('Are you sure you want to delete this player?')) {
-            try {
-                const playerPath = isExtraPlayer ? 'extraPlayers' : 'players';
-                const playerRef = ref(database, `teamData/${selectedTeam}/${playerPath}/${playerId}`);
-                await remove(playerRef);
-                alert('Player deleted successfully!');
-            } catch (error) {
-                console.error('Error deleting player:', error);
-                alert('Failed to delete player');
-            }
-        }
-    };
-
-    const getIconClass = (icon) => {
-        switch (icon) {
-            case 'bat': return 'player-icon bat';
-            case 'ball': return 'player-icon ball';
-            case 'all-rounder': return 'player-icon all-rounder';
-            default: return 'player-icon bat';
-        }
+    const resetExchange = () => {
+        setMainSquadPlayer(null);
+        setExtraPlayer(null);
+        setShowExchangeModal(false);
     };
 
     return (
@@ -193,21 +159,12 @@ const Teams = () => {
                 <div className="edit-team-form">
                     <h3>Edit Team</h3>
                     <div className="form-group">
-                        <label>Team ID (EXX):</label>
-                        <input
-                            type="text"
-                            name="id"
-                            value={`E${editingTeam.id}`}
-                            disabled
-                        />
-                    </div>
-                    <div className="form-group">
                         <label>Team Name:</label>
                         <input
                             type="text"
                             name="name"
                             value={editingTeam.name}
-                            onChange={handleTeamInputChange}
+                            disabled
                         />
                     </div>
                     <div className="form-group">
@@ -225,51 +182,6 @@ const Teams = () => {
                         </button>
                         <button
                             onClick={() => setEditingTeam(null)}
-                            className="cancel-btn"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            ) : showAddTeam ? (
-                <div className="add-team-form">
-                    <h3>Add New Team</h3>
-                    <div className="form-group">
-                        <label>Team ID (Just the number):</label>
-                        <input
-                            type="number"
-                            name="id"
-                            value={newTeam.id}
-                            onChange={handleTeamInputChange}
-                            placeholder="e.g., 25 for E25"
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Team Name:</label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={newTeam.name}
-                            onChange={handleTeamInputChange}
-                            placeholder="e.g., E25 Batch"
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Captain:</label>
-                        <input
-                            type="text"
-                            name="captain"
-                            value={newTeam.captain}
-                            onChange={handleTeamInputChange}
-                            placeholder="Captain's name"
-                        />
-                    </div>
-                    <div className="form-actions">
-                        <button onClick={addNewTeam} className="save-btn">
-                            Add Team
-                        </button>
-                        <button
-                            onClick={() => setShowAddTeam(false)}
                             className="cancel-btn"
                         >
                             Cancel
@@ -295,7 +207,7 @@ const Teams = () => {
                             name="role"
                             value={editingPlayer.role}
                             onChange={handlePlayerInputChange}
-                            placeholder="e.g., Captain, Bowler, etc."
+                            placeholder="e.g., Captain, Vice Captain, Wicket Keeper, Bowler, Batter,etc."
                         />
                     </div>
                     <div className="form-group">
@@ -305,20 +217,20 @@ const Teams = () => {
                             value={editingPlayer.icon}
                             onChange={handlePlayerInputChange}
                         >
-                            <option value="bat">Batter</option>
-                            <option value="ball">Bowler</option>
-                            <option value="all-rounder">All Rounder</option>
+                            <option value="bat">bat</option>
+                            <option value="ball">ball</option>
+                            <option value="all-rounder">all-rounder</option>
                         </select>
                     </div>
                     <div className="form-actions">
                         <button
-                            onClick={() => updatePlayer(editingPlayer.id >= 10 && editingPlayer.id % 10 !== 1 && editingPlayer.id % 10 !== 2 && editingPlayer.id % 10 !== 3)}
+                            onClick={() => updatePlayer(editingPlayerCategory)}
                             className="save-btn"
                         >
                             Save Changes
                         </button>
                         <button
-                            onClick={() => setEditingPlayer(null)}
+                            onClick={() => [setEditingPlayer(null), setEditingPlayerCategory(null)]}
                             className="cancel-btn"
                         >
                             Cancel
@@ -327,7 +239,7 @@ const Teams = () => {
                 </div>
             ) : showAddPlayer && selectedTeam ? (
                 <div className="add-player-form">
-                    <h3>Add New Player to {teamsData[selectedTeam]?.name}</h3>
+                    <h3>Add Extra Player to {teamsData[selectedTeam]?.name}</h3>
                     <div className="form-group">
                         <label>Player Name:</label>
                         <input
@@ -345,7 +257,7 @@ const Teams = () => {
                             name="role"
                             value={newPlayer.role}
                             onChange={handlePlayerInputChange}
-                            placeholder="e.g., Captain, Bowler, etc."
+                            placeholder="e.g., Captain, Vice Captain, Wicket Keeper, Bowler, Batter,etc."
                         />
                     </div>
                     <div className="form-group">
@@ -355,15 +267,12 @@ const Teams = () => {
                             value={newPlayer.icon}
                             onChange={handlePlayerInputChange}
                         >
-                            <option value="bat">Batter</option>
-                            <option value="ball">Bowler</option>
-                            <option value="all-rounder">All Rounder</option>
+                            <option value="bat">bat</option>
+                            <option value="ball">ball</option>
+                            <option value="all-rounder">all-rounder</option>
                         </select>
                     </div>
                     <div className="form-actions">
-                        <button onClick={() => addNewPlayer(false)} className="save-btn">
-                            Add Main Player
-                        </button>
                         <button onClick={() => addNewPlayer(true)} className="save-btn extra">
                             Add Extra Player
                         </button>
@@ -377,13 +286,6 @@ const Teams = () => {
                 </div>
             ) : (
                 <>
-                    <button
-                        onClick={() => setShowAddTeam(true)}
-                        className="add-team-btn"
-                    >
-                        Add New Team
-                    </button>
-
                     <div className="teams-grid">
                         {Object.keys(teamsData).length > 0 ? (
                             Object.entries(teamsData).map(([teamKey, team]) => (
@@ -406,29 +308,31 @@ const Teams = () => {
                                                 Edit Team
                                             </button>
                                             <button
-                                                onClick={() => deleteTeam(teamKey)}
-                                                className="delete-btn"
-                                            >
-                                                Delete Team
-                                            </button>
-                                            <button
                                                 onClick={() => {
                                                     setSelectedTeam(teamKey);
                                                     setShowAddPlayer(true);
                                                 }}
                                                 className="add-player-btn"
                                             >
-                                                Add Player
+                                                Add Extra Player
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedTeam(teamKey);
+                                                    setShowExchangeModal(true);
+                                                }}
+                                                className="exchange-team-btn"
+                                            >
+                                                Exchange Players
                                             </button>
                                         </div>
                                     </div>
 
                                     <div className="players-section">
-                                        <h4>Main Squad</h4>
+                                        <h4 style={{ color: 'rgb(5, 152, 210)' }}>Main Squad</h4>
                                         <div className="players-list">
                                             {team.players && Object.entries(team.players).map(([playerId, player]) => (
                                                 <div key={playerId} className="player-card">
-                                                    <div className={getIconClass(player.icon)}></div>
                                                     <div className="player-info">
                                                         <div className="player-name">{player.name}</div>
                                                         <div className="player-role">{player.role}</div>
@@ -437,17 +341,12 @@ const Teams = () => {
                                                         <button
                                                             onClick={() => {
                                                                 setEditingPlayer(player);
+                                                                setEditingPlayerCategory("players");
                                                                 setSelectedTeam(teamKey);
                                                             }}
                                                             className="edit-btn"
                                                         >
                                                             Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => deletePlayer(playerId, false)}
-                                                            className="delete-btn"
-                                                        >
-                                                            Delete
                                                         </button>
                                                     </div>
                                                 </div>
@@ -456,30 +355,24 @@ const Teams = () => {
                                     </div>
 
                                     <div className="players-section">
-                                        <h4>Extra Players</h4>
+                                        <h4 style={{ color: 'rgb(5, 152, 210)' }}>Extra Players</h4>
                                         <div className="players-list">
                                             {team.extraPlayers && Object.entries(team.extraPlayers).map(([playerId, player]) => (
                                                 <div key={playerId} className="player-card">
-                                                    <div className="player-icon extra"></div>
                                                     <div className="player-info">
                                                         <div className="player-name">{player.name}</div>
-                                                        {player.role && <div className="player-role">{player.role}</div>}
+                                                        <div className="player-role">{player.role}</div>
                                                     </div>
                                                     <div className="player-actions">
                                                         <button
                                                             onClick={() => {
                                                                 setEditingPlayer(player);
+                                                                setEditingPlayerCategory("extraPlayers");
                                                                 setSelectedTeam(teamKey);
                                                             }}
                                                             className="edit-btn"
                                                         >
                                                             Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => deletePlayer(playerId, true)}
-                                                            className="delete-btn"
-                                                        >
-                                                            Delete
                                                         </button>
                                                     </div>
                                                 </div>
@@ -493,6 +386,86 @@ const Teams = () => {
                         )}
                     </div>
                 </>
+            )}
+            {showExchangeModal && selectedTeam && teamsData[selectedTeam] && (
+                <div className="modal-overlay">
+                    <div className="exchange-modal">
+                        <h3 style={{ color: 'rgb(5, 152, 210)' }}>Exchange Players - {teamsData[selectedTeam].name}</h3>
+
+                        <div className="exchange-columns">
+                            {/* Main Squad Column */}
+                            <div className="exchange-column">
+                                <h4>Main Squad</h4>
+                                <div className="player-list">
+                                    {Object.values(teamsData[selectedTeam].players || {}).map(player => (
+                                        <div
+                                            key={player.id}
+                                            className={`player-item ${mainSquadPlayer?.id === player.id ? 'selected' : ''}`}
+                                            onClick={() => setMainSquadPlayer(player)}
+                                        >
+                                            <div className="player-info">
+                                                <div className="player-name">{player.name}</div>
+                                                <div className="player-role">{player.role}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Extra Players Column */}
+                            <div className="exchange-column">
+                                <h4>Extra Players</h4>
+                                <div className="player-list">
+                                    {Object.values(teamsData[selectedTeam].extraPlayers || {}).map(player => (
+                                        <div
+                                            key={player.id}
+                                            className={`player-item ${extraPlayer?.id === player.id ? 'selected' : ''}`}
+                                            onClick={() => setExtraPlayer(player)}
+                                        >
+                                            <div className="player-info">
+                                                <div className="player-name">{player.name}</div>
+                                                {player.role && <div className="player-role">{player.role}</div>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="modal-actions">
+                            <div className="selection-info">
+                                {mainSquadPlayer && (
+                                    <div className="selected-player">
+                                        <span>Main Squad: </span>
+                                        <strong>{mainSquadPlayer.name}</strong>
+                                    </div>
+                                )}
+                                {extraPlayer && (
+                                    <div className="selected-player">
+                                        <span>Extra Player: </span>
+                                        <strong>{extraPlayer.name}</strong>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="action-buttons">
+                                <button
+                                    onClick={handleExchangePlayers}
+                                    disabled={!mainSquadPlayer || !extraPlayer}
+                                    className="confirm-btn"
+                                >
+                                    Confirm Exchange
+                                </button>
+                                <button
+                                    onClick={resetExchange}
+                                    className="cancel-btn"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

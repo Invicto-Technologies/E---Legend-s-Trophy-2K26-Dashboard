@@ -1,6 +1,6 @@
 // pages/LiveMatch.jsx
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, set, push } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 import { database } from '../../components/firebase';
 import './LiveMatch.css';
 

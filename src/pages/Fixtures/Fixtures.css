@@ -3,9 +3,11 @@
     max-width: 1000px;
     margin: 0 auto;
     padding: 20px;
-    background-color: white;
+    background-color: rgba(6, 179, 247, 0.05);
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 60px;
+    margin-bottom: 60px;
 }
 
 .fixtures-container h2 {
@@ -18,7 +20,7 @@
 .fixtures-status-control {
     margin-bottom: 20px;
     padding: 10px;
-    background-color: #f5f5f5;
+    background-color: rgba(5, 152, 210, 0.2);
     border-radius: 4px;
 }
 
@@ -30,13 +32,11 @@
 }
 
 .status-indicator.active {
-    background-color: #4CAF50;
-    color: white;
+    color: #4CAF50;
 }
 
 .status-indicator.inactive {
-    background-color: #888;
-    color: white;
+    color: #888;
 }
 
 .toggle-status-btn {
@@ -65,6 +65,25 @@
 .add-fixture-form h3 {
     margin-top: 0;
     color: rgb(5, 152, 210);
+}
+
+.status-toggle {
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.status-toggle.active {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.status-toggle.inactive {
+    background-color: #888;
+    color: white;
 }
 
 .form-group {
@@ -137,6 +156,11 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     padding: 15px;
     transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.fixture-card.inactive {
+    opacity: 0.7;
+    background-color: #f9f9f9;
 }
 
 .fixture-card:hover {

@@ -15,6 +15,42 @@ const TopStories = () => {
         time: ''
     });
 
+    //date format sorting
+    const parseMatchTime = (timeStr) => {
+        // Split into date and time parts
+        const [datePart, timePart] = timeStr.split(' ');
+
+        // Extract date components
+        const [year, month, day] = datePart.split('.').map(Number);
+
+        // Extract time components
+        const timeValue = timePart.slice(0, -2); // Remove AM/PM
+        const period = timePart.slice(-2); // Get AM/PM
+        const [hours, minutes] = timeValue.split('.').map(Number);
+
+        // Convert to 24-hour format
+        let hours24 = hours;
+        if (period === 'PM' && hours !== 12) {
+            hours24 += 12;
+        } else if (period === 'AM' && hours === 12) {
+            hours24 = 0;
+        }
+
+        return new Date(year, month - 1, day, hours24, minutes);
+    };
+
+    // Sort matches by datetime
+    const getSortedStories = () => {
+        return Object.entries(allStories)
+            .map(([key, match]) => ({
+                key,
+                match,
+                datetime: parseMatchTime(match.time)
+            }))
+            .sort((a, b) => b.datetime - a.datetime)
+            .map(({ key, match }) => [key, match]);
+    };
+
     useEffect(() => {
         const storiesRef = ref(database, 'AllStories');
         onValue(storiesRef, (snapshot) => {
@@ -195,29 +231,27 @@ const TopStories = () => {
 
                     <div className="stories-grid">
                         {Object.keys(allStories).length > 0 ? (
-                            Object.entries(allStories)
-                                .sort((a, b) => new Date(b[1].time) - new Date(a[1].time)) // Sort by time (newest first)
-                                .map(([key, story]) => (
-                                    <div key={key} className="story-card">
-                                        <div className="story-time">{story.time}</div>
-                                        <h3 className="story-topic">{story.topic}</h3>
-                                        <p className="story-description">{story.description}</p>
-                                        <div className="story-actions">
-                                            <button
-                                                onClick={() => setEditingStory({ ...story, id: key })}
-                                                className="edit-btn"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => deleteStory(key)}
-                                                className="delete-btn"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
+                            getSortedStories().map(([key, story]) => (
+                                <div key={key} className="story-card">
+                                    <div className="story-time">{story.time}</div>
+                                    <h3 className="story-topic">{story.topic}</h3>
+                                    <p className="story-description">{story.description}</p>
+                                    <div className="story-actions">
+                                        <button
+                                            onClick={() => setEditingStory({ ...story, id: key })}
+                                            className="edit-btn"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => deleteStory(key)}
+                                            className="delete-btn"
+                                        >
+                                            Delete
+                                        </button>
                                     </div>
-                                ))
+                                </div>
+                            ))
                         ) : (
                             <p className="no-stories">No stories available</p>
                         )}

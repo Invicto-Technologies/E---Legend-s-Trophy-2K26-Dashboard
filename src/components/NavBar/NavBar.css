@@ -2,11 +2,14 @@
 .navbar {
     background-color: rgb(5, 152, 210);
     color: white;
-    padding: 15px 20px;
+    padding: 15px 0px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    position: fixed;
+    top: 0;
+    width: 100vw;
 }
 
 .navbar-brand a {
@@ -14,6 +17,7 @@
     text-decoration: none;
     font-size: 1.5rem;
     font-weight: bold;
+    margin-left: 50px;
 }
 
 .navbar-links {
@@ -25,6 +29,7 @@
 
 .navbar-links li {
     margin-left: 20px;
+    position: relative;
 }
 
 .navbar-links a {
@@ -32,14 +37,35 @@
     text-decoration: none;
     font-size: 1rem;
     padding: 5px 10px;
-    border-radius: 4px;
+    position: relative;
     transition: background-color 0.3s;
 }
 
-.navbar-links a:hover {
-    background-color: rgba(255, 255, 255, 0.2);
+.navbar-links li.active a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: white;
+    animation: underline 0.3s ease-out;
 }
 
-.navbar-links a.active {
-    background-color: rgba(255, 255, 255, 0.3);
+@keyframes underline {
+    from {
+        transform: scaleX(0);
+    }
+
+    to {
+        transform: scaleX(1);
+    }
+}
+
+.navbar-links a:hover {
+    opacity: 0.9;
+}
+
+.navbar-links li.active a {
+    font-weight: bold;
 }

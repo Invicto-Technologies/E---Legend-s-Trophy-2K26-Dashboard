@@ -9,13 +9,51 @@ const UpcomingMatches = () => {
     const [upcomingMatches, setUpcomingMatches] = useState({});
     const [editingMatch, setEditingMatch] = useState(null);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [newMatch, setNewMatch] = useState({
+        active: 1,
         id: '',
         title: '',
         teams: '',
         time: '',
         date: ''
     });
+
+    // Function to convert date string to Date object
+    const parseMatchDateTime = (dateStr, timeStr) => {
+        // Parse date in "01-Nov-2025" format
+        const dateParts = dateStr.split('-');
+        const day = parseInt(dateParts[0], 10);
+        const month = new Date(`${dateParts[1]} 1, 2000`).getMonth(); // Convert month name to number (0-11)
+        const year = parseInt(dateParts[2], 10);
+
+        // Parse time in "2:30 PM" format
+        const timeParts = timeStr.split(' ');
+        const timeValue = timeParts[0];
+        const period = timeParts[1];
+        const [hours, minutes] = timeValue.split(':').map(Number);
+
+        // Convert to 24-hour format
+        let hours24 = hours;
+        if (period === 'PM' && hours !== 12) {
+            hours24 += 12;
+        } else if (period === 'AM' && hours === 12) {
+            hours24 = 0;
+        }
+        return new Date(year, month, day, hours24, minutes);
+    };
+
+    // Sort matches by date and time
+    const getSortedMatches = () => {
+        return Object.entries(upcomingMatches)
+            .map(([key, match]) => ({
+                key,
+                match,
+                dateTime: parseMatchDateTime(match.date, match.time)
+            }))
+            .sort((a, b) => a.dateTime - b.dateTime)
+            .map(({ key, match }) => [key, match]);
+    };
 
     useEffect(() => {
         const upcomingDataRef = ref(database, 'UpcomingMatchData');
@@ -33,22 +71,31 @@ const UpcomingMatches = () => {
         if (editingMatch) {
             setEditingMatch(prev => ({
                 ...prev,
-                [name]: value
+                [name]: name === 'active' || name === 'id' ? Number(value) : value
             }));
         } else {
             setNewMatch(prev => ({
                 ...prev,
-                [name]: value
+                [name]: name === 'active' || name === 'id' ? Number(value) : value
             }));
         }
     };
 
+    const toggleMatchStatus = async (matchId, currentStatus) => {
+        try {
+            const matchRef = ref(database, `UpcomingMatchData/upcomingMatches/${matchId}/active`);
+            await set(matchRef, currentStatus === 1 ? 0 : 1);
+        } catch (error) {
+            console.error('Error toggling match status:', error);
+            alert('Failed to toggle match status');
+        }
+    };
+
     const addNewMatch = async () => {
+        setIsUploading(true);
         try {
             const matchesRef = ref(database, 'UpcomingMatchData/upcomingMatches');
             const newMatchRef = push(matchesRef);
-
-            // Generate a simple ID based on timestamp
             const matchId = new Date().getTime();
 
             await set(newMatchRef, {
@@ -57,6 +104,7 @@ const UpcomingMatches = () => {
             });
 
             setNewMatch({
+                active: 1,
                 id: '',
                 title: '',
                 teams: '',
@@ -68,6 +116,10 @@ const UpcomingMatches = () => {
         } catch (error) {
             console.error('Error adding new match:', error);
             alert('Failed to add new match');
+            setIsUploading(false);
+        }
+        finally {
+            setIsUploading(false);
         }
     };
 
@@ -108,11 +160,11 @@ const UpcomingMatches = () => {
             <h2>Upcoming Matches</h2>
 
             <div className="upcoming-status-control">
-                <label>
+                <label >
                     Upcoming Matches Status:
-                    <span className={`status-indicator ${isUpcoming ? 'active' : 'inactive'}`}>
+                    <label className={`upComingStatus-indicator ${isUpcoming ? 'active' : 'inactive'}`}>
                         {isUpcoming ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
+                    </label>
                     <button onClick={toggleUpcomingStatus} className="toggle-status-btn">
                         {isUpcoming ? 'Deactivate' : 'Activate'}
                     </button>
@@ -124,6 +176,17 @@ const UpcomingMatches = () => {
                     {editingMatch ? (
                         <div className="edit-match-form">
                             <h3>Edit Match</h3>
+                            <div className="form-group">
+                                <label>Active Status:</label>
+                                <select
+                                    name="active"
+                                    value={editingMatch.active}
+                                    onChange={handleInputChange}
+                                >
+                                    <option value={1}>Active</option>
+                                    <option value={0}>Inactive</option>
+                                </select>
+                            </div>
                             <div className="form-group">
                                 <label>Title:</label>
                                 <input
@@ -183,6 +246,7 @@ const UpcomingMatches = () => {
                                     value={newMatch.title}
                                     onChange={handleInputChange}
                                     placeholder="e.g., 5th, 6th, Final"
+                                    disabled={isUploading}
                                 />
                             </div>
                             <div className="form-group">
@@ -216,12 +280,24 @@ const UpcomingMatches = () => {
                                 />
                             </div>
                             <div className="form-actions">
-                                <button onClick={addNewMatch} className="save-btn">
-                                    Add Match
+                                <button
+                                    onClick={addNewMatch}
+                                    className="save-btn"
+                                    disabled={isUploading}
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <span className="spinner"></span>
+                                            Uploading...
+                                        </>
+                                    ) : (
+                                        'Add Match'
+                                    )}
                                 </button>
                                 <button
                                     onClick={() => setShowAddForm(false)}
                                     className="cancel-btn"
+                                    disabled={isUploading}
                                 >
                                     Cancel
                                 </button>
@@ -238,10 +314,16 @@ const UpcomingMatches = () => {
 
                             <div className="matches-list">
                                 {Object.keys(upcomingMatches).length > 0 ? (
-                                    Object.entries(upcomingMatches).map(([key, match]) => (
-                                        <div key={key} className="match-card">
+                                    getSortedMatches().map(([key, match]) => (
+                                        <div key={key} className={`match-card ${match.active ? '' : 'inactive'}`}>
                                             <div className="match-header">
                                                 <h3>{match.title}</h3>
+                                                <button
+                                                    onClick={() => toggleMatchStatus(key, match.active)}
+                                                    className={`status-toggle ${match.active ? 'active' : 'inactive'}`}
+                                                >
+                                                    {match.active ? 'Active' : 'Inactive'}
+                                                </button>
                                                 <div className="match-teams">{match.teams}</div>
                                             </div>
                                             <div className="match-details">
