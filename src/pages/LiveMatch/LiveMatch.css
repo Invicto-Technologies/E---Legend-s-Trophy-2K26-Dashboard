@@ -1,18 +1,19 @@
 /* LiveMatch.css */
 .live-match-container {
-    max-width: 800px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
     margin: 0 auto;
     padding: 20px;
     background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-.live-match-container h2 {
+.liveMatchH2 {
     color: rgb(5, 152, 210);
     border-bottom: 2px solid rgb(5, 152, 210);
-    padding-bottom: 10px;
-    margin-bottom: 20px;
+    font-size: 20px;
+    font-weight: bold;
+    margin-right: 10px;
 }
 
 .live-status-control {
@@ -24,7 +25,6 @@
 
 .status-indicator {
     padding: 4px 8px;
-    margin: 0 10px;
     border-radius: 4px;
     font-weight: bold;
 }
@@ -37,20 +37,6 @@
 .status-indicator.not-live {
     background-color: #888;
     color: white;
-}
-
-.toggle-status-btn {
-    background-color: rgb(5, 152, 210);
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-left: 10px;
-}
-
-.toggle-status-btn:hover {
-    background-color: rgb(4, 132, 190);
 }
 
 .edit-live-match-form {
@@ -158,20 +144,19 @@
 .match-status {
     color: #666;
     font-style: italic;
-    margin: 5px 0 0;
+    margin: 0px 10px 5px;
 }
 
 .scorecard {
     display: flex;
     justify-content: space-around;
     align-items: center;
-    margin: 20px 0;
 }
 
 .team-score {
     flex: 1;
     text-align: center;
-    padding: 15px;
+    padding: 10px;
     border-radius: 8px;
     background-color: #f9f9f9;
 }
@@ -182,14 +167,14 @@
 }
 
 .team-score h4 {
-    margin: 0 0 10px;
+    margin: 0;
     color: rgb(5, 152, 210);
 }
 
 .team-score .score {
     font-size: 1.5rem;
     font-weight: bold;
-    margin: 5px 0;
+    margin: 0;
 }
 
 .team-score .overs {
@@ -222,4 +207,493 @@
 .no-live-match p {
     margin-bottom: 20px;
     color: #666;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.match-selector-modal {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    width: 80%;
+    max-width: 600px;
+    max-height: 100vh;
+    overflow-y: auto;
+}
+
+.match-list {
+    margin: 15px 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.match-item {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    cursor: pointer;
+}
+
+.match-item.selected {
+    border-color: rgb(5, 152, 210);
+    background-color: rgba(5, 152, 210, 0.1);
+}
+
+.match-title {
+    font-weight: bold;
+    color: rgb(5, 152, 210);
+}
+
+.match-teams {
+    font-weight: bold;
+}
+
+.match-time {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.match-configuration {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-btn {
+    background-color: rgb(5, 152, 210);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.confirm-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.cancel-btn {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.loading-container {
+    text-align: center;
+    padding: 40px;
+    font-size: 1.2rem;
+    color: #666;
+}
+
+.match-display {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.match-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.match-header h3 {
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+.match-teams {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #3498db;
+}
+
+.match-date-time {
+    color: #666;
+    font-style: italic;
+}
+
+.match-status {
+    color: #e74c3c;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.score-summary {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+}
+
+.team-summary {
+    text-align: center;
+    flex: 1;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.team-summary.batting {
+    background-color: rgba(52, 152, 219, 0.1);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.team-summary h4 {
+    margin: 0 0 5px 0;
+    color: #2c3e50;
+}
+
+.team-summary p {
+    margin: 5px 0;
+    font-size: 1.1rem;
+}
+
+.vs-separator {
+    font-weight: bold;
+    color: #666;
+}
+
+.team-details {
+    margin: 30px 0;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+}
+
+.team-details.batting-team {
+    border-left: 4px solid #3498db;
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.team-details h3 {
+    color: #2c3e50;
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.batting-label {
+    color: #e74c3c;
+    font-size: 0.9rem;
+}
+
+.current-players {
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.current-players h4 {
+    margin-top: 0;
+    color: #3498db;
+}
+
+.current-players p {
+    margin: 5px 0;
+}
+
+.stats-section {
+    margin-bottom: 25px;
+}
+
+.stats-section h4 {
+    color: #3498db;
+    margin-bottom: 10px;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stats-header,
+.stats-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 2fr;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.stats-header {
+    background-color: #3498db;
+    color: white;
+    font-weight: bold;
+}
+
+.stats-row:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.fall-of-wickets {
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.fall-of-wickets h4 {
+    margin-top: 0;
+    color: #3498db;
+}
+
+.wickets-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.wicket-item {
+    display: flex;
+    gap: 5px;
+    padding: 5px;
+    border-bottom: 1px dashed #eee;
+}
+
+.wicket-score {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.wicket-name {
+    flex: 1;
+}
+
+.wicket-over {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.scoring-controls {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f9f6f6;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.liveScoreActionCard {
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: rgb(5, 152, 210);
+    margin-top: 10px;
+}
+
+.runs-buttons,
+.extras-buttons,
+.wicket-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.runs-buttons button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 20px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.extras-buttons button {
+    background-color: #FFC107;
+    color: black;
+    padding: 20px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.wicket-buttons button {
+    background-color: #F44336;
+    color: white;
+    padding: 15px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.player-selector-modal,
+.dismissal-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+}
+
+.player-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.match-info {
+    background-color: white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 5px 20px;
+    border-radius: 5px;
+    font-size: 15px;
+}
+
+.match-info p label {
+    color: rgb(5, 152, 210);
+    font-weight: bold;
+}
+
+/* Add to your LiveMatch.css */
+.innings-notification {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 20px 40px;
+    border-radius: 8px;
+    z-index: 1000;
+    text-align: center;
+    animation: fadeInOut 3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0% {
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+.select-player-btn {
+    margin-left: 10px;
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.select-player-btn:hover {
+    background-color: #45a049;
+}
+
+.player-selector-modal {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.player-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.player-list button {
+    padding: 8px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.player-list button:hover {
+    background-color: #e0e0e0;
+}
+
+.yet-to-bat-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.yet-to-bat-player {
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.extras-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 5px;
+}
+
+.extra-item {
+    font-weight: 500;
+    color: #444;
 }
