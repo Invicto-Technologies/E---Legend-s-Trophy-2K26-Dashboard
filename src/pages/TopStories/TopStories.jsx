@@ -1,6 +1,6 @@
 // pages/TopStories.jsx
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, set, push, remove } from 'firebase/database';
+import { ref, onValue, set, update, remove } from 'firebase/database';
 import { database } from '../../components/firebase';
 import './TopStories.css';
 
@@ -78,16 +78,12 @@ const TopStories = () => {
 
     const addNewStory = async () => {
         try {
-            const storiesRef = ref(database, 'AllStories');
-            const newStoryRef = push(storiesRef);
+            const storyId = Date.now();
 
-            // Generate a simple ID based on timestamp
-            const storyId = new Date().getTime();
+            const updates = {};
+            updates[`AllStories/${storyId}`] = newStory;
 
-            await set(newStoryRef, {
-                ...newStory,
-                id: storyId
-            });
+            await update(ref(database), updates);
 
             setNewStory({
                 id: '',

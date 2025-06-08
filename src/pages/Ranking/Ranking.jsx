@@ -1,6 +1,6 @@
 // pages/Ranking.jsx
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, set, push } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 import { database } from '../../components/firebase';
 import './Ranking.css';
 
@@ -179,6 +179,11 @@ const Ranking = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {!getSortedPlayers(activeTab === 'batters' ? batters : bowlers) &&
+                                        (
+                                            <p style={{marginTop:'20px'}}>There are no {activeTab === 'batters' ? 'batters' : 'bowlers'} available yet</p>
+                                        )
+                                    }
                                     {getSortedPlayers(activeTab === 'batters' ? batters : bowlers).map((player) => (
                                         <tr key={player.id} className={player.rank <= 3 ? 'top-three' : ''}>
                                             <td>{player.rank}</td>

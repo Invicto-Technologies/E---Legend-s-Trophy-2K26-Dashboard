@@ -1,6 +1,6 @@
 // pages/LiveMatch.jsx
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, set, update } from 'firebase/database';
+import { ref, onValue, set, update, get } from 'firebase/database';
 import { database } from '../../components/firebase';
 import './LiveMatch.css';
 import { TeamDetails } from '../../components/TeamDetails';
@@ -32,10 +32,10 @@ const LiveMatch = () => {
     const [showFielderModal, setShowFielderModal] = useState(false);
     const [currentDismissalType, setCurrentDismissalType] = useState(null);
     const [showExtraRunsModal, setShowExtraRunsModal] = useState(false);
-    const [showExtraReasonModal, setShowExtraReasonModal] = useState(false);
     const [currentExtraType, setCurrentExtraType] = useState(null);
     const [extraRunsInput, setExtraRunsInput] = useState("0");
     const [extraReasonInput, setExtraReasonInput] = useState("1");
+    const [extraRunOutInput, setExtraRunOutInput] = useState("1");
     const [showMOMSelector, setShowMOMSelector] = useState(false);
     const [showRunOutModal, setShowRunOutModal] = useState(false);
     const [runsBeforeOut, setRunsBeforeOut] = useState(0);
@@ -268,6 +268,7 @@ const LiveMatch = () => {
                     firstBat: 1,
                     result: '',
                     mom: '',
+                    overBallsTypes: [],
                     finished: 0,
                 }
             };
@@ -277,9 +278,9 @@ const LiveMatch = () => {
             await set(ref(database, match.title), matchData);
 
             // Remove the match from upcoming matches
-            // const updates = {};
-            // updates[`upcomingMatches/${selectedMatch}`] = null;
-            // await update(ref(database, 'UpcomingMatchData'), updates);
+            const updates = {};
+            updates[`upcomingMatches/${selectedMatch}`] = null;
+            await update(ref(database, 'UpcomingMatchData'), updates);
 
             // Reset state
             setShowMatchSelector(false);
@@ -375,9 +376,17 @@ const LiveMatch = () => {
 
             const newBallsInOver = (matchData[battingTeam].totalBalls || 0);
             const isOverCompleted = newBallsInOver % 6 === 0;
-            if (isOverCompleted) {
+
+            if (newBallsInOver >= 120 && (currentExtraType !== "WB" && currentExtraType !== "NB")) {
+                await handleInningsCompletion();
+            }
+            else if (isOverCompleted && (currentExtraType !== "WB" && currentExtraType !== "NB")) {
                 await handleOverCompletion();
             }
+            setCurrentDismissalType(null);
+            setCurrentExtraType(null);
+            setFielder(null);
+            setOutBatsman(null);
         } catch (error) {
             console.error('Error in runOutPlayerShift:', error);
             alert('Failed to swap batsmen positions');
@@ -451,6 +460,8 @@ const LiveMatch = () => {
         // Prepare updates object for Firebase
         const updates = {};
         const matchPath = matchData.common.title;
+        const currentOverTypes = matchData.common.overBallsTypes || [];
+        let newOverTypes = [];
 
         // Update batsman stats
         updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] =
@@ -464,19 +475,30 @@ const LiveMatch = () => {
             );
 
         // Update boundaries based on runs
-        if (runs === 4) {
-            updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/fours`] =
-                (matchData[battingTeam].players[strikerId]?.boundaries?.fours || 0) + 1;
-        } else if (runs === 6) {
+        if (runs === 6) {
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/sixes`] =
                 (matchData[battingTeam].players[strikerId]?.boundaries?.sixes || 0) + 1;
+            newOverTypes = [...currentOverTypes, "6"];
+        } else if (runs === 4) {
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/fours`] =
+                (matchData[battingTeam].players[strikerId]?.boundaries?.fours || 0) + 1;
+            newOverTypes = [...currentOverTypes, "4"];
+        } else if (runs === 3) {
+            newOverTypes = [...currentOverTypes, "3"];
         } else if (runs === 2) {
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/twos`] =
                 (matchData[battingTeam].players[strikerId]?.boundaries?.twos || 0) + 1;
+            newOverTypes = [...currentOverTypes, "2"];
         } else if (runs === 1) {
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/singles`] =
                 (matchData[battingTeam].players[strikerId]?.boundaries?.singles || 0) + 1;
+            newOverTypes = [...currentOverTypes, "1"];
+        } else if (runs === 0) {
+            newOverTypes = [...currentOverTypes, "0"];
         }
+
+        // Update over type
+        updates[`${matchPath}/common/overBallsTypes`] = newOverTypes;
 
         // Update bowler stats
         updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/runs`] =
@@ -569,6 +591,7 @@ const LiveMatch = () => {
         }));
 
         // Update in matchData
+        updates[`${matchPath}/common/overBallsTypes`] = null;
         updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
         updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
 
@@ -597,23 +620,9 @@ const LiveMatch = () => {
 
     const handleExtraRunsSubmit = async () => {
         const extraRuns = parseInt(extraRunsInput);
-
-        if (extraRuns > 0 && currentExtraType !== 'LB') {
-            setShowExtraRunsModal(false);
-            setShowExtraReasonModal(true);
-        } else {
-            await processExtra(currentExtraType, extraRuns, null);
-            setShowExtraRunsModal(false);
-        }
-    };
-
-    // Function to handle extra reason submission
-    const handleExtraReasonSubmit = async () => {
-        const extraRuns = parseInt(extraRunsInput);
-        const extraReason = extraReasonInput === "1";
+        const extraReason = currentDismissalType !== "LB" ? extraReasonInput === "1" : null;
 
         await processExtra(currentExtraType, extraRuns, extraReason);
-        setShowExtraReasonModal(false);
     };
 
     const processExtra = async (type, extraRuns, extraReason) => {
@@ -622,13 +631,17 @@ const LiveMatch = () => {
         const bowlingTeam = isTeam1Batting ? 'team2' : 'team1';
         const matchPath = matchData.common.title;
         const strikerId = currentBatsmen.striker.id;
+        const currentOverTypes = matchData.common.overBallsTypes || [];
+        let newOverTypes = [];
 
         const updates = {};
 
-        // Update extraTypes array
+        // Update extraTypes array and over type array
         const currentExtraTypes = matchData[battingTeam].extraTypes || [];
-        const newExtraTypes = [...currentExtraTypes, `${extraRuns}${type}`];
+        const newExtraTypes = extraRunOutInput !== "2" ? [...currentExtraTypes, `${extraRuns}${type}`] : [...currentExtraTypes, `W${type}`];
         updates[`${matchPath}/${battingTeam}/extraTypes`] = newExtraTypes;
+        newOverTypes = extraRunOutInput !== "2" ? [...currentOverTypes, `${extraRuns}${type}`] : [...currentOverTypes, `W${type}`];
+        updates[`${matchPath}/common/overBallsTypes`] = newOverTypes;
 
         // Update team totals
         const newTotalRuns = type !== 'LB' ? (matchData[battingTeam]?.totalRuns || 0) + extraRuns + 1 : (matchData[battingTeam]?.totalRuns || 0) + extraRuns;
@@ -700,32 +713,64 @@ const LiveMatch = () => {
             const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
             const isOverCompleted = newBallsInOver % 6 === 0;
 
-            if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
+            if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120 && extraRunOutInput !== "2") {
+                await update(ref(database), updates);
                 await handleInningsCompletion();
             }
-            else if (isOverCompleted) {
+            else if (isOverCompleted && extraRunOutInput !== "2") {
                 await handleOverCompletion();
             }
         }
 
         // Handle batsman rotation if runs are scored
-        if (extraRuns % 2 !== 0) {
-            // Swap striker and non-striker
-            updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
-            updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
+        if (extraRunOutInput === "2") {
+            setCurrentDismissalType("run out");
+            let dismissalText = '';
+            const runOutFielder = matchData[bowlingTeam].players[fielder]?.name || 'fielder';
+            dismissalText = `run out (${runOutFielder})`;
 
-            // Update local state
-            setCurrentBatsmen(prev => ({
-                striker: prev.nonStriker,
-                nonStriker: prev.striker
-            }));
+            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/dismissal`] = dismissalText;
+            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = 'out';
+
+            updates[`${matchPath}/${battingTeam}/totalWickets`] =
+                (matchData[battingTeam].totalWickets || 0) + 1;
+            updates[`LiveData/liveScore/${battingTeam}/wicket`] =
+                (matchData[battingTeam].totalWickets || 0) + 1;
+
+            // Add to fall of wickets
+            const wicketNumber = (matchData[battingTeam].totalWickets || 0) + 1;
+            const currentScore = matchData[battingTeam].totalRuns || 0;
+            const currentOver = ballsToOvers((matchData[battingTeam].totalBalls || 0) + 1);
+
+            updates[`${matchPath}/${battingTeam}/fallOfWickets/${wicketNumber}`] = {
+                score: `${currentScore}/${wicketNumber}`,
+                name: matchData[battingTeam].players[outBatsman].name,
+                over: currentOver
+            };
+
+            setSelectingFor(outBatsmanType);
+            setShowBatsmanSelector(true);
+        } else {
+            if (extraRuns % 2 !== 0) {
+                // Swap striker and non-striker
+                updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
+                updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
+
+                // Update local state
+                setCurrentBatsmen(prev => ({
+                    striker: prev.nonStriker,
+                    nonStriker: prev.striker
+                }));
+            }
         }
-
         try {
             // Update all paths in Firebase
             await update(ref(database), updates);
             setExtraRunsInput("0");
             setExtraReasonInput("1");
+            setExtraRunOutInput("1")
+            setFielder(null);
+
         } catch (error) {
             console.error('Error recording extra:', error);
             alert('Failed to record extra');
@@ -746,7 +791,7 @@ const LiveMatch = () => {
             setShowFielderModal(true);
         } else if (type === 'run out') {
             setShowRunOutModal(true);
-            setFielder("");
+            setFielder(null);
         } else {
             setShowDismissalModal(true);
         }
@@ -770,6 +815,13 @@ const LiveMatch = () => {
 
         const updates = {};
         const matchPath = matchData.common.title;
+
+        // Over type update
+        const currentOverTypes = matchData.common.overBallsTypes || [];
+        let newOverTypes = [];
+
+        newOverTypes = [...currentOverTypes, "W"];
+        updates[`${matchPath}/common/overBallsTypes`] = newOverTypes;
 
         // Update batsman status
         if (currentDismissalType !== 'run out') {
@@ -879,9 +931,10 @@ const LiveMatch = () => {
             over: currentOver
         };
 
+        // Update match data in Firebase
+        await update(ref(database), updates);
+
         // Check if innings should end (10 wickets or overs completed) and (matchData[battingTeam].totalBalls || 0) + 1
-
-
         if ((matchData[battingTeam].totalWickets || 0) + 1 >= 10) {
             await handleInningsCompletion();
         }
@@ -904,14 +957,12 @@ const LiveMatch = () => {
             }
         }
 
-        // Update match data in Firebase
-        await update(ref(database), updates);
-
         setShowDismissalModal(false);
         setShowFielderModal(false);
         setOutBatsman(null);
         setOutBatsmanType(null);
         setFielder(null);
+        setCurrentDismissalType(null);
     };
 
     const handleInningsCompletion = async () => {
@@ -927,6 +978,7 @@ const LiveMatch = () => {
         updates[`LiveData/liveScore/firstBat`] = 0;
 
         //firebase update
+        updates[`${matchPath}/common/overBallsTypes`] = null;
         updates[`${matchPath}/common/firstBat`] = 0;
 
         try {
@@ -956,40 +1008,181 @@ const LiveMatch = () => {
         }
     };
 
-    // MOM selection handler
-    const handleMOMSelection = async (playerId, playerName) => {
+    // Final match details selection handler
+    const handleFinalMatchDetailsSelection = async (playerId, playerName) => {
         const matchPath = matchData.common.title;
         const updates = {};
 
-        updates[`${matchPath}/common/mom`] = playerName;
-
         // Calculate results
+        const team1Name = matchData.team1.name;
+        const team2Name = matchData.team2.name;
         const team1Runs = matchData.team1.totalRuns || 0;
         const team2Runs = matchData.team2.totalRuns || 0;
+        const team1Wickets = matchData.team1.totalWickets || 0;
         const team2Wickets = matchData.team2.totalWickets || 0;
+        const team1Overs = matchData.team1.overs || 0;
+        const team2Overs = matchData.team2.overs || 0;
 
         let result = "";
+        const score = `${matchData.team1.name} ${team1Runs}/${team1Wickets} (${team1Overs}) • ${matchData.team2.name} ${team2Runs}/${team2Wickets} (${team2Overs})`;
+        let winningTeam = "";
 
         if (team1Runs > team2Runs) {
             const margin = team1Runs - team2Runs;
             result = `${matchData.team1.name} won by ${margin} ${margin === 1 ? 'run' : 'runs'}`;
+            winningTeam = team1Name;
         }
         else if (team2Runs > team1Runs) {
             const wicketsLeft = 10 - team2Wickets;
             result = `${matchData.team2.name} won by ${wicketsLeft} ${wicketsLeft === 1 ? 'wicket' : 'wickets'}`;
+            winningTeam = team2Name;
         }
         else {
             result = "Match tied";
         }
 
+        // Get current date and time in the required format
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}.${String(now.getMinutes()).padStart(2, '0')}${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+        const matchTime = `${dateStr} ${timeStr}`;
+
+        const newMatchId = Date.now();
+
+        // Prepare the finished match data
+        const finishedMatchData = {
+            active: 1,
+            id: newMatchId,
+            title: matchData.common.title,
+            teams: matchData.common.teams,
+            result: result,
+            score: score,
+            time: matchTime,
+            mom: playerName
+        };
+
+        //Update batter ranking
+        const battingTeam1Players = Object.entries(matchData.team1.players || {});
+        const battingTeam2Players = Object.entries(matchData.team2.players || {});
+
+        const allBatters = [...battingTeam1Players, ...battingTeam2Players];
+
+        for (const [id, player] of allBatters) {
+            if (player.runs > 0) {
+                const batterKey = `RankingData/batters/${id}`;
+
+                // Get existing batter data or create new entry
+                const batterRef = ref(database, batterKey);
+                const snapshot = await get(batterRef);
+
+                if (snapshot.exists()) {
+                    // Update existing batter
+                    updates[`${batterKey}/rating`] = (snapshot.val().rating || 0) + player.runs;
+                } else {
+                    // Create new batter entry
+                    updates[batterKey] = {
+                        id: parseInt(id),
+                        name: player.name,
+                        team: matchData.team1.players[id] ? matchData.team1.name : matchData.team2.name,
+                        rating: player.runs,
+                    };
+                }
+            }
+        }
+
+        // Update bowlers ranking
+        const bowlingTeam1Players = Object.entries(matchData.team1.bowlers || {});
+        const bowlingTeam2Players = Object.entries(matchData.team2.bowlers || {});
+
+        const allBowlers = [...bowlingTeam1Players, ...bowlingTeam2Players];
+
+        for (const [id, bowler] of allBowlers) {
+            if (bowler.wickets > 0 || bowler.overs > 0) {
+                const bowlerKey = `RankingData/bowlers/${id}`;
+
+                // Get existing bowler data or create new entry
+                const bowlerRef = ref(database, bowlerKey);
+                const snapshot = await get(bowlerRef);
+
+                if (snapshot.exists()) {
+                    // Update existing bowler
+                    updates[`${bowlerKey}/rating`] = (snapshot.val().rating || 0) + bowler.wickets;
+                } else {
+                    // Create new bowler entry
+                    updates[bowlerKey] = {
+                        id: parseInt(id),
+                        name: bowler.name,
+                        team: matchData.team1.bowlers[id] ? matchData.team1.name : matchData.team2.name,
+                        rating: bowler.wickets,
+                    };
+                }
+            }
+        }
+
+        // Update points table
+        const pointsTableRef = ref(database, 'RankingData/pointsTable');
+        const pointsSnapshot = await get(pointsTableRef);
+        const currentPointsTable = pointsSnapshot.val() || {};
+
+        // Find team IDs in the existing points table
+        let team1Id = null;
+        let team2Id = null;
+
+        // Search for teams in the existing points table
+        for (const [key, team] of Object.entries(currentPointsTable)) {
+            if (team.team === team1Name) team1Id = key;
+            if (team.team === team2Name) team2Id = key;
+        }
+
+        // Update matches played
+        updates[`RankingData/pointsTable/${team1Id}/played`] = (currentPointsTable[team1Id]?.played || 0) + 1;
+        updates[`RankingData/pointsTable/${team2Id}/played`] = (currentPointsTable[team2Id]?.played || 0) + 1;
+
+        // Update wins/losses based on result
+        if (winningTeam === team1Name) {
+            updates[`RankingData/pointsTable/${team1Id}/won`] = (currentPointsTable[team1Id]?.won || 0) + 1;
+            updates[`RankingData/pointsTable/${team1Id}/pts`] = (currentPointsTable[team1Id]?.pts || 0) + 2;
+            updates[`RankingData/pointsTable/${team2Id}/lost`] = (currentPointsTable[team2Id]?.lost || 0) + 1;
+        } else if (winningTeam === team2Name) {
+            updates[`RankingData/pointsTable/${team2Id}/won`] = (currentPointsTable[team2Id]?.won || 0) + 1;
+            updates[`RankingData/pointsTable/${team2Id}/pts`] = (currentPointsTable[team2Id]?.pts || 0) + 2;
+            updates[`RankingData/pointsTable/${team1Id}/lost`] = (currentPointsTable[team1Id]?.lost || 0) + 1;
+        } else {
+            updates[`RankingData/pointsTable/${team1Id}/nr`] = (currentPointsTable[team1Id]?.nr || 0) + 1;
+            updates[`RankingData/pointsTable/${team1Id}/pts`] = (currentPointsTable[team1Id]?.pts || 0) + 1;
+            updates[`RankingData/pointsTable/${team2Id}/nr`] = (currentPointsTable[team2Id]?.nr || 0) + 1;
+            updates[`RankingData/pointsTable/${team2Id}/pts`] = (currentPointsTable[team2Id]?.pts || 0) + 1;
+        }
+
+        // Calculate and update NRR (Net Run Rate)
+        const team1NRR = ((team1Runs / (team1Overs || 1)) - (team2Runs / (team2Overs || 1)));
+        const team2NRR = ((team2Runs / (team2Overs || 1)) - (team1Runs / (team1Overs || 1)));
+
+        updates[`RankingData/pointsTable/${team1Id}/nrr`] = parseFloat(((currentPointsTable[team1Id]?.nrr || 0) + team1NRR).toFixed(2));
+        updates[`RankingData/pointsTable/${team2Id}/nrr`] = parseFloat(((currentPointsTable[team2Id]?.nrr || 0) + team2NRR).toFixed(2));
+
+        // Update match results
+        updates[`${matchPath}/common/mom`] = playerName;
         updates[`${matchPath}/common/result`] = result;
         updates[`${matchPath}/common/finished`] = 1;
-        // updates[`LiveData/isLive`] = 0;
+        updates[`LiveData/isLive`] = 0;
+
+        updates[`FixturesData/finishedMatches/${newMatchId}`] = finishedMatchData;
+
+        // Remove ball face and other side batters
+        setCurrentBatsmen({
+            striker: { id: null, name: null },
+            nonStriker: { id: null, name: null }
+        });
+        updates[`${matchPath}/team1/ballFaceBatsman`] = null;
+        updates[`${matchPath}/team1/otherSideBatsman`] = null;
+        updates[`${matchPath}/team2/ballFaceBatsman`] = null;
+        updates[`${matchPath}/team2/otherSideBatsman`] = null;
 
         try {
+            await update(ref(database), updates);
             setLoading(true);
             setIsLive(0);
-            await update(ref(database), updates);
             setShowMOMSelector(false);
             window.location.reload();
         } catch (error) {
@@ -997,6 +1190,32 @@ const LiveMatch = () => {
             alert('Failed to save Man of the Match');
         }
     };
+
+    const handleShiftBatters = async () => {
+        const isTeam1Batting = matchData.common.firstBat === 1;
+        const battingTeam = isTeam1Batting ? 'team1' : 'team2';
+
+        const updates = {};
+        const matchPath = matchData.common.title;
+
+        // Swap striker and non-striker
+        setCurrentBatsmen(prev => ({
+            striker: prev.nonStriker,
+            nonStriker: prev.striker
+        }));
+
+        // Update in matchData
+        updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
+        updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
+
+        try {
+            // Update all paths in Firebase in a single transaction
+            await update(ref(database), updates);
+        } catch (error) {
+            console.error('Error updating shifting batters:', error);
+            alert('Failed to update score');
+        }
+    }
 
     if (loading) {
         return <div className="loading-container">Loading match data...</div>;
@@ -1084,39 +1303,64 @@ const LiveMatch = () => {
                         </div>
                     </div>
                 )}
+
+                {matchData && (
+                    <div className="scoring-controls">
+                        <p className='liveScoreActionCard'>Special Controls</p>
+
+                        <div className="runs-buttons">
+                            <button onClick={() => handleShiftBatters()} style={{ backgroundColor: 'rgba(5, 152, 210, 0.83)' }}>Shift Batters</button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div style={{ maxWidth: '900px' }}>
                 {matchData && (
                     <div>
                         <div className="match-info">
-                            <p>
-                                <label>Bowler: </label>
-                                {currentBowler?.name || 'Not selected'}
-                                {!currentBowler.id && (
-                                    <button onClick={handleSelectBowler} className="select-player-btn">
-                                        Select Bowler
-                                    </button>
-                                )}
-                            </p>
-                            <p>
-                                <label>Striker: </label>
-                                {currentBatsmen?.striker?.name || 'Not selected'}
-                                {!currentBatsmen.striker.id && (
-                                    <button onClick={() => handleSelectBatsman('striker')} className="select-player-btn">
-                                        Select Striker
-                                    </button>
-                                )}
-                            </p>
-                            <p>
-                                <label>Non-Striker: </label>
-                                {currentBatsmen?.nonStriker?.name || 'Not selected'}
-                                {!currentBatsmen.nonStriker.id && (
-                                    <button onClick={() => handleSelectBatsman('nonStriker')} className="select-player-btn">
-                                        Select Non-Striker
-                                    </button>
-                                )}
-                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <p>
+                                    <label>Bowler: </label>
+                                    {currentBowler?.name || 'Not selected'}
+                                    {!currentBowler.id && (
+                                        <button onClick={handleSelectBowler} className="select-player-btn">
+                                            Select Bowler
+                                        </button>
+                                    )}
+                                </p>
+                                <p>
+                                    <label>Striker: </label>
+                                    {currentBatsmen?.striker?.name || 'Not selected'}
+                                    {!currentBatsmen.striker.id && (
+                                        <button onClick={() => handleSelectBatsman('striker')} className="select-player-btn">
+                                            Select Striker
+                                        </button>
+                                    )}
+                                </p>
+                                <p>
+                                    <label>Non-Striker: </label>
+                                    {currentBatsmen?.nonStriker?.name || 'Not selected'}
+                                    {!currentBatsmen.nonStriker.id && (
+                                        <button onClick={() => handleSelectBatsman('nonStriker')} className="select-player-btn">
+                                            Select Non-Striker
+                                        </button>
+                                    )}
+                                </p>
+                            </div>
+
+                            {matchData.common.overBallsTypes && (
+                                <div style={{ display: 'flex', flexDirection: 'row', marginBottom: '20px' }}>
+                                    <span>Balls of over ({liveScore.firstBat === 1 ? (matchData.team1.overs) : (matchData.team2.overs)})</span>
+                                    <div className="extras-list">
+                                        {Object.entries(matchData.common.overBallsTypes).map(([type, value]) => (
+                                            <span key={type} className="extra-item">
+                                                {value}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Team 2 Details */}
@@ -1290,52 +1534,102 @@ const LiveMatch = () => {
                             placeholder="Enter runs (default 1)"
                             style={{ marginLeft: "10px" }}
                         />
-                        <div className="modal-actions">
-                            <button onClick={handleExtraRunsSubmit} className="confirm-btn">
-                                Submit
-                            </button>
-                            <button
-                                onClick={() => setShowExtraRunsModal(false)}
-                                className="cancel-btn"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
-            {/* Extra Reason Modal */}
-            {showExtraReasonModal && (
-                <div className="modal-overlay">
-                    <div className="player-selector-modal">
-                        <h3>Reason for extra runs</h3>
-                        <div className="reason-options">
+                        {parseInt(extraRunsInput) > 0 && currentExtraType !== "LB" &&
+                            <>
+                                <h3>Reason for extra runs</h3><div className="reason-options">
+                                    <label>
+                                        <input
+                                            type="radio"
+                                            value="1"
+                                            checked={extraReasonInput === "1"}
+                                            onChange={() => setExtraReasonInput("1")} />
+                                        Hit (batsman hit the ball)
+                                    </label>
+                                    <label>
+                                        <input
+                                            type="radio"
+                                            value="2"
+                                            checked={extraReasonInput === "2"}
+                                            onChange={() => setExtraReasonInput("2")} />
+                                        Misfield (fielder error)
+                                    </label>
+                                </div>
+                            </>
+                        }
+
+                        <h3>Is run out?</h3><div className="reason-options">
                             <label>
                                 <input
                                     type="radio"
                                     value="1"
-                                    checked={extraReasonInput === "1"}
-                                    onChange={() => setExtraReasonInput("1")}
-                                />
-                                Hit (batsman hit the ball)
+                                    checked={extraRunOutInput === "1"}
+                                    onChange={() => setExtraRunOutInput("1")} />
+                                No
                             </label>
                             <label>
                                 <input
                                     type="radio"
                                     value="2"
-                                    checked={extraReasonInput === "2"}
-                                    onChange={() => setExtraReasonInput("2")}
-                                />
-                                Misfield (fielder error)
+                                    checked={extraRunOutInput === "2"}
+                                    onChange={() => setExtraRunOutInput("2")} />
+                                Yes
                             </label>
                         </div>
+
+                        {extraRunOutInput === "2" &&
+                            <>
+                                <h3>Select Fielder who get run out - {matchData?.common?.firstBat === 1 ? matchData?.team2?.players?.[fielder]?.name : matchData?.team1?.players?.[fielder]?.name}</h3>
+                                <div className="player-list">
+                                    {Object.entries(
+                                        matchData.common.firstBat === 1 ?
+                                            matchData.team2.players :
+                                            matchData.team1.players
+                                    ).map(([id, player]) => (
+                                        <button
+                                            key={id}
+                                            onClick={() => setFielder(id)}
+                                        >
+                                            {player.name}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <h3>Which batsman is out?</h3>
+                                <div className="reason-options">
+                                    <div style={{ display: 'flex', flexDirection: 'row', marginBottom: '-15px' }}>
+                                        <div style={{ width: '400px' }}>
+                                            <p>Striker: {currentBatsmen?.striker?.name}</p>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            checked={outBatsman === currentBatsmen?.striker?.id}
+                                            onChange={() => [setOutBatsman(currentBatsmen?.striker?.id), setOutBatsmanType('striker')]}
+                                            style={{ width: '20px' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'row' }}>
+                                        <div style={{ width: '400px' }}>
+                                            <p>Non-Striker: {currentBatsmen?.nonStriker?.name}</p>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            checked={outBatsman === currentBatsmen?.nonStriker?.id}
+                                            onChange={() => [setOutBatsman(currentBatsmen?.nonStriker?.id), setOutBatsmanType('nonStriker')]}
+                                            style={{ width: '20px' }} />
+                                    </div>
+                                </div>
+                            </>
+                        }
+
                         <div className="modal-actions">
-                            <button onClick={handleExtraReasonSubmit} className="confirm-btn">
+                            <button
+                                disabled={extraRunOutInput === "2" && (!fielder || !outBatsman)}
+                                onClick={() => [handleExtraRunsSubmit(), setShowExtraRunsModal(false)]} className="confirm-btn"
+                            >
                                 Submit
                             </button>
                             <button
-                                onClick={() => setShowExtraReasonModal(false)}
+                                onClick={() => [setShowExtraRunsModal(false), setCurrentDismissalType(null), setFielder(null), setOutBatsman(null), setExtraRunOutInput("1"), setCurrentExtraType(null)]}
                                 className="cancel-btn"
                             >
                                 Cancel
@@ -1359,7 +1653,7 @@ const LiveMatch = () => {
                                 Confirm
                             </button>
                             <button
-                                onClick={() => setShowDismissalModal(false)}
+                                onClick={() => [setShowDismissalModal(false), setFielder(null)]}
                                 className="cancel-btn"
                             >
                                 Cancel
@@ -1389,7 +1683,7 @@ const LiveMatch = () => {
                             ))}
                         </div>
                         <button
-                            onClick={() => setShowFielderModal(false)}
+                            onClick={() => [setShowFielderModal(false), setFielder(null)]}
                             className="cancel-btn"
                         >
                             Cancel
@@ -1405,7 +1699,7 @@ const LiveMatch = () => {
                         <h3>Run Out Details</h3>
 
                         <div className="form-group">
-                            <label>Select Fielder who {currentDismissalType} - {matchData?.common?.firstBat === 1 ? matchData?.team2?.players?.[fielder]?.name : matchData?.team1?.players?.[fielder]?.name}</label>
+                            <label>Select Fielder who get {currentDismissalType} - {matchData?.common?.firstBat === 1 ? matchData?.team2?.players?.[fielder]?.name : matchData?.team1?.players?.[fielder]?.name}</label>
                             <div className="player-list">
                                 {Object.entries(
                                     matchData.common.firstBat === 1 ?
@@ -1462,11 +1756,14 @@ const LiveMatch = () => {
                         </div>
 
                         <div className="modal-actions">
-                            <button onClick={() => [handleDismissalConfirmation(), setShowRunOutModal(false)]} className="confirm-btn">
+                            <button
+                                disabled={!fielder || !outBatsman}
+                                onClick={() => [handleDismissalConfirmation(), setShowRunOutModal(false)]} className="confirm-btn"
+                            >
                                 Confirm Run Out
                             </button>
                             <button
-                                onClick={() => setShowRunOutModal(false)}
+                                onClick={() => [setShowRunOutModal(false), setCurrentDismissalType(null), setFielder(null), setOutBatsman(null)]}
                                 className="cancel-btn"
                             >
                                 Cancel
@@ -1532,18 +1829,12 @@ const LiveMatch = () => {
                                 .map(([id, player]) => (
                                     <button
                                         key={id}
-                                        onClick={() => handleMOMSelection(id, player.name)}
+                                        onClick={() => handleFinalMatchDetailsSelection(id, player.name)}
                                     >
                                         {player.name} ({player.runs}r, {player.wickets}w)
                                     </button>
                                 ))}
                         </div>
-                        <button
-                            onClick={() => setShowMOMSelector(false)}
-                            className="cancel-btn"
-                        >
-                            Cancel
-                        </button>
                     </div>
                 </div>
             )}

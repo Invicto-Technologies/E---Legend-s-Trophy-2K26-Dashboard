@@ -202,13 +202,15 @@ const Teams = () => {
                     </div>
                     <div className="form-group">
                         <label>Role:</label>
-                        <input
-                            type="text"
+                        <select
                             name="role"
                             value={editingPlayer.role}
                             onChange={handlePlayerInputChange}
-                            placeholder="e.g., Captain, Vice Captain, Wicket Keeper, Bowler, Batter,etc."
-                        />
+                        >
+                            <option value="Batter">Batter</option>
+                            <option value="Bowler">Bowler</option>
+                            <option value="All Rounder">All-Rounder</option>
+                        </select>
                     </div>
                     <div className="form-group">
                         <label>Icon Type:</label>
