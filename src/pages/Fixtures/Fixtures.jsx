@@ -1,4 +1,3 @@
-// pages/Fixtures.jsx
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set, push } from 'firebase/database';
 import { database } from '../../components/firebase';
@@ -9,6 +8,7 @@ const Fixtures = () => {
     const [finishedMatches, setFinishedMatches] = useState({});
     const [editingMatch, setEditingMatch] = useState(null);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [teamsData, setTeamsData] = useState({});
     const [newMatch, setNewMatch] = useState({
         id: '',
         title: '',
@@ -17,6 +17,85 @@ const Fixtures = () => {
         score: '',
         time: ''
     });
+    const [dateInput, setDateInput] = useState('');
+    const [timeInput, setTimeInput] = useState('');
+    const [selectedTeam1, setSelectedTeam1] = useState('');
+    const [selectedTeam2, setSelectedTeam2] = useState('');
+
+    // Format time to "YYYY.MM.DD HH.MMAM/PM" format
+    const formatTime = (dateString, timeString) => {
+        if (!dateString || !timeString) return '';
+
+        const date = new Date(dateString);
+        const timeParts = timeString.split(':');
+        const hours = parseInt(timeParts[0]);
+        const minutes = timeParts[1];
+
+        // Format date as YYYY.MM.DD
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        // Format time as HH.MMAM/PM
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const formattedHours = hours % 12 || 12; // Convert to 12-hour format
+        const formattedTime = `${String(formattedHours).padStart(2, '0')}.${minutes}${period}`;
+
+        return `${year}.${month}.${day} ${formattedTime}`;
+    };
+
+    // Parse existing time for editing
+    const parseExistingTime = (timeStr) => {
+        if (!timeStr) return { date: '', time: '' };
+
+        try {
+            // Split into date and time parts
+            const [datePart, timePart] = timeStr.split(' ');
+
+            // Extract date components
+            const [year, month, day] = datePart.split('.');
+
+            // Extract time components
+            const timeValue = timePart.slice(0, -2); // Remove AM/PM
+            const period = timePart.slice(-2); // Get AM/PM
+            const [hours, minutes] = timeValue.split('.');
+
+            // Convert to 24-hour format for time input
+            let hours24 = parseInt(hours);
+            if (period === 'PM' && hours24 !== 12) {
+                hours24 += 12;
+            } else if (period === 'AM' && hours24 === 12) {
+                hours24 = 0;
+            }
+
+            // Format date for date input (YYYY-MM-DD)
+            const formattedDate = `${year}-${month}-${day}`;
+
+            // Format time for time input (HH:MM)
+            const formattedTime = `${String(hours24).padStart(2, '0')}:${minutes}`;
+
+            return { date: formattedDate, time: formattedTime };
+        } catch (error) {
+            console.error('Error parsing time:', error);
+            return { date: '', time: '' };
+        }
+    };
+
+    // Parse teams for editing
+    const parseExistingTeams = (teamsStr) => {
+        if (!teamsStr) return { team1: '', team2: '' };
+
+        try {
+            const teams = teamsStr.split(' vs ');
+            return {
+                team1: teams[0] || '',
+                team2: teams[1] || ''
+            };
+        } catch (error) {
+            console.error('Error parsing teams:', error);
+            return { team1: '', team2: '' };
+        }
+    };
 
     //date format sorting
     const parseMatchTime = (timeStr) => {
@@ -63,7 +142,50 @@ const Fixtures = () => {
                 setFinishedMatches(data.finishedMatches || {});
             }
         });
+
+        // Load teams data
+        const teamsRef = ref(database, 'teamData');
+        onValue(teamsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                setTeamsData(data);
+            }
+        });
     }, []);
+
+    // Reset inputs when opening add form
+    useEffect(() => {
+        if (showAddForm) {
+            const now = new Date();
+            const formattedDate = now.toISOString().split('T')[0];
+            const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            setDateInput(formattedDate);
+            setTimeInput(formattedTime);
+            setSelectedTeam1('');
+            setSelectedTeam2('');
+
+            // Set the initial formatted time
+            setNewMatch(prev => ({
+                ...prev,
+                time: formatTime(formattedDate, formattedTime),
+                teams: ''
+            }));
+        }
+    }, [showAddForm]);
+
+    // Set inputs when editing a match
+    useEffect(() => {
+        if (editingMatch) {
+            const { date, time } = parseExistingTime(editingMatch.time);
+            const { team1, team2 } = parseExistingTeams(editingMatch.teams);
+
+            setDateInput(date);
+            setTimeInput(time);
+            setSelectedTeam1(team1);
+            setSelectedTeam2(team2);
+        }
+    }, [editingMatch]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -80,6 +202,84 @@ const Fixtures = () => {
         }
     };
 
+    const handleTeam1Change = (e) => {
+        const team1 = e.target.value;
+        setSelectedTeam1(team1);
+
+        // Update teams format
+        const teamsValue = team1 && selectedTeam2 ? `${team1} vs ${selectedTeam2}` : '';
+
+        if (editingMatch) {
+            setEditingMatch(prev => ({
+                ...prev,
+                teams: teamsValue
+            }));
+        } else {
+            setNewMatch(prev => ({
+                ...prev,
+                teams: teamsValue
+            }));
+        }
+    };
+
+    const handleTeam2Change = (e) => {
+        const team2 = e.target.value;
+        setSelectedTeam2(team2);
+
+        // Update teams format
+        const teamsValue = selectedTeam1 && team2 ? `${selectedTeam1} vs ${team2}` : '';
+
+        if (editingMatch) {
+            setEditingMatch(prev => ({
+                ...prev,
+                teams: teamsValue
+            }));
+        } else {
+            setNewMatch(prev => ({
+                ...prev,
+                teams: teamsValue
+            }));
+        }
+    };
+
+    const handleDateChange = (e) => {
+        const date = e.target.value;
+        setDateInput(date);
+
+        if (editingMatch) {
+            const formattedTime = formatTime(date, timeInput);
+            setEditingMatch(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        } else {
+            const formattedTime = formatTime(date, timeInput);
+            setNewMatch(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        }
+    };
+
+    const handleTimeChange = (e) => {
+        const time = e.target.value;
+        setTimeInput(time);
+
+        if (editingMatch) {
+            const formattedTime = formatTime(dateInput, time);
+            setEditingMatch(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        } else {
+            const formattedTime = formatTime(dateInput, time);
+            setNewMatch(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        }
+    };
+
     const toggleMatchStatus = async (matchId, currentStatus) => {
         try {
             const matchRef = ref(database, `FixturesData/finishedMatches/${matchId}/active`);
@@ -91,6 +291,16 @@ const Fixtures = () => {
     };
 
     const addNewMatch = async () => {
+        if (!selectedTeam1 || !selectedTeam2) {
+            alert('Please select both teams');
+            return;
+        }
+
+        if (selectedTeam1 === selectedTeam2) {
+            alert('Cannot select the same team for both sides');
+            return;
+        }
+
         try {
             const matchesRef = ref(database, 'FixturesData/finishedMatches');
             const newMatchRef = push(matchesRef);
@@ -100,7 +310,8 @@ const Fixtures = () => {
 
             await set(newMatchRef, {
                 ...newMatch,
-                id: matchId
+                id: matchId,
+                active: 1 // Default to active
             });
 
             setNewMatch({
@@ -120,6 +331,16 @@ const Fixtures = () => {
     };
 
     const updateMatch = async () => {
+        if (!selectedTeam1 || !selectedTeam2) {
+            alert('Please select both teams');
+            return;
+        }
+
+        if (selectedTeam1 === selectedTeam2) {
+            alert('Cannot select the same team for both sides');
+            return;
+        }
+
         try {
             const matchRef = ref(database, `FixturesData/finishedMatches/${editingMatch.id}`);
             await set(matchRef, editingMatch);
@@ -169,13 +390,34 @@ const Fixtures = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Teams:</label>
-                                <input
-                                    type="text"
-                                    name="teams"
-                                    value={editingMatch.teams}
-                                    onChange={handleInputChange}
-                                />
+                                <label>Team 1:</label>
+                                <select
+                                    value={selectedTeam1}
+                                    onChange={handleTeam1Change}
+                                >
+                                    <option value="">Select Team 1</option>
+                                    {Object.entries(teamsData).map(([teamKey, team]) => (
+                                        <option key={teamKey} value={teamKey}>
+                                            {team.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Team 2:</label>
+                                <select
+                                    value={selectedTeam2}
+                                    onChange={handleTeam2Change}
+                                >
+                                    <option value="">Select Team 2</option>
+                                    {Object.entries(teamsData).map(([teamKey, team]) => (
+                                        teamKey !== selectedTeam1 && (
+                                            <option key={teamKey} value={teamKey}>
+                                                {team.name}
+                                            </option>
+                                        )
+                                    ))}
+                                </select>
                             </div>
                             <div className="form-group">
                                 <label>Result:</label>
@@ -196,12 +438,19 @@ const Fixtures = () => {
                                 />
                             </div>
                             <div className="form-group">
+                                <label>Date:</label>
+                                <input
+                                    type="date"
+                                    value={dateInput}
+                                    onChange={handleDateChange}
+                                />
+                            </div>
+                            <div className="form-group">
                                 <label>Time:</label>
                                 <input
-                                    type="text"
-                                    name="time"
-                                    value={editingMatch.time}
-                                    onChange={handleInputChange}
+                                    type="time"
+                                    value={timeInput}
+                                    onChange={handleTimeChange}
                                 />
                             </div>
                             <div className="form-actions">
@@ -230,14 +479,34 @@ const Fixtures = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Teams:</label>
-                                <input
-                                    type="text"
-                                    name="teams"
-                                    value={newMatch.teams}
-                                    onChange={handleInputChange}
-                                    placeholder="e.g., E21 vs E22"
-                                />
+                                <label>Team 1:</label>
+                                <select
+                                    value={selectedTeam1}
+                                    onChange={handleTeam1Change}
+                                >
+                                    <option value="">Select Team 1</option>
+                                    {Object.entries(teamsData).map(([teamKey, team]) => (
+                                        <option key={teamKey} value={teamKey}>
+                                            {team.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Team 2:</label>
+                                <select
+                                    value={selectedTeam2}
+                                    onChange={handleTeam2Change}
+                                >
+                                    <option value="">Select Team 2</option>
+                                    {Object.entries(teamsData).map(([teamKey, team]) => (
+                                        teamKey !== selectedTeam1 && (
+                                            <option key={teamKey} value={teamKey}>
+                                                {team.name}
+                                            </option>
+                                        )
+                                    ))}
+                                </select>
                             </div>
                             <div className="form-group">
                                 <label>Result:</label>
@@ -246,7 +515,7 @@ const Fixtures = () => {
                                     name="result"
                                     value={newMatch.result}
                                     onChange={handleInputChange}
-                                    placeholder="e.g., E21 won by 45 runs"
+                                    placeholder="e.g. E21 won by 45 runs"
                                 />
                             </div>
                             <div className="form-group">
@@ -256,17 +525,23 @@ const Fixtures = () => {
                                     name="score"
                                     value={newMatch.score}
                                     onChange={handleInputChange}
-                                    placeholder="e.g., E21 185/4 (20) • E22 140/10 (20)"
+                                    placeholder="e.g. E21 185/4 (20) • E22 140/10 (20)"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Date:</label>
+                                <input
+                                    type="date"
+                                    value={dateInput}
+                                    onChange={handleDateChange}
                                 />
                             </div>
                             <div className="form-group">
                                 <label>Time:</label>
                                 <input
-                                    type="text"
-                                    name="time"
-                                    value={newMatch.time}
-                                    onChange={handleInputChange}
-                                    placeholder="e.g., 2025.05.22 02.57AM"
+                                    type="time"
+                                    value={timeInput}
+                                    onChange={handleTimeChange}
                                 />
                             </div>
                             <div className="form-actions">

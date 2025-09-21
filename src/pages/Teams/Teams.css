@@ -36,9 +36,11 @@
 .add-team-form,
 .edit-player-form,
 .add-player-form {
+    background-color: white;
     padding: 20px;
     border-radius: 8px;
-    margin: 20px 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
 }
 
 .edit-team-form h3,
@@ -51,6 +53,7 @@
 
 .form-group {
     margin-bottom: 15px;
+    margin-right: 20px;
 }
 
 .form-group label {
@@ -65,6 +68,18 @@
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
+}
+
+.disabled-input {
+    background-color: #f5f5f5;
+    color: #666;
+}
+
+.form-note {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
 }
 
 .form-actions {
@@ -93,6 +108,11 @@
     background-color: #5a6268;
 }
 
+.save-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
 .cancel-btn {
     background-color: #888;
     color: white;
@@ -109,6 +129,7 @@
     padding: 8px 15px;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 0.8rem;
 }
 
 .save-btn:hover,
@@ -164,6 +185,7 @@
     display: flex;
     gap: 10px;
     margin-top: 10px;
+    flex-wrap: wrap;
 }
 
 .players-section {
@@ -201,6 +223,33 @@
     justify-content: center;
     color: white;
     font-weight: bold;
+    position: relative;
+}
+
+.player-icon::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.player-icon.bat::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2l9 4.5-9 4.5-9-4.5L12 2zM12 11l9 4.5-9 4.5-9-4.5L12 11zM12 20l9 4.5-9 4.5-9-4.5L12 20z'/%3E%3C/svg%3E");
+}
+
+.player-icon.ball::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3C/svg%3E");
+}
+
+.player-icon.all-rounder::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2l9 4.5-9 4.5-9-4.5L12 2zM12 11l9 4.5-9 4.5-9-4.5L12 11z'/%3E%3C/svg%3E");
+}
+
+.player-icon.wicket::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2l-2 4h-2l2-4h4l2 4h-2l-2-4zM4 8v2h2v10h12V10h2V8H4z'/%3E%3C/svg%3E");
 }
 
 .player-icon.bat {
@@ -213,11 +262,10 @@
 
 .player-icon.all-rounder {
     background-color: #ffc107;
-    color: #212529;
 }
 
-.player-icon.extra {
-    background-color: #6c757d;
+.player-icon.wicket {
+    background-color: #17a2b8;
 }
 
 .player-info {
@@ -328,35 +376,6 @@
     box-shadow: 0 0 0 2px rgb(5, 152, 210);
 }
 
-.player-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    margin-right: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-}
-
-.player-icon[data-icon="bat"] {
-    background-color: #28a745;
-}
-
-.player-icon[data-icon="ball"] {
-    background-color: #dc3545;
-}
-
-.player-icon[data-icon="all-rounder"] {
-    background-color: #ffc107;
-    color: #212529;
-}
-
-.player-icon.extra {
-    background-color: #6c757d;
-}
-
 .modal-actions {
     display: flex;
     justify-content: space-between;
@@ -400,4 +419,72 @@
     padding: 8px 15px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+/* New styles for adding team with players */
+.players-form-section {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: rgba(6, 179, 247, 0.05);
+    border-radius: 8px;
+}
+
+.players-form-section h4 {
+    margin-top: 0;
+    color: rgb(5, 152, 210);
+}
+
+.current-player-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 15px;
+}
+
+.current-player-form .form-group {
+    margin-bottom: 0;
+}
+
+.players-list-preview {
+    margin-top: 15px;
+}
+
+.players-list-preview h5 {
+    margin: 0 0 10px;
+    color: #555;
+}
+
+.players-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.player-preview-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.player-preview-info {
+    flex: 1;
+}
+
+.remove-player-btn {
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.remove-player-btn:hover {
+    background-color: #cc0000;
 }

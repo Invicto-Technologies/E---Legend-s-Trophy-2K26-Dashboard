@@ -1,4 +1,3 @@
-// pages/Teams.jsx
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set, update } from 'firebase/database';
 import { database } from '../../components/firebase';
@@ -14,10 +13,22 @@ const Teams = () => {
     const [showExchangeModal, setShowExchangeModal] = useState(false);
     const [mainSquadPlayer, setMainSquadPlayer] = useState(null);
     const [extraPlayer, setExtraPlayer] = useState(null);
+    const [showAddTeam, setShowAddTeam] = useState(false);
     const [newPlayer, setNewPlayer] = useState({
         id: '',
         name: '',
         role: '',
+        icon: 'bat'
+    });
+    const [newTeam, setNewTeam] = useState({
+        id: '',
+        name: '',
+        captain: ''
+    });
+    const [teamPlayers, setTeamPlayers] = useState([]);
+    const [currentPlayer, setCurrentPlayer] = useState({
+        name: '',
+        role: 'Batter',
         icon: 'bat'
     });
 
@@ -32,6 +43,17 @@ const Teams = () => {
         });
     }, []);
 
+    // Function to get icon based on role
+    const getIconByRole = (role) => {
+        switch (role) {
+            case 'Batter': return 'bat';
+            case 'Bowler': return 'ball';
+            case 'All Rounder': return 'all-rounder';
+            case 'Wicket Keeper': return 'wicket';
+            default: return 'bat';
+        }
+    };
+
     //Handle input data
     const handleTeamInputChange = (e) => {
         const { name, value } = e.target;
@@ -43,20 +65,136 @@ const Teams = () => {
         }
     };
 
+    const handleNewTeamInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewTeam(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
     const handlePlayerInputChange = (e) => {
         const { name, value } = e.target;
         if (editingPlayer) {
-            setEditingPlayer(prev => ({
-                ...prev,
+            const updatedPlayer = {
+                ...editingPlayer,
                 [name]: value
-            }));
+            };
+
+            // Automatically set icon based on role
+            if (name === 'role') {
+                updatedPlayer.icon = getIconByRole(value);
+            }
+
+            setEditingPlayer(updatedPlayer);
+        } else if (showAddPlayer) {
+            const updatedPlayer = {
+                ...newPlayer,
+                [name]: value
+            };
+
+            // Automatically set icon based on role
+            if (name === 'role') {
+                updatedPlayer.icon = getIconByRole(value);
+            }
+
+            setNewPlayer(updatedPlayer);
+        }
+    };
+
+    const handleCurrentPlayerChange = (e) => {
+        const { name, value } = e.target;
+        const updatedPlayer = {
+            ...currentPlayer,
+            [name]: value
+        };
+
+        // Automatically set icon based on role
+        if (name === 'role') {
+            updatedPlayer.icon = getIconByRole(value);
+        }
+
+        setCurrentPlayer(updatedPlayer);
+    };
+
+    const addPlayerToTeam = () => {
+        if (!currentPlayer.name) {
+            alert('Please enter player name');
+            return;
+        }
+
+        const newPlayer = {
+            id: new Date().getTime(),
+            ...currentPlayer
+        };
+
+        setTeamPlayers(prev => [...prev, newPlayer]);
+        setCurrentPlayer({
+            name: '',
+            role: 'Batter',
+            icon: 'bat'
+        });
+    };
+
+    const removePlayerFromTeam = (id) => {
+        setTeamPlayers(prev => prev.filter(player => player.id !== id));
+    };
+
+    const addNewTeam = async () => {
+        if (teamPlayers.length !== 11) {
+            alert('Please add exactly 11 players to the main squad');
+            return;
+        }
+
+        if (!newTeam.name || !newTeam.captain) {
+            alert('Please fill in all team details');
+            return;
+        }
+
+        try {
+            // Generate a unique ID for the new team
+            const teamId = new Date().getTime();
+
+            // Convert teamPlayers array to object with player IDs as keys
+            const playersObject = {};
+            teamPlayers.forEach(player => {
+                playersObject[player.id] = {
+                    id: player.id,
+                    name: player.name,
+                    role: player.role,
+                    icon: player.icon
+                };
+            });
+
+            // Create the team structure
+            const teamRef = ref(database, `teamData/${newTeam.name}`);
+
+            await set(teamRef, {
+                id: teamId,
+                name: `${newTeam.name} Batch`,
+                captain: newTeam.captain,
+                players: playersObject,
+                extraPlayers: {}
+            });
+
+            // Reset form
+            setNewTeam({
+                id: '',
+                name: '',
+                captain: ''
+            });
+            setTeamPlayers([]);
+            setShowAddTeam(false);
+            alert('Team with 11 players added successfully!');
+        } catch (error) {
+            console.error('Error adding new team:', error);
+            alert('Failed to add new team');
         }
     };
 
     const updateTeam = async () => {
         try {
-            const teamKey = `E2${editingTeam.id}`;
-            const teamRef = ref(database, `teamData/${teamKey}`);
+            const teamRef = ref(database, `teamData/${selectedTeam}`);
 
             await update(teamRef, {
                 name: editingTeam.name,
@@ -151,11 +289,124 @@ const Teams = () => {
         setShowExchangeModal(false);
     };
 
+    const deleteTeam = async (teamKey) => {
+        if (window.confirm(`Are you sure you want to delete ${teamsData[teamKey].name}? This action cannot be undone.`)) {
+            try {
+                const teamRef = ref(database, `teamData/${teamKey}`);
+                await set(teamRef, null);
+                alert('Team deleted successfully!');
+            } catch (error) {
+                console.error('Error deleting team:', error);
+                alert('Failed to delete team');
+            }
+        }
+    };
+
     return (
         <div className="teams-container">
             <h2>Teams</h2>
 
-            {editingTeam ? (
+            {showAddTeam ? (
+                <div className="add-team-form">
+                    <h3>Add New Team with 11 Players</h3>
+
+                    <div className="form-group">
+                        <label>Team Name:</label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={newTeam.name}
+                            onChange={handleNewTeamInputChange}
+                            placeholder="Enter team name (e.g. E21)"
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Captain:</label>
+                        <input
+                            type="text"
+                            name="captain"
+                            value={newTeam.captain}
+                            onChange={handleNewTeamInputChange}
+                            placeholder="Enter captain name"
+                        />
+                    </div>
+
+                    <div className="players-form-section">
+                        <h4>Add Players including captain(11 required)</h4>
+                        <div className="current-player-form">
+                            <div className="form-group">
+                                <label>Player Name:</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={currentPlayer.name}
+                                    onChange={handleCurrentPlayerChange}
+                                    placeholder="Player name"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Role:</label>
+                                <select
+                                    name="role"
+                                    value={currentPlayer.role}
+                                    onChange={handleCurrentPlayerChange}
+                                >
+                                    <option value="Batter">Batter</option>
+                                    <option value="Bowler">Bowler</option>
+                                    <option value="All Rounder">All-Rounder</option>
+                                    <option value="Wicket Keeper">Wicket Keeper</option>
+                                </select>
+                            </div>
+
+                            <button onClick={addPlayerToTeam} className="add-player-btn">
+                                Add Player
+                            </button>
+                        </div>
+
+                        <div className="players-list-preview">
+                            <h5>Current Players ({teamPlayers.length}/11)</h5>
+                            {teamPlayers.length === 0 ? (
+                                <p>No players added yet</p>
+                            ) : (
+                                <div className="players-grid">
+                                    {teamPlayers.map(player => (
+                                        <div key={player.id} className="player-preview-card">
+                                            <div className="player-preview-info">
+                                                <div className="player-name">{player.name}</div>
+                                                <div className="player-role">{player.role} ({player.icon})</div>
+                                            </div>
+                                            <button
+                                                onClick={() => removePlayerFromTeam(player.id)}
+                                                className="remove-player-btn"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="form-actions">
+                        <button
+                            onClick={addNewTeam}
+                            className="save-btn"
+                            disabled={teamPlayers.length !== 11}
+                        >
+                            Add Team with {teamPlayers.length}/11 Players
+                        </button>
+                        <button
+                            onClick={() => setShowAddTeam(false)}
+                            className="cancel-btn"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            ) : editingTeam ? (
                 <div className="edit-team-form">
                     <h3>Edit Team</h3>
                     <div className="form-group">
@@ -210,18 +461,7 @@ const Teams = () => {
                             <option value="Batter">Batter</option>
                             <option value="Bowler">Bowler</option>
                             <option value="All Rounder">All-Rounder</option>
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label>Icon Type:</label>
-                        <select
-                            name="icon"
-                            value={editingPlayer.icon}
-                            onChange={handlePlayerInputChange}
-                        >
-                            <option value="bat">bat</option>
-                            <option value="ball">ball</option>
-                            <option value="all-rounder">all-rounder</option>
+                            <option value="Wicket Keeper">Wicket Keeper</option>
                         </select>
                     </div>
                     <div className="form-actions">
@@ -254,24 +494,15 @@ const Teams = () => {
                     </div>
                     <div className="form-group">
                         <label>Role:</label>
-                        <input
-                            type="text"
+                        <select
                             name="role"
                             value={newPlayer.role}
                             onChange={handlePlayerInputChange}
-                            placeholder="e.g., Captain, Vice Captain, Wicket Keeper, Bowler, Batter,etc."
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Icon Type:</label>
-                        <select
-                            name="icon"
-                            value={newPlayer.icon}
-                            onChange={handlePlayerInputChange}
                         >
-                            <option value="bat">bat</option>
-                            <option value="ball">ball</option>
-                            <option value="all-rounder">all-rounder</option>
+                            <option value="Batter">Batter</option>
+                            <option value="Bowler">Bowler</option>
+                            <option value="All Rounder">All-Rounder</option>
+                            <option value="Wicket Keeper">Wicket Keeper</option>
                         </select>
                     </div>
                     <div className="form-actions">
@@ -288,6 +519,13 @@ const Teams = () => {
                 </div>
             ) : (
                 <>
+                    <button
+                        onClick={() => setShowAddTeam(true)}
+                        className="add-team-btn"
+                    >
+                        Add New Team
+                    </button>
+
                     <div className="teams-grid">
                         {Object.keys(teamsData).length > 0 ? (
                             Object.entries(teamsData).map(([teamKey, team]) => (
@@ -327,14 +565,21 @@ const Teams = () => {
                                             >
                                                 Exchange Players
                                             </button>
+                                            <button
+                                                onClick={() => deleteTeam(teamKey)}
+                                                className="delete-btn"
+                                            >
+                                                Delete Team
+                                            </button>
                                         </div>
                                     </div>
 
                                     <div className="players-section">
-                                        <h4 style={{ color: 'rgb(5, 152, 210)' }}>Main Squad</h4>
+                                        <h4 style={{ color: 'rgb(5, 152, 210)' }}>Main Squad ({team.players ? Object.keys(team.players).length : 0})</h4>
                                         <div className="players-list">
                                             {team.players && Object.entries(team.players).map(([playerId, player]) => (
                                                 <div key={playerId} className="player-card">
+                                                    <div className={`player-icon ${player.icon}`}></div>
                                                     <div className="player-info">
                                                         <div className="player-name">{player.name}</div>
                                                         <div className="player-role">{player.role}</div>
@@ -357,10 +602,11 @@ const Teams = () => {
                                     </div>
 
                                     <div className="players-section">
-                                        <h4 style={{ color: 'rgb(5, 152, 210)' }}>Extra Players</h4>
+                                        <h4 style={{ color: 'rgb(5, 152, 210)' }}>Extra Players ({team.extraPlayers ? Object.keys(team.extraPlayers).length : 0})</h4>
                                         <div className="players-list">
                                             {team.extraPlayers && Object.entries(team.extraPlayers).map(([playerId, player]) => (
                                                 <div key={playerId} className="player-card">
+                                                    <div className={`player-icon ${player.icon}`}></div>
                                                     <div className="player-info">
                                                         <div className="player-name">{player.name}</div>
                                                         <div className="player-role">{player.role}</div>
@@ -405,6 +651,7 @@ const Teams = () => {
                                             className={`player-item ${mainSquadPlayer?.id === player.id ? 'selected' : ''}`}
                                             onClick={() => setMainSquadPlayer(player)}
                                         >
+                                            <div className={`player-icon ${player.icon}`}></div>
                                             <div className="player-info">
                                                 <div className="player-name">{player.name}</div>
                                                 <div className="player-role">{player.role}</div>
@@ -424,6 +671,7 @@ const Teams = () => {
                                             className={`player-item ${extraPlayer?.id === player.id ? 'selected' : ''}`}
                                             onClick={() => setExtraPlayer(player)}
                                         >
+                                            <div className={`player-icon ${player.icon}`}></div>
                                             <div className="player-info">
                                                 <div className="player-name">{player.name}</div>
                                                 {player.role && <div className="player-role">{player.role}</div>}

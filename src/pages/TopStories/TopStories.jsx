@@ -1,4 +1,3 @@
-// pages/TopStories.jsx
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { database } from '../../components/firebase';
@@ -14,6 +13,67 @@ const TopStories = () => {
         description: '',
         time: ''
     });
+    const [dateInput, setDateInput] = useState('');
+    const [timeInput, setTimeInput] = useState('');
+
+    // Format time to "YYYY.MM.DD HH.MMAM/PM" format
+    const formatTime = (dateString, timeString) => {
+        if (!dateString || !timeString) return '';
+        
+        const date = new Date(dateString);
+        const timeParts = timeString.split(':');
+        const hours = parseInt(timeParts[0]);
+        const minutes = timeParts[1];
+        
+        // Format date as YYYY.MM.DD
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        // Format time as HH.MMAM/PM
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const formattedHours = hours % 12 || 12; // Convert to 12-hour format
+        const formattedTime = `${String(formattedHours).padStart(2, '0')}.${minutes}${period}`;
+        
+        return `${year}.${month}.${day} ${formattedTime}`;
+    };
+
+    // Parse existing time for editing
+    const parseExistingTime = (timeStr) => {
+        if (!timeStr) return { date: '', time: '' };
+        
+        try {
+            // Split into date and time parts
+            const [datePart, timePart] = timeStr.split(' ');
+            
+            // Extract date components
+            const [year, month, day] = datePart.split('.');
+            
+            // Extract time components
+            const timeValue = timePart.slice(0, -2); // Remove AM/PM
+            const period = timePart.slice(-2); // Get AM/PM
+            const [hours, minutes] = timeValue.split('.');
+            
+            // Convert to 24-hour format for time input
+            let hours24 = parseInt(hours);
+            if (period === 'PM' && hours24 !== 12) {
+                hours24 += 12;
+            } else if (period === 'AM' && hours24 === 12) {
+                hours24 = 0;
+            }
+            
+            // Format date for date input (YYYY-MM-DD)
+            const formattedDate = `${year}-${month}-${day}`;
+            
+            // Format time for time input (HH:MM)
+            const formattedTime = `${String(hours24).padStart(2, '0')}:${minutes}`;
+            
+            return { date: formattedDate, time: formattedTime };
+        } catch (error) {
+            console.error('Error parsing time:', error);
+            return { date: '', time: '' };
+        }
+    };
 
     //date format sorting
     const parseMatchTime = (timeStr) => {
@@ -61,6 +121,33 @@ const TopStories = () => {
         });
     }, []);
 
+    // Reset date and time inputs when opening add form
+    useEffect(() => {
+        if (showAddForm) {
+            const now = new Date();
+            const formattedDate = now.toISOString().split('T')[0];
+            const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            setDateInput(formattedDate);
+            setTimeInput(formattedTime);
+            
+            // Set the initial formatted time
+            setNewStory(prev => ({
+                ...prev,
+                time: formatTime(formattedDate, formattedTime)
+            }));
+        }
+    }, [showAddForm]);
+
+    // Set date and time inputs when editing a story
+    useEffect(() => {
+        if (editingStory) {
+            const { date, time } = parseExistingTime(editingStory.time);
+            setDateInput(date);
+            setTimeInput(time);
+        }
+    }, [editingStory]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         if (editingStory) {
@@ -76,12 +163,53 @@ const TopStories = () => {
         }
     };
 
+    const handleDateChange = (e) => {
+        const date = e.target.value;
+        setDateInput(date);
+        
+        if (editingStory) {
+            const formattedTime = formatTime(date, timeInput);
+            setEditingStory(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        } else {
+            const formattedTime = formatTime(date, timeInput);
+            setNewStory(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        }
+    };
+
+    const handleTimeChange = (e) => {
+        const time = e.target.value;
+        setTimeInput(time);
+        
+        if (editingStory) {
+            const formattedTime = formatTime(dateInput, time);
+            setEditingStory(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        } else {
+            const formattedTime = formatTime(dateInput, time);
+            setNewStory(prev => ({
+                ...prev,
+                time: formattedTime
+            }));
+        }
+    };
+
     const addNewStory = async () => {
         try {
             const storyId = Date.now();
 
             const updates = {};
-            updates[`AllStories/${storyId}`] = newStory;
+            updates[`AllStories/${storyId}`] = {
+                ...newStory,
+                id: storyId
+            };
 
             await update(ref(database), updates);
 
@@ -131,7 +259,7 @@ const TopStories = () => {
             {editingStory ? (
                 <div className="edit-story-form">
                     <h3>Edit Story</h3>
-                    <div className="form-group">
+                    <div className="form-group-top-stories">
                         <label>Topic:</label>
                         <input
                             type="text"
@@ -140,7 +268,7 @@ const TopStories = () => {
                             onChange={handleInputChange}
                         />
                     </div>
-                    <div className="form-group">
+                    <div className="form-group-top-stories">
                         <label>Description:</label>
                         <textarea
                             name="description"
@@ -149,14 +277,20 @@ const TopStories = () => {
                             rows="3"
                         />
                     </div>
-                    <div className="form-group">
+                    <div className="form-group-top-stories">
+                        <label>Date:</label>
+                        <input
+                            type="date"
+                            value={dateInput}
+                            onChange={handleDateChange}
+                        />
+                    </div>
+                    <div className="form-group-top-stories">
                         <label>Time:</label>
                         <input
-                            type="text"
-                            name="time"
-                            value={editingStory.time}
-                            onChange={handleInputChange}
-                            placeholder="e.g., 2025.05.22 02.50AM"
+                            type="time"
+                            value={timeInput}
+                            onChange={handleTimeChange}
                         />
                     </div>
                     <div className="form-actions">
@@ -174,7 +308,7 @@ const TopStories = () => {
             ) : showAddForm ? (
                 <div className="add-story-form">
                     <h3>Add New Story</h3>
-                    <div className="form-group">
+                    <div className="form-group-top-stories">
                         <label>Topic:</label>
                         <input
                             type="text"
@@ -184,7 +318,7 @@ const TopStories = () => {
                             placeholder="Enter story topic"
                         />
                     </div>
-                    <div className="form-group">
+                    <div className="form-group-top-stories">
                         <label>Description:</label>
                         <textarea
                             name="description"
@@ -194,14 +328,20 @@ const TopStories = () => {
                             rows="3"
                         />
                     </div>
-                    <div className="form-group">
+                    <div className="form-group-top-stories">
+                        <label>Date:</label>
+                        <input
+                            type="date"
+                            value={dateInput}
+                            onChange={handleDateChange}
+                        />
+                    </div>
+                    <div className="form-group-top-stories">
                         <label>Time:</label>
                         <input
-                            type="text"
-                            name="time"
-                            value={newStory.time}
-                            onChange={handleInputChange}
-                            placeholder="e.g., 2025.05.22 02.50AM"
+                            type="time"
+                            value={timeInput}
+                            onChange={handleTimeChange}
                         />
                     </div>
                     <div className="form-actions">

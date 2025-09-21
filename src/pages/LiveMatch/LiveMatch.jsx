@@ -295,6 +295,22 @@ const LiveMatch = () => {
         }
     };
 
+    const checkMatchCompletion = (battingTeamData) => {
+        const isSecondInnings = matchData.common.firstBat === 0;
+
+        if (!isSecondInnings) return false;
+
+        const team1Runs = matchData.team1.totalRuns || 0;
+        const team2Runs = matchData.team2.totalRuns || 0;
+        const team2Wickets = matchData.team2.totalWickets || 0;
+
+        const shouldEndMatch = (team2Runs > team1Runs) ||
+            (team2Wickets >= 10) ||
+            ((battingTeamData.totalBalls || 0) >= 120);
+
+        return shouldEndMatch;
+    };
+
     // Helping functions to calculations
     const ballsToOvers = (balls) => {
         const overs = Math.floor(balls / 6);
@@ -560,8 +576,14 @@ const LiveMatch = () => {
             // Update all paths in Firebase in a single transaction
             await update(ref(database), updates);
 
+            // Check if match should end (only in second innings)
+            const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
+
+            if (shouldEndMatch) {
+                setShowMOMSelector(true);
+            }
             // Handle over completion if needed
-            if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
+            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
                 await handleInningsCompletion();
             }
             else if (isOverCompleted) {
@@ -713,7 +735,14 @@ const LiveMatch = () => {
             const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
             const isOverCompleted = newBallsInOver % 6 === 0;
 
-            if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120 && extraRunOutInput !== "2") {
+            // Check if match should end (only in second innings)
+            const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
+
+            if (shouldEndMatch && extraRunOutInput !== "2") {
+                await update(ref(database), updates);
+                setShowMOMSelector(true);
+            }
+            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120 && extraRunOutInput !== "2") {
                 await update(ref(database), updates);
                 await handleInningsCompletion();
             }
@@ -931,30 +960,41 @@ const LiveMatch = () => {
             over: currentOver
         };
 
-        // Update match data in Firebase
-        await update(ref(database), updates);
+        // In handleDismissalConfirmation function, after updating the dismissal:
+        try {
+            // Update all paths in Firebase
+            await update(ref(database), updates);
 
-        // Check if innings should end (10 wickets or overs completed) and (matchData[battingTeam].totalBalls || 0) + 1
-        if ((matchData[battingTeam].totalWickets || 0) + 1 >= 10) {
-            await handleInningsCompletion();
-        }
-        else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
-            await handleInningsCompletion();
-        }
-        else if (currentDismissalType === 'run out') {
-            setSelectingFor(outBatsmanType);
-            setShowBatsmanSelector(true);
-        } else {
-            setSelectingFor("striker");
-            setShowBatsmanSelector(true);
-        }
+            // Check if match should end (only in second innings)
+            const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
 
-        if (currentDismissalType !== "run out") {
-            const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
-            const isOverCompleted = newBallsInOver % 6 === 0;
-            if (isOverCompleted) {
-                await handleOverCompletion();
+            if (shouldEndMatch) {
+                setShowMOMSelector(true);
             }
+            // Check if innings should end (10 wickets or overs completed)
+            else if ((matchData[battingTeam].totalWickets || 0) + 1 >= 10) {
+                await handleInningsCompletion();
+            }
+            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
+                await handleInningsCompletion();
+            }
+            else if (currentDismissalType === 'run out') {
+                setSelectingFor(outBatsmanType);
+                setShowBatsmanSelector(true);
+            } else {
+                setSelectingFor("striker");
+                setShowBatsmanSelector(true);
+            }
+
+            if (currentDismissalType !== "run out") {
+                const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
+                const isOverCompleted = newBallsInOver % 6 === 0;
+                if (isOverCompleted) {
+                    await handleOverCompletion();
+                }
+            }
+        } catch (error) {
+            console.error('Error updating dismissal:', error);
         }
 
         setShowDismissalModal(false);
@@ -1000,7 +1040,7 @@ const LiveMatch = () => {
             wasTeam1Batting && alert(`Innings break! ${updatedMatchData.team2.name} now batting.`);
 
             // After second innings over set man of the match
-            !wasTeam1Batting && setShowMOMSelector(true);
+            // !wasTeam1Batting && setShowMOMSelector(true);
 
         } catch (error) {
             console.error('Error completing innings:', error);

@@ -1,4 +1,3 @@
-// pages/Ranking.jsx
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { database } from '../../components/firebase';
