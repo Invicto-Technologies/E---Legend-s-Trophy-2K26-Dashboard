@@ -8,7 +8,6 @@ import Fixtures from './pages/Fixtures/Fixtures';
 import TopStories from './pages/TopStories/TopStories';
 import Teams from './pages/Teams/Teams';
 import Ranking from './pages/Ranking/Ranking';
-import './App.css';
 
 function App() {
   return (

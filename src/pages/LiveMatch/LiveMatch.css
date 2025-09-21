@@ -39,6 +39,20 @@
     color: white;
 }
 
+.specialButton {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    background-color: rgba(5, 152, 210, 0.83);
+    cursor: pointer;
+    color: white;
+    transition: 300ms;
+}
+
+.specialButton:hover {
+    background-color: rgba(4, 122, 169, 0.83);
+}
+
 .edit-live-match-form {
     background-color: #f9f9f9;
     padding: 20px;
@@ -545,6 +559,7 @@
     padding: 20px;
     border-radius: 3px;
     cursor: pointer;
+    transition: 300ms;
 }
 
 .extras-buttons button {
@@ -553,6 +568,7 @@
     padding: 20px;
     border-radius: 3px;
     cursor: pointer;
+    transition: 300ms;
 }
 
 .wicket-buttons button {
@@ -561,6 +577,19 @@
     padding: 15px;
     border-radius: 3px;
     cursor: pointer;
+    transition: 300ms;
+}
+
+.runs-buttons button:hover {
+    background-color: #3b893e;
+}
+
+.extras-buttons button:hover {
+    background-color: #d5a106;
+}
+
+.wicket-buttons button:hover {
+    background-color: #d53a2f;
 }
 
 .player-selector-modal,
@@ -696,4 +725,8 @@
 .extra-item {
     font-weight: 500;
     color: #444;
+}
+
+.display.no {
+    display: none;
 }

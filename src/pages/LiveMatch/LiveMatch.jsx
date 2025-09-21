@@ -12,6 +12,7 @@ const LiveMatch = () => {
     const [loading, setLoading] = useState(true);
     const [upcomingMatches, setUpcomingMatches] = useState({});
     const [teamsData, setTeamsData] = useState({});
+    const [overLimit, setOverLimit] = useState(20);
     const [showMatchSelector, setShowMatchSelector] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState(null);
     const [statusInput, setStatusInput] = useState('');
@@ -270,6 +271,7 @@ const LiveMatch = () => {
                     mom: '',
                     overBallsTypes: [],
                     finished: 0,
+                    overLimit: overLimit,
                 }
             };
 
@@ -303,10 +305,12 @@ const LiveMatch = () => {
         const team1Runs = matchData.team1.totalRuns || 0;
         const team2Runs = matchData.team2.totalRuns || 0;
         const team2Wickets = matchData.team2.totalWickets || 0;
+        const overLimit = matchData.common.overLimit || 20;
+        const maxBalls = overLimit * 6;
 
         const shouldEndMatch = (team2Runs > team1Runs) ||
             (team2Wickets >= 10) ||
-            ((battingTeamData.totalBalls || 0) >= 120);
+            ((battingTeamData.totalBalls || 0) >= maxBalls);
 
         return shouldEndMatch;
     };
@@ -375,6 +379,8 @@ const LiveMatch = () => {
             const battingTeam = isTeam1Batting ? 'team1' : 'team2';
             const matchPath = matchData?.common?.title;
             const strikerId = currentBatsmen.striker.id;
+            const overLimit = matchData.common.overLimit || 20;
+            const maxBalls = overLimit * 6;
 
             if (strikerId !== afterOutStriker) {
                 const updates = {};
@@ -393,7 +399,7 @@ const LiveMatch = () => {
             const newBallsInOver = (matchData[battingTeam].totalBalls || 0);
             const isOverCompleted = newBallsInOver % 6 === 0;
 
-            if (newBallsInOver >= 120 && (currentExtraType !== "WB" && currentExtraType !== "NB")) {
+            if (newBallsInOver >= maxBalls && (currentExtraType !== "WB" && currentExtraType !== "NB")) {
                 await handleInningsCompletion();
             }
             else if (isOverCompleted && (currentExtraType !== "WB" && currentExtraType !== "NB")) {
@@ -414,12 +420,25 @@ const LiveMatch = () => {
         const battingTeam = isTeam1Batting ? 'team1' : 'team2';
         const fieldToUpdate = type === 'striker' ? 'ballFaceBatsman' : 'otherSideBatsman';
 
+        // Get the ID of the currently selected batsman for this position
+        const currentBatsmanId = type === 'striker'
+            ? currentBatsmen.striker.id
+            : currentBatsmen.nonStriker.id;
+
         const updates = {};
-        updates[`${matchData.common.title}/${battingTeam}/${fieldToUpdate}`] = {
+        const matchPath = matchData.common.title;
+
+        // Set the new batsman
+        updates[`${matchPath}/${battingTeam}/${fieldToUpdate}`] = {
             id: playerId,
             name: playerName
         };
-        updates[`${matchData.common.title}/${battingTeam}/players/${playerId}/status`] = 'batting'
+        updates[`${matchPath}/${battingTeam}/players/${playerId}/status`] = 'batting';
+
+        // If there was a previously selected batsman for this position, reset their status to 'yet to bat'
+        if (currentBatsmanId && currentBatsmanId !== playerId) {
+            updates[`${matchPath}/${battingTeam}/players/${currentBatsmanId}/status`] = 'yet to bat';
+        }
 
         try {
             // Update local state
@@ -443,7 +462,13 @@ const LiveMatch = () => {
                         [playerId]: {
                             ...prev[battingTeam].players[playerId],
                             status: 'batting'
-                        }
+                        },
+                        ...(currentBatsmanId && currentBatsmanId !== playerId ? {
+                            [currentBatsmanId]: {
+                                ...prev[battingTeam].players[currentBatsmanId],
+                                status: 'yet to bat'
+                            }
+                        } : {})
                     }
                 }
             }));
@@ -472,6 +497,8 @@ const LiveMatch = () => {
         const bowlingTeam = isTeam1Batting ? 'team2' : 'team1';
         const strikerId = currentBatsmen.striker.id;
         const bowlerId = currentBowler.id;
+        const overLimit = matchData.common.overLimit || 20;
+        const maxBalls = overLimit * 6;
 
         // Prepare updates object for Firebase
         const updates = {};
@@ -560,7 +587,7 @@ const LiveMatch = () => {
         const isOverCompleted = newBallsInOver % 6 === 0;
 
         // Handle striker rotation for odd runs
-        if (runs % 2 !== 0) {
+        if (runs % 2 !== 0 && !isOverCompleted) {
             // Swap striker and non-striker in Firebase
             updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
             updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
@@ -583,11 +610,11 @@ const LiveMatch = () => {
                 setShowMOMSelector(true);
             }
             // Handle over completion if needed
-            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
+            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= maxBalls) {
                 await handleInningsCompletion();
             }
             else if (isOverCompleted) {
-                await handleOverCompletion();
+                await handleOverCompletion(runs);
             }
         } catch (error) {
             console.error('Error updating score:', error);
@@ -596,7 +623,7 @@ const LiveMatch = () => {
     };
 
     // Handle over completion
-    const handleOverCompletion = async () => {
+    const handleOverCompletion = async (runs) => {
         const isTeam1Batting = matchData.common.firstBat === 1;
         const battingTeam = isTeam1Batting ? 'team1' : 'team2';
 
@@ -612,10 +639,14 @@ const LiveMatch = () => {
             nonStriker: prev.striker
         }));
 
-        // Update in matchData
         updates[`${matchPath}/common/overBallsTypes`] = null;
-        updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
-        updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
+
+        // Update in matchData
+        if (runs !== 1 && runs !== 3) {
+            updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
+            updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
+        }
+
 
         try {
             // Update all paths in Firebase in a single transaction
@@ -655,6 +686,8 @@ const LiveMatch = () => {
         const strikerId = currentBatsmen.striker.id;
         const currentOverTypes = matchData.common.overBallsTypes || [];
         let newOverTypes = [];
+        const overLimit = matchData.common.overLimit || 20;
+        const maxBalls = overLimit * 6;
 
         const updates = {};
 
@@ -665,72 +698,104 @@ const LiveMatch = () => {
         newOverTypes = extraRunOutInput !== "2" ? [...currentOverTypes, `${extraRuns}${type}`] : [...currentOverTypes, `W${type}`];
         updates[`${matchPath}/common/overBallsTypes`] = newOverTypes;
 
-        // Update team totals
-        const newTotalRuns = type !== 'LB' ? (matchData[battingTeam]?.totalRuns || 0) + extraRuns + 1 : (matchData[battingTeam]?.totalRuns || 0) + extraRuns;
-        const extraAmount = type !== 'LB' ? (matchData[battingTeam]?.totalExtraAmount || 0) + extraRuns + 1 : (matchData[battingTeam]?.totalExtraAmount || 0) + extraRuns;
-        updates[`${matchPath}/${battingTeam}/totalRuns`] = newTotalRuns;
+        // Handle WB (Wide Ball)
+        if (type === 'WB') {
+            // WB adds 1 run bonus + extra runs to total
+            const bonusRun = 1;
+            updates[`${matchPath}/${battingTeam}/totalRuns`] = (matchData[battingTeam]?.totalRuns || 0) + extraRuns + bonusRun;
+            updates[`${matchPath}/${battingTeam}/totalExtraAmount`] = (matchData[battingTeam]?.totalExtraAmount || 0) + extraRuns + bonusRun;
 
-        if (extraReason) {
-            updates[`${matchPath}/${battingTeam}/totalExtraAmount`] = extraAmount - extraRuns;
+            updates[`LiveData/liveScore/${isTeam1Batting ? 'team1' : 'team2'}/score`] = (matchData[battingTeam]?.totalRuns || 0) + extraRuns + bonusRun;
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/runs`] = (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns + bonusRun;
+
+            // No ball count for anyone in WB
+            // Don't count this as a legal delivery for the bowler
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/balls`] = (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0);
+
+            // Update economy
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/economy`] = calculateEconomy(
+                (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns + bonusRun,
+                (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0)
+            );
         }
-        else {
-            updates[`${matchPath}/${battingTeam}/totalExtraAmount`] = extraAmount;
-        }
 
-        updates[`LiveData/liveScore/${isTeam1Batting ? 'team1' : 'team2'}/score`] = newTotalRuns;
-        updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/runs`] =
-            type !== 'LB' ? (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns + 1 : (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns;
+        // Handle NB (No Ball)
+        else if (type === 'NB') {
+            // NB adds 1 run bonus + extra runs to total
+            const bonusRun = 1;
+            updates[`${matchPath}/${battingTeam}/totalRuns`] = (matchData[battingTeam]?.totalRuns || 0) + extraRuns + bonusRun;
+            updates[`${matchPath}/${battingTeam}/totalExtraAmount`] = (matchData[battingTeam]?.totalExtraAmount || 0) + extraRuns + bonusRun;
 
-        // Update batsman stats
-        if (extraReason && type !== 'LB') {
-            updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] =
-                (matchData[battingTeam].players[strikerId]?.runs || 0) + extraRuns;
-            updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] =
-                calculateStrikeRate(
-                    (matchData[battingTeam].players[strikerId]?.runs || 0) + extraRuns,
-                    (matchData[battingTeam].players[strikerId]?.balls || 0)
-                );
+            updates[`LiveData/liveScore/${isTeam1Batting ? 'team1' : 'team2'}/score`] = (matchData[battingTeam]?.totalRuns || 0) + extraRuns + bonusRun;
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/runs`] = (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns + bonusRun;
 
-            // Update boundaries based on runs
-            if (extraRuns === 4) {
-                updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/fours`] =
-                    (matchData[battingTeam].players[strikerId]?.boundaries?.fours || 0) + 1;
-            } else if (extraRuns === 6) {
-                updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/sixes`] =
-                    (matchData[battingTeam].players[strikerId]?.boundaries?.sixes || 0) + 1;
-            } else if (extraRuns === 2) {
-                updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/twos`] =
-                    (matchData[battingTeam].players[strikerId]?.boundaries?.twos || 0) + 1;
-            } else if (extraRuns === 1) {
-                updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/singles`] =
-                    (matchData[battingTeam].players[strikerId]?.boundaries?.singles || 0) + 1;
+            // Ball count for striker only in NB
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] = (matchData[battingTeam].players[strikerId]?.balls || 0) + 1;
+
+            // If batter hit it (extraReason = true), add runs to striker without bonus run
+            if (extraReason) {
+                updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] = (matchData[battingTeam].players[strikerId]?.runs || 0) + extraRuns;
+
+                // Update boundaries based on runs
+                if (extraRuns === 4) {
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/fours`] = (matchData[battingTeam].players[strikerId]?.boundaries?.fours || 0) + 1;
+                } else if (extraRuns === 6) {
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/sixes`] = (matchData[battingTeam].players[strikerId]?.boundaries?.sixes || 0) + 1;
+                } else if (extraRuns === 2) {
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/twos`] = (matchData[battingTeam].players[strikerId]?.boundaries?.twos || 0) + 1;
+                } else if (extraRuns === 1) {
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/singles`] = (matchData[battingTeam].players[strikerId]?.boundaries?.singles || 0) + 1;
+                }
+
+                // If misfield (extraReason = false), don't add runs to striker (only bonus run added above)
             }
+
+            // Update strike rate
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] = calculateStrikeRate(
+                (matchData[battingTeam].players[strikerId]?.runs || 0) + (extraReason ? extraRuns : 0),
+                (matchData[battingTeam].players[strikerId]?.balls || 0) + 1
+            );
+
+            // Don't count this as a legal delivery for the bowler
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/balls`] = (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0);
+
+            // Update economy
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/economy`] = calculateEconomy(
+                (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns + bonusRun,
+                (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0)
+            );
         }
 
-        // Handle NB, WB
-        if (type !== 'LB') {
-            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/economy`] =
-                calculateEconomy(
-                    (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns + 1,
-                    (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0)
-                );
-        }
+        // Handle LB (Leg Bye)
+        else if (type === 'LB') {
+            // LB adds only extra runs to total (no bonus run)
+            updates[`${matchPath}/${battingTeam}/totalRuns`] = (matchData[battingTeam]?.totalRuns || 0) + extraRuns;
+            updates[`${matchPath}/${battingTeam}/totalExtraAmount`] = (matchData[battingTeam]?.totalExtraAmount || 0) + extraRuns;
 
-        // Handle LB extras
-        if (type === 'LB') {
+            updates[`LiveData/liveScore/${isTeam1Batting ? 'team1' : 'team2'}/score`] = (matchData[battingTeam]?.totalRuns || 0) + extraRuns;
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/runs`] = (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns;
+
+            // Ball count for team, striker and bowler in LB
             updates[`${matchPath}/${battingTeam}/totalBalls`] = (matchData[battingTeam].totalBalls || 0) + 1;
-            updates[`${matchPath}/${battingTeam}/overs`] = ballsToOvers((matchData[battingTeam].totalBalls || 0) + 1)
-            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/balls`] =
-                (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1;
-            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/overs`] =
-                ballsToOvers((matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1);
-            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/economy`] =
-                calculateEconomy(
-                    (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns,
-                    (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1
-                );
-            updates[`LiveData/liveScore/${battingTeam}/overs`] =
-                ballsToOvers((matchData[battingTeam].totalBalls || 0) + 1)
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] = (matchData[battingTeam].players[strikerId]?.balls || 0) + 1;
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/balls`] = (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1;
+
+            // Update overs
+            updates[`${matchPath}/${battingTeam}/overs`] = ballsToOvers((matchData[battingTeam].totalBalls || 0) + 1);
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/overs`] = ballsToOvers((matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1);
+            updates[`LiveData/liveScore/${battingTeam}/overs`] = ballsToOvers((matchData[battingTeam].totalBalls || 0) + 1);
+
+            // Update strike rate
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] = calculateStrikeRate(
+                (matchData[battingTeam].players[strikerId]?.runs || 0),
+                (matchData[battingTeam].players[strikerId]?.balls || 0) + 1
+            );
+
+            // Update economy
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${currentBowler.id}/economy`] = calculateEconomy(
+                (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns,
+                (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1
+            );
 
             const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
             const isOverCompleted = newBallsInOver % 6 === 0;
@@ -742,14 +807,17 @@ const LiveMatch = () => {
                 await update(ref(database), updates);
                 setShowMOMSelector(true);
             }
-            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120 && extraRunOutInput !== "2") {
+            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= maxBalls && extraRunOutInput !== "2") {
                 await update(ref(database), updates);
                 await handleInningsCompletion();
             }
             else if (isOverCompleted && extraRunOutInput !== "2") {
-                await handleOverCompletion();
+                await handleOverCompletion(extraRuns);
             }
         }
+
+        const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
+        const isOverCompleted = newBallsInOver % 6 === 0;
 
         // Handle batsman rotation if runs are scored
         if (extraRunOutInput === "2") {
@@ -761,10 +829,8 @@ const LiveMatch = () => {
             updates[`${matchPath}/${battingTeam}/players/${outBatsman}/dismissal`] = dismissalText;
             updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = 'out';
 
-            updates[`${matchPath}/${battingTeam}/totalWickets`] =
-                (matchData[battingTeam].totalWickets || 0) + 1;
-            updates[`LiveData/liveScore/${battingTeam}/wicket`] =
-                (matchData[battingTeam].totalWickets || 0) + 1;
+            updates[`${matchPath}/${battingTeam}/totalWickets`] = (matchData[battingTeam].totalWickets || 0) + 1;
+            updates[`LiveData/liveScore/${battingTeam}/wicket`] = (matchData[battingTeam].totalWickets || 0) + 1;
 
             // Add to fall of wickets
             const wicketNumber = (matchData[battingTeam].totalWickets || 0) + 1;
@@ -780,7 +846,7 @@ const LiveMatch = () => {
             setSelectingFor(outBatsmanType);
             setShowBatsmanSelector(true);
         } else {
-            if (extraRuns % 2 !== 0) {
+            if (extraRuns % 2 !== 0 && !isOverCompleted) {
                 // Swap striker and non-striker
                 updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = matchData[battingTeam].otherSideBatsman;
                 updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = matchData[battingTeam].ballFaceBatsman;
@@ -792,6 +858,7 @@ const LiveMatch = () => {
                 }));
             }
         }
+
         try {
             // Update all paths in Firebase
             await update(ref(database), updates);
@@ -841,6 +908,8 @@ const LiveMatch = () => {
         const bowlingTeam = isTeam1Batting ? 'team2' : 'team1';
         const strikerId = currentBatsmen.striker.id;
         const bowlerId = currentBowler.id;
+        const overLimit = matchData.common.overLimit || 20;
+        const maxBalls = overLimit * 6;
 
         const updates = {};
         const matchPath = matchData.common.title;
@@ -975,7 +1044,7 @@ const LiveMatch = () => {
             else if ((matchData[battingTeam].totalWickets || 0) + 1 >= 10) {
                 await handleInningsCompletion();
             }
-            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= 120) {
+            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= maxBalls) {
                 await handleInningsCompletion();
             }
             else if (currentDismissalType === 'run out') {
@@ -1269,6 +1338,7 @@ const LiveMatch = () => {
                     <span className={`status-indicator ${isLive ? 'live' : 'not-live'}`}>
                         {isLive ? 'LIVE' : 'NOT LIVE'}
                     </span>
+                    <button className={"specialButton"} onClick={() => handleShiftBatters()}>Shift Batters</button>
                 </div>
 
                 {isLive ? (
@@ -1280,7 +1350,7 @@ const LiveMatch = () => {
 
                         <div className="scorecard">
                             <div className={`team-score ${liveScore.firstBat === 1 ? 'batting' : ''}`}>
-                                <h4>{liveScore.team1.name || 'Team 1'}</h4>
+                                <h4>{liveScore.team1.name || 'Team 1'} ({matchData.common.overLimit} overs)</h4>
                                 <p className="score">
                                     {liveScore.team1.score || 0}/{liveScore.team1.wicket || 0}
                                 </p>
@@ -1290,7 +1360,7 @@ const LiveMatch = () => {
                             <div className="vs-separator">vs</div>
 
                             <div className={`team-score ${liveScore.firstBat === 0 ? 'batting' : ''}`}>
-                                <h4>{liveScore.team2.name || 'Team 2'}</h4>
+                                <h4>{liveScore.team2.name || 'Team 2'} ({matchData.common.overLimit} overs)</h4>
                                 <p className="score">
                                     {liveScore.team2.score || 0}/{liveScore.team2.wicket || 0}
                                 </p>
@@ -1343,16 +1413,6 @@ const LiveMatch = () => {
                         </div>
                     </div>
                 )}
-
-                {matchData && (
-                    <div className="scoring-controls">
-                        <p className='liveScoreActionCard'>Special Controls</p>
-
-                        <div className="runs-buttons">
-                            <button onClick={() => handleShiftBatters()} style={{ backgroundColor: 'rgba(5, 152, 210, 0.83)' }}>Shift Batters</button>
-                        </div>
-                    </div>
-                )}
             </div>
 
             <div style={{ maxWidth: '900px' }}>
@@ -1363,29 +1423,37 @@ const LiveMatch = () => {
                                 <p>
                                     <label>Bowler: </label>
                                     {currentBowler?.name || 'Not selected'}
-                                    {!currentBowler.id && (
-                                        <button onClick={handleSelectBowler} className="select-player-btn">
-                                            Select Bowler
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={handleSelectBowler}
+                                        className="select-player-btn"
+                                        disabled={matchData.common.overBallsTypes && matchData.common.overBallsTypes.length > 0}
+                                    >
+                                        Select Bowler
+                                    </button>
                                 </p>
                                 <p>
                                     <label>Striker: </label>
                                     {currentBatsmen?.striker?.name || 'Not selected'}
-                                    {!currentBatsmen.striker.id && (
-                                        <button onClick={() => handleSelectBatsman('striker')} className="select-player-btn">
-                                            Select Striker
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => handleSelectBatsman('striker')}
+                                        className="select-player-btn"
+                                        disabled={matchData &&
+                                            matchData[matchData.common.firstBat === 1 ? 'team1' : 'team2']?.players?.[currentBatsmen?.striker?.id]?.balls > 0}
+                                    >
+                                        Select Striker
+                                    </button>
                                 </p>
                                 <p>
                                     <label>Non-Striker: </label>
                                     {currentBatsmen?.nonStriker?.name || 'Not selected'}
-                                    {!currentBatsmen.nonStriker.id && (
-                                        <button onClick={() => handleSelectBatsman('nonStriker')} className="select-player-btn">
-                                            Select Non-Striker
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => handleSelectBatsman('nonStriker')}
+                                        className="select-player-btn"
+                                        disabled={matchData &&
+                                            matchData[matchData.common.firstBat === 1 ? 'team1' : 'team2']?.players?.[currentBatsmen?.nonStriker?.id]?.balls > 0}
+                                    >
+                                        Select Non-Striker
+                                    </button>
                                 </p>
                             </div>
 
@@ -1537,6 +1605,17 @@ const LiveMatch = () => {
                                         ))}
                                     </select>
                                 </div>
+                                <div className="form-group">
+                                    <label>Overs per innings:</label>
+                                    <select
+                                        value={overLimit}
+                                        onChange={(e) => setOverLimit(parseInt(e.target.value))}
+                                    >
+                                        <option value={10}>10 overs</option>
+                                        <option value={15}>15 overs</option>
+                                        <option value={20}>20 overs</option>
+                                    </select>
+                                </div>
                             </div>
                         )}
 
@@ -1577,23 +1656,37 @@ const LiveMatch = () => {
 
                         {parseInt(extraRunsInput) > 0 && currentExtraType !== "LB" &&
                             <>
-                                <h3>Reason for extra runs</h3><div className="reason-options">
-                                    <label>
-                                        <input
-                                            type="radio"
-                                            value="1"
-                                            checked={extraReasonInput === "1"}
-                                            onChange={() => setExtraReasonInput("1")} />
-                                        Hit (batsman hit the ball)
-                                    </label>
-                                    <label>
-                                        <input
-                                            type="radio"
-                                            value="2"
-                                            checked={extraReasonInput === "2"}
-                                            onChange={() => setExtraReasonInput("2")} />
-                                        Misfield (fielder error)
-                                    </label>
+                                <h3 className={`display ${currentExtraType === 'WB' ? 'no' : ''}`}>Reason for extra runs</h3>
+                                <div className="reason-options">
+                                    {currentExtraType !== 'WB' ? (
+                                        <>
+                                            <label>
+                                                <input
+                                                    type="radio"
+                                                    value="1"
+                                                    checked={extraReasonInput === "1"}
+                                                    onChange={() => setExtraReasonInput("1")} />
+                                                Hit (batsman hit the ball)
+                                            </label>
+                                            <label>
+                                                <input
+                                                    type="radio"
+                                                    value="2"
+                                                    checked={extraReasonInput === "2"}
+                                                    onChange={() => setExtraReasonInput("2")} />
+                                                Misfield (fielder error)
+                                            </label>
+                                        </>
+                                    ) : (
+                                        <label style={{ display: 'none' }}>
+                                            <input
+                                                type="radio"
+                                                value="2"
+                                                checked={true}
+                                                readOnly />
+                                            Wide ball
+                                        </label>
+                                    )}
                                 </div>
                             </>
                         }
