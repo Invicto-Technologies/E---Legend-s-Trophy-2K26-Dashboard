@@ -1338,7 +1338,7 @@ const LiveMatch = () => {
                     <span className={`status-indicator ${isLive ? 'live' : 'not-live'}`}>
                         {isLive ? 'LIVE' : 'NOT LIVE'}
                     </span>
-                    <button className={"specialButton"} onClick={() => handleShiftBatters()}>Shift Batters</button>
+                    {isLive ? <button className={"specialButton"} onClick={() => handleShiftBatters()}>Shift Batters</button> : null}
                 </div>
 
                 {isLive ? (

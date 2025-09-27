@@ -1,10 +1,26 @@
-// components/Navbar.jsx
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import './NavBar.css';
 
-const NavBar = () => {
+const NavBar = ({ onLogout }) => {
     const location = useLocation();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        await removeLoginStatus();
+        onLogout();
+        navigate('/login');
+    };
+
+    const removeLoginStatus = async () => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                localStorage.removeItem('isLoggedIn');
+                localStorage.removeItem('loginTime');
+                resolve();
+            }, 100);
+        });
+    };
 
     return (
         <>
@@ -28,8 +44,13 @@ const NavBar = () => {
                     <li className={location.pathname === '/teams' ? 'active' : ''}>
                         <Link to="/teams">Teams</Link>
                     </li>
-                    <li className={location.pathname === '/ranking' ? 'active' : ''} style={{ marginRight: '50px' }}>
+                    <li className={location.pathname === '/ranking' ? 'active' : ''}>
                         <Link to="/ranking">Ranking</Link>
+                    </li>
+                    <li className="logout-item">
+                        <button onClick={handleLogout} className="logout-button">
+                            Logout
+                        </button>
                     </li>
                 </ul>
             </nav>
