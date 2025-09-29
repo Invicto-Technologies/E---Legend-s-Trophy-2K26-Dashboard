@@ -65,8 +65,36 @@ const LiveMatch = () => {
                     const matchData = matchSnapshot.val();
                     if (matchData) {
                         const formattedData = {
-                            team1: matchData.team1 || {},
-                            team2: matchData.team2 || {},
+                            team1: {
+                                ...matchData.team1 || {},
+                                partnerships: matchData.team1?.partnerships || {},
+                                currentPartnership: matchData.team1?.currentPartnership || {
+                                    batsman1: null,
+                                    batsman2: null,
+                                    batsman1Runs: 0,
+                                    batsman2Runs: 0,
+                                    batsman1Balls: 0,
+                                    batsman2Balls: 0,
+                                    startScore: 0,
+                                    startWickets: 0,
+                                    startBalls: 0
+                                }
+                            },
+                            team2: {
+                                ...matchData.team2 || {},
+                                partnerships: matchData.team2?.partnerships || {},
+                                currentPartnership: matchData.team2?.currentPartnership || {
+                                    batsman1: null,
+                                    batsman2: null,
+                                    batsman1Runs: 0,
+                                    batsman2Runs: 0,
+                                    batsman1Balls: 0,
+                                    batsman2Balls: 0,
+                                    startScore: 0,
+                                    startWickets: 0,
+                                    startBalls: 0
+                                }
+                            },
                             common: matchData.common || {
                                 firstBat: 1,
                                 title: '',
@@ -244,7 +272,19 @@ const LiveMatch = () => {
                     overs: 0,
                     totalExtraAmount: 0,
                     extraTypes: [],
-                    fallOfWickets: {}
+                    fallOfWickets: {},
+                    partnerships: {},
+                    currentPartnership: {
+                        batsman1: null,
+                        batsman2: null,
+                        batsman1Runs: 0,
+                        batsman2Runs: 0,
+                        batsman1Balls: 0,
+                        batsman2Balls: 0,
+                        startScore: 0,
+                        startWickets: 0,
+                        startBalls: 0
+                    }
                 },
                 team2: {
                     name: team2Name,
@@ -259,7 +299,19 @@ const LiveMatch = () => {
                     overs: 0,
                     totalExtraAmount: 0,
                     extraTypes: [],
-                    fallOfWickets: {}
+                    fallOfWickets: {},
+                    partnerships: {},
+                    currentPartnership: {
+                        batsman1: null,
+                        batsman2: null,
+                        batsman1Runs: 0,
+                        batsman2Runs: 0,
+                        batsman1Balls: 0,
+                        batsman2Balls: 0,
+                        startScore: 0,
+                        startWickets: 0,
+                        startBalls: 0
+                    }
                 },
                 common: {
                     title: match.title,
@@ -484,6 +536,14 @@ const LiveMatch = () => {
             // Update all paths in a single transaction
             await update(ref(database), updates);
 
+            // Start new partnership if both batsmen are set
+            const newStriker = type === 'striker' ? { id: playerId, name: playerName } : currentBatsmen.striker;
+            const newNonStriker = type === 'nonStriker' ? { id: playerId, name: playerName } : currentBatsmen.nonStriker;
+
+            if (newStriker.id && newNonStriker.id) {
+                await startNewPartnership(newStriker, newNonStriker, battingTeam);
+            }
+
             if (currentDismissalType === "run out") {
                 setShowRunOutPlayerShistModal(true);
             }
@@ -646,6 +706,7 @@ const LiveMatch = () => {
         try {
             // Update all paths in Firebase in a single transaction
             await update(ref(database), updates);
+            await updatePartnershipStats(battingTeam, runs, false, strikerId);
             saveActionToHistory({
                 type: 'score',
                 runs,
@@ -656,7 +717,13 @@ const LiveMatch = () => {
                 bowlerId,
                 previousState: {
                     ...previousState,
-                    batsmenSwapped
+                    batsmenSwapped,
+                    currentPartnership: JSON.parse(JSON.stringify(
+                        matchData[battingTeam]?.currentPartnership || {}
+                    )),
+                    partnerships: JSON.parse(JSON.stringify(
+                        matchData[battingTeam]?.partnerships || {}
+                    ))
                 },
                 timestamp: Date.now()
             });
@@ -712,6 +779,7 @@ const LiveMatch = () => {
             //bowler selection model
             setSelectingFor('bowler');
             setShowBowlerSelector(true);
+            setActionHistory([]);
         } catch (error) {
             console.error('Error updating over completion:', error);
             alert('Failed to update score');
@@ -1007,7 +1075,15 @@ const LiveMatch = () => {
                 bowlingTeam,
                 strikerId,
                 bowlerId: currentBowler.id,
-                previousState,
+                previousState: {
+                    ...previousState,
+                    currentPartnership: JSON.parse(JSON.stringify(
+                        matchData[battingTeam]?.currentPartnership || {}
+                    )),
+                    partnerships: JSON.parse(JSON.stringify(
+                        matchData[battingTeam]?.partnerships || {}
+                    ))
+                },
                 timestamp: Date.now(),
                 isRunOut: extraRunOutInput === "2",
                 outBatsman: outBatsman,
@@ -1038,6 +1114,8 @@ const LiveMatch = () => {
 
             // Check match completion for LB
             if (type === 'LB' && extraRunOutInput !== "2") {
+                await updatePartnershipStats(battingTeam, 0, false, strikerId);
+
                 const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
                 if (shouldEndMatch) {
                     setShowMOMSelector(true);
@@ -1156,6 +1234,12 @@ const LiveMatch = () => {
 
         const updates = {};
         const matchPath = matchData.common.title;
+
+        // End current partnership before processing wicket
+        if (currentDismissalType !== 'retired hurt') {
+            const outBatsmanId = currentDismissalType === 'run out' ? outBatsman : currentBatsmen.striker.id;
+            await endPartnership(battingTeam, outBatsmanId);
+        }
 
         // Over type update
         const currentOverTypes = matchData.common.overBallsTypes || [];
@@ -1291,7 +1375,15 @@ const LiveMatch = () => {
                 bowlingTeam,
                 strikerId,
                 bowlerId,
-                previousState,
+                previousState: {
+                    ...previousState,
+                    currentPartnership: JSON.parse(JSON.stringify(
+                        matchData[battingTeam]?.currentPartnership || {}
+                    )),
+                    partnerships: JSON.parse(JSON.stringify(
+                        matchData[battingTeam]?.partnerships || {}
+                    ))
+                },
                 timestamp: Date.now(),
                 fielder: fielder,
                 isRunOut: currentDismissalType === 'run out',
@@ -1343,11 +1435,15 @@ const LiveMatch = () => {
     // Inning Completion
     const handleInningsCompletion = async () => {
         const updatedMatchData = JSON.parse(JSON.stringify(matchData));
-
-        // Determine which team was batting and which was bowling
         const wasTeam1Batting = updatedMatchData.common.firstBat === 1;
+        const battingTeam = wasTeam1Batting ? 'team1' : 'team2';
         const matchPath = updatedMatchData.common.title;
         const updates = {};
+
+        // End any ongoing partnership
+        if (updatedMatchData[battingTeam]?.currentPartnership?.batsman1) {
+            await endPartnership(battingTeam);
+        }
 
         // Update LiveData in Firebase
         updates[`LiveData/common/firstBat`] = 0;
@@ -1595,8 +1691,20 @@ const LiveMatch = () => {
 
     // Undo function
     const saveActionToHistory = (action) => {
+        const enhancedAction = {
+            ...action,
+            partnershipState: {
+                currentPartnership: JSON.parse(JSON.stringify(
+                    matchData[action.battingTeam]?.currentPartnership || {}
+                )),
+                partnerships: JSON.parse(JSON.stringify(
+                    matchData[action.battingTeam]?.partnerships || {}
+                ))
+            }
+        };
+
         setActionHistory(prev => {
-            const newHistory = [...prev, action];
+            const newHistory = [...prev, enhancedAction];
             // Keep only the last maxHistorySize actions
             if (newHistory.length > maxHistorySize) {
                 return newHistory.slice(-maxHistorySize);
@@ -1619,12 +1727,15 @@ const LiveMatch = () => {
             switch (lastAction.type) {
                 case 'score':
                     await undoScore(lastAction);
+                    await undoPartnershipScore(lastAction, lastAction.previousState);
                     break;
                 case 'extra':
                     await undoExtra(lastAction);
+                    await undoPartnershipExtra(lastAction);
                     break;
                 case 'wicket':
                     await undoWicket(lastAction);
+                    await undoPartnershipWicket(lastAction);
                     break;
                 default:
                     console.warn('Unknown action type:', lastAction.type);
@@ -1977,6 +2088,258 @@ const LiveMatch = () => {
         }
     };
 
+    // Undo partnership changes for score actions
+    const undoPartnershipScore = async (action, previousState) => {
+        const { matchPath, battingTeam, strikerId } = action;
+
+        const updates = {};
+
+        // If we have previous partnership state, restore it completely
+        if (previousState.currentPartnership?.batsman1?.id) {
+            updates[`${matchPath}/${battingTeam}/currentPartnership`] = previousState.currentPartnership;
+        } else {
+            // Otherwise, manually adjust the current partnership
+            const currentPartnership = matchData[battingTeam]?.currentPartnership;
+            if (currentPartnership?.batsman1?.id) {
+                if (strikerId === currentPartnership.batsman1.id) {
+                    updates[`${matchPath}/${battingTeam}/currentPartnership/batsman1Runs`] =
+                        Math.max(0, (currentPartnership.batsman1Runs || 0) - action.runs);
+                    updates[`${matchPath}/${battingTeam}/currentPartnership/batsman1Balls`] =
+                        Math.max(0, (currentPartnership.batsman1Balls || 0) - 1);
+                } else if (strikerId === currentPartnership.batsman2.id) {
+                    updates[`${matchPath}/${battingTeam}/currentPartnership/batsman2Runs`] =
+                        Math.max(0, (currentPartnership.batsman2Runs || 0) - action.runs);
+                    updates[`${matchPath}/${battingTeam}/currentPartnership/batsman2Balls`] =
+                        Math.max(0, (currentPartnership.batsman2Balls || 0) - 1);
+                }
+            }
+        }
+
+        try {
+            if (Object.keys(updates).length > 0) {
+                await update(ref(database), updates);
+                console.log('Partnership score undo completed');
+            }
+        } catch (error) {
+            console.error('Error undoing partnership score:', error);
+        }
+    };
+
+    // Undo partnership changes for wicket actions
+    const undoPartnershipWicket = async (action) => {
+        const { matchPath, battingTeam, previousState } = action;
+
+        const updates = {};
+
+        // If there was a partnership that ended due to wicket, restore it
+        if (previousState.currentPartnership?.batsman1?.id) {
+            // Restore the current partnership
+            updates[`${matchPath}/${battingTeam}/currentPartnership`] = previousState.currentPartnership;
+
+            // Remove the partnership from history if it was saved
+            const partnershipEntries = Object.entries(matchData[battingTeam]?.partnerships || {});
+            if (partnershipEntries.length > 0) {
+                const lastPartnershipId = partnershipEntries[partnershipEntries.length - 1][0];
+                updates[`${matchPath}/${battingTeam}/partnerships/${lastPartnershipId}`] = null;
+            }
+        }
+
+        try {
+            if (Object.keys(updates).length > 0) {
+                await update(ref(database), updates);
+            }
+        } catch (error) {
+            console.error('Error undoing partnership wicket:', error);
+        }
+    };
+
+    // Undo partnership changes for extra actions
+    const undoPartnershipExtra = async (action) => {
+        const { matchPath, battingTeam, strikerId, previousState } = action;
+
+        const currentPartnership = matchData[battingTeam]?.currentPartnership;
+        if (!currentPartnership?.batsman1?.id) return;
+
+        const updates = {};
+
+        // For LB (legal delivery), undo ball count
+        if (action.extraType === 'LB' && !action.isRunOut) {
+            if (strikerId === currentPartnership.batsman1.id) {
+                updates[`${matchPath}/${battingTeam}/currentPartnership/batsman1Balls`] =
+                    Math.max(0, (currentPartnership.batsman1Balls || 0) - 1);
+            } else if (strikerId === currentPartnership.batsman2.id) {
+                updates[`${matchPath}/${battingTeam}/currentPartnership/batsman2Balls`] =
+                    Math.max(0, (currentPartnership.batsman2Balls || 0) - 1);
+            }
+        }
+
+        // For run out in extras, restore the partnership
+        if (action.isRunOut && previousState.currentPartnership?.batsman1?.id) {
+            updates[`${matchPath}/${battingTeam}/currentPartnership`] = previousState.currentPartnership;
+
+            // Remove the partnership from history
+            const partnershipEntries = Object.entries(matchData[battingTeam]?.partnerships || {});
+            if (partnershipEntries.length > 0) {
+                const lastPartnershipId = partnershipEntries[partnershipEntries.length - 1][0];
+                updates[`${matchPath}/${battingTeam}/partnerships/${lastPartnershipId}`] = null;
+            }
+        }
+
+        try {
+            if (Object.keys(updates).length > 0) {
+                await update(ref(database), updates);
+            }
+        } catch (error) {
+            console.error('Error undoing partnership extra:', error);
+        }
+    };
+
+    // Start a new partnership when batsmen come to crease
+    const startNewPartnership = async (batsman1, batsman2, battingTeam) => {
+        if (!batsman1?.id || !batsman2?.id) return;
+
+        const matchPath = matchData.common.title;
+        const updates = {};
+
+        // Get current player stats at the start of partnership
+        const players = matchData[battingTeam].players;
+        const batsman1StartRuns = players[batsman1.id]?.runs || 0;
+        const batsman2StartRuns = players[batsman2.id]?.runs || 0;
+        const batsman1StartBalls = players[batsman1.id]?.balls || 0;
+        const batsman2StartBalls = players[batsman2.id]?.balls || 0;
+
+        updates[`${matchPath}/${battingTeam}/currentPartnership`] = {
+            batsman1: batsman1,
+            batsman2: batsman2,
+            batsman1StartRuns: batsman1StartRuns,
+            batsman2StartRuns: batsman2StartRuns,
+            batsman1StartBalls: batsman1StartBalls,
+            batsman2StartBalls: batsman2StartBalls,
+            batsman1Runs: 0, // Runs scored in this partnership
+            batsman2Runs: 0, // Runs scored in this partnership
+            batsman1Balls: 0, // Balls faced in this partnership
+            batsman2Balls: 0, // Balls faced in this partnership
+            startScore: matchData[battingTeam].totalRuns || 0,
+            startWickets: matchData[battingTeam].totalWickets || 0,
+            startBalls: matchData[battingTeam].totalBalls || 0,
+            startTime: new Date().toISOString()
+        };
+
+        try {
+            await update(ref(database), updates);
+        } catch (error) {
+            console.error('Error starting new partnership:', error);
+        }
+    };
+
+    // Update partnership stats when runs are scored
+    const updatePartnershipStats = async (battingTeam, runs, isExtra = false, strikerId) => {
+        const currentPartnership = matchData[battingTeam]?.currentPartnership;
+        if (!currentPartnership?.batsman1?.id || isExtra) return;
+
+        const matchPath = matchData.common.title;
+        const updates = {};
+
+        // Update striker's partnership stats
+        if (strikerId === currentPartnership.batsman1.id) {
+            updates[`${matchPath}/${battingTeam}/currentPartnership/batsman1Runs`] =
+                (currentPartnership.batsman1Runs || 0) + runs;
+            updates[`${matchPath}/${battingTeam}/currentPartnership/batsman1Balls`] =
+                (currentPartnership.batsman1Balls || 0) + 1;
+        } else if (strikerId === currentPartnership.batsman2.id) {
+            updates[`${matchPath}/${battingTeam}/currentPartnership/batsman2Runs`] =
+                (currentPartnership.batsman2Runs || 0) + runs;
+            updates[`${matchPath}/${battingTeam}/currentPartnership/batsman2Balls`] =
+                (currentPartnership.batsman2Balls || 0) + 1;
+        }
+
+        try {
+            await update(ref(database), updates);
+        } catch (error) {
+            console.error('Error updating partnership stats:', error);
+        }
+    };
+
+    // End partnership and save to history when wicket falls
+    const endPartnership = async (battingTeam, outBatsmanId = null) => {
+        const currentPartnership = matchData[battingTeam]?.currentPartnership;
+        if (!currentPartnership?.batsman1?.id) return;
+
+        const matchPath = matchData.common.title;
+        const updates = {};
+
+        const currentScore = matchData[battingTeam].totalRuns || 0;
+        const currentWickets = matchData[battingTeam].totalWickets || 0;
+        const currentBalls = matchData[battingTeam].totalBalls || 0;
+
+        // Calculate partnership stats
+        const partnershipRuns = currentScore - currentPartnership.startScore;
+        const partnershipBalls = currentBalls - currentPartnership.startBalls;
+        const partnershipOvers = ballsToOvers(partnershipBalls);
+        const partnershipStrikeRate = partnershipBalls > 0 ?
+            parseFloat(((partnershipRuns / partnershipBalls) * 100).toFixed(2)) : 0;
+
+        // Calculate individual strike rates for the partnership
+        const batsman1StrikeRate = (currentPartnership.batsman1Balls || 0) > 0 ?
+            parseFloat(((currentPartnership.batsman1Runs || 0) / (currentPartnership.batsman1Balls || 0) * 100).toFixed(2)) : 0;
+
+        const batsman2StrikeRate = (currentPartnership.batsman2Balls || 0) > 0 ?
+            parseFloat(((currentPartnership.batsman2Runs || 0) / (currentPartnership.batsman2Balls || 0) * 100).toFixed(2)) : 0;
+
+        // Determine which batsman got out
+        const outBatsman = outBatsmanId || currentBatsmen.striker.id;
+        const notOutBatsman = outBatsman === currentPartnership.batsman1.id ?
+            currentPartnership.batsman2 : currentPartnership.batsman1;
+
+        const partnershipData = {
+            batsman1: currentPartnership.batsman1,
+            batsman2: currentPartnership.batsman2,
+            batsman1Runs: currentPartnership.batsman1Runs || 0,
+            batsman2Runs: currentPartnership.batsman2Runs || 0,
+            batsman1Balls: currentPartnership.batsman1Balls || 0,
+            batsman2Balls: currentPartnership.batsman2Balls || 0,
+            batsman1StrikeRate: batsman1StrikeRate,
+            batsman2StrikeRate: batsman2StrikeRate,
+            outBatsman: outBatsman,
+            notOutBatsman: notOutBatsman,
+            runs: partnershipRuns,
+            balls: partnershipBalls,
+            overs: partnershipOvers,
+            strikeRate: partnershipStrikeRate,
+            startScore: currentPartnership.startScore,
+            startWickets: currentPartnership.startWickets,
+            endScore: currentScore,
+            endWickets: currentWickets,
+            timestamp: new Date().toISOString()
+        };
+
+        // Generate partnership ID
+        const partnershipId = `partnership_${Date.now()}`;
+
+        // Save to partnerships history
+        updates[`${matchPath}/${battingTeam}/partnerships/${partnershipId}`] = partnershipData;
+
+        // Reset current partnership
+        updates[`${matchPath}/${battingTeam}/currentPartnership`] = {
+            batsman1: null,
+            batsman2: null,
+            batsman1Runs: 0,
+            batsman2Runs: 0,
+            batsman1Balls: 0,
+            batsman2Balls: 0,
+            startScore: 0,
+            startWickets: 0,
+            startBalls: 0
+        };
+
+        try {
+            await update(ref(database), updates);
+            console.log('Partnership saved with individual stats:', partnershipData);
+        } catch (error) {
+            console.error('Error ending partnership:', error);
+        }
+    };
+
     if (loading) {
         return <div className="loading-container">Loading match data...</div>;
     }
@@ -2069,22 +2432,30 @@ const LiveMatch = () => {
                         <p className='liveScoreActionCard'>Special Controls</p>
 
                         <div className="undo-section">
-                            <button
-                                onClick={handleUndo}
-                                disabled={actionHistory.length === 0}
-                                className="undo-btn"
-                            >
-                                Undo Last Action ({actionHistory.length})
-                            </button>
-
-                            {isLive ?
+                            <div style={{ display: 'flex', flexDirection: 'row' }}>
                                 <button
-                                    className={"shift-btn"}
-                                    onClick={() => handleShiftBatters()}>
-                                    Shift Batters
+                                    onClick={handleUndo}
+                                    disabled={actionHistory.length === 0}
+                                    className="undo-btn"
+                                >
+                                    Undo Last Action ({actionHistory.length})
                                 </button>
-                                : null
-                            }
+
+                                {isLive ?
+                                    <button
+                                        className={"shift-btn"}
+                                        onClick={() => handleShiftBatters()}>
+                                        Shift Batters
+                                    </button>
+                                    : null
+                                }
+                            </div>
+                            <button
+                                onClick={checkMatchCompletion}
+                                className="end-btn"
+                            >
+                                End Match
+                            </button>
                         </div>
 
                     </div>
