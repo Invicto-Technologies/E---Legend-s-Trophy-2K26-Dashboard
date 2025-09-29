@@ -18,7 +18,8 @@ const Teams = () => {
         id: '',
         name: '',
         role: '',
-        icon: 'bat'
+        icon: 'bat',
+        imageUrl: ''
     });
     const [newTeam, setNewTeam] = useState({
         id: '',
@@ -29,7 +30,8 @@ const Teams = () => {
     const [currentPlayer, setCurrentPlayer] = useState({
         name: '',
         role: 'Batter',
-        icon: 'bat'
+        icon: 'bat',
+        imageUrl: ''
     });
 
     //Get firebase data 
@@ -359,6 +361,16 @@ const Teams = () => {
                                     <option value="Wicket Keeper">Wicket Keeper</option>
                                 </select>
                             </div>
+                            <div className="form-group">
+                                <label>Image URL:</label>
+                                <input
+                                    type="text"
+                                    name="imageUrl"
+                                    value={editingPlayer.imageUrl || ''}
+                                    onChange={handleCurrentPlayerChange}
+                                    placeholder="Enter player image URL"
+                                />
+                            </div>
 
                             <button onClick={addPlayerToTeam} className="add-player-btn">
                                 Add Player
@@ -464,6 +476,16 @@ const Teams = () => {
                             <option value="Wicket Keeper">Wicket Keeper</option>
                         </select>
                     </div>
+                    <div className="form-group">
+                        <label>Image URL:</label>
+                        <input
+                            type="text"
+                            name="imageUrl"
+                            value={editingPlayer.imageUrl || ''}
+                            onChange={handlePlayerInputChange}
+                            placeholder="Enter player image URL"
+                        />
+                    </div>
                     <div className="form-actions">
                         <button
                             onClick={() => updatePlayer(editingPlayerCategory)}
@@ -504,6 +526,16 @@ const Teams = () => {
                             <option value="All Rounder">All-Rounder</option>
                             <option value="Wicket Keeper">Wicket Keeper</option>
                         </select>
+                    </div>
+                    <div className="form-group">
+                        <label>Image URL:</label>
+                        <input
+                            type="text"
+                            name="imageUrl"
+                            value={editingPlayer.imageUrl || ''}
+                            onChange={handlePlayerInputChange}
+                            placeholder="Enter player image URL"
+                        />
                     </div>
                     <div className="form-actions">
                         <button onClick={() => addNewPlayer(true)} className="save-btn extra">
@@ -579,7 +611,18 @@ const Teams = () => {
                                         <div className="players-list">
                                             {team.players && Object.entries(team.players).map(([playerId, player]) => (
                                                 <div key={playerId} className="player-card">
-                                                    <div className={`player-icon ${player.icon}`}></div>
+                                                    {player.imageUrl ? (
+                                                        <img
+                                                            src={(player.imageUrl)}
+                                                            alt={player.name}
+                                                            className="player-image"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                            }}
+                                                        />
+                                                    ) :
+                                                        <div className={`player-icon ${player.icon}`}></div>
+                                                    }
                                                     <div className="player-info">
                                                         <div className="player-name">{player.name}</div>
                                                         <div className="player-role">{player.role}</div>
