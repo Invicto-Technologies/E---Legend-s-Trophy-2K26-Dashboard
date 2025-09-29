@@ -730,3 +730,55 @@
 .display.no {
     display: none;
 }
+
+/* Undo Button Styles */
+.undo-section {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.undo-btn {
+    background-color: #ff9800;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+.undo-btn:hover:not(:disabled) {
+    background-color: #f57c00;
+}
+
+.undo-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.action-history-count {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 5px;
+}
+
+.shift-btn {
+    background-color: #940279;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+.shift-btn:hover{
+    background-color: #650453;
+}

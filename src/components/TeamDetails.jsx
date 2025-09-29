@@ -38,7 +38,7 @@ export const TeamDetails = ({ team = {}, isBatting = false }) => {
                                 <span>{player.boundaries?.sixes || 0}</span>
                                 <span>
                                     {player.status || '-'}
-                                    {player.dismissal && ` (${player.dismissal})`}
+                                    {player.dismissal && ` - ${player.dismissal}`}
                                 </span>
                             </div>
                         ))}

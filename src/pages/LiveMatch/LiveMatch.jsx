@@ -44,6 +44,8 @@ const LiveMatch = () => {
     const [outBatsmanType, setOutBatsmanType] = useState(null);
     const [showRunOutPlayerShistModal, setShowRunOutPlayerShistModal] = useState(false);
     const [afterOutStriker, setAfterOutStriker] = useState(null);
+    const [actionHistory, setActionHistory] = useState([]);
+    const [maxHistorySize, setMaxHistorySize] = useState(10);
 
     //Load data from firebase
     useEffect(() => {
@@ -297,6 +299,7 @@ const LiveMatch = () => {
         }
     };
 
+    // Checking match completion
     const checkMatchCompletion = (battingTeamData) => {
         const isSecondInnings = matchData.common.firstBat === 0;
 
@@ -341,6 +344,7 @@ const LiveMatch = () => {
         setShowBowlerSelector(true);
     };
 
+    // Bowler selection
     const handleBowlerSelection = async (bowlerId, bowlerName) => {
         const isTeam1Batting = matchData.common.firstBat === 1;
         const bowlingTeam = isTeam1Batting ? 'team2' : 'team1';
@@ -373,6 +377,7 @@ const LiveMatch = () => {
         }
     };
 
+    // Run out shifting player position
     const runOutPlayerShift = async () => {
         try {
             const isTeam1Batting = matchData.common.firstBat === 1;
@@ -415,18 +420,19 @@ const LiveMatch = () => {
         }
     }
 
+    // Batter selection
     const handleBatsmanSelection = async (playerId, playerName, type) => {
         const isTeam1Batting = matchData.common.firstBat === 1;
         const battingTeam = isTeam1Batting ? 'team1' : 'team2';
         const fieldToUpdate = type === 'striker' ? 'ballFaceBatsman' : 'otherSideBatsman';
 
-        // Get the ID of the currently selected batsman for this position
         const currentBatsmanId = type === 'striker'
             ? currentBatsmen.striker.id
             : currentBatsmen.nonStriker.id;
 
         const updates = {};
         const matchPath = matchData.common.title;
+        const statusCheck = matchData?.[battingTeam]?.players?.[currentBatsmanId]?.status;
 
         // Set the new batsman
         updates[`${matchPath}/${battingTeam}/${fieldToUpdate}`] = {
@@ -436,8 +442,10 @@ const LiveMatch = () => {
         updates[`${matchPath}/${battingTeam}/players/${playerId}/status`] = 'batting';
 
         // If there was a previously selected batsman for this position, reset their status to 'yet to bat'
-        if (currentBatsmanId && currentBatsmanId !== playerId) {
-            updates[`${matchPath}/${battingTeam}/players/${currentBatsmanId}/status`] = 'yet to bat';
+        if (statusCheck !== "out") {
+            if (currentBatsmanId && currentBatsmanId !== playerId) {
+                updates[`${matchPath}/${battingTeam}/players/${currentBatsmanId}/status`] = 'yet to bat';
+            }
         }
 
         try {
@@ -499,6 +507,40 @@ const LiveMatch = () => {
         const bowlerId = currentBowler.id;
         const overLimit = matchData.common.overLimit || 20;
         const maxBalls = overLimit * 6;
+
+        // Save previous state for undo
+        const previousState = {
+            strikerRuns: matchData[battingTeam].players[strikerId]?.runs || 0,
+            strikerBalls: matchData[battingTeam].players[strikerId]?.balls || 0,
+            strikerStrikeRate: matchData[battingTeam].players[strikerId]?.strikeRate || 0,
+            bowlerRuns: matchData[bowlingTeam].bowlers[bowlerId]?.runs || 0,
+            bowlerBalls: matchData[bowlingTeam].bowlers[bowlerId]?.balls || 0,
+            bowlerOvers: matchData[bowlingTeam].bowlers[bowlerId]?.overs || 0,
+            bowlerEconomy: matchData[bowlingTeam].bowlers[bowlerId]?.economy || 0,
+            teamBalls: matchData[battingTeam].totalBalls || 0,
+            teamOvers: matchData[battingTeam].overs || 0,
+            teamRuns: matchData[battingTeam].totalRuns || 0,
+            liveScoreTeam1: liveScore.team1.score || 0,
+            liveScoreTeam2: liveScore.team2.score || 0,
+            liveOversTeam1: liveScore.team1.overs || 0,
+            liveOversTeam2: liveScore.team2.overs || 0,
+            overTypes: [...(matchData.common.overBallsTypes || [])],
+            boundaries: {
+                sixes: matchData[battingTeam].players[strikerId]?.boundaries?.sixes || 0,
+                fours: matchData[battingTeam].players[strikerId]?.boundaries?.fours || 0,
+                twos: matchData[battingTeam].players[strikerId]?.boundaries?.twos || 0,
+                singles: matchData[battingTeam].players[strikerId]?.boundaries?.singles || 0,
+            },
+            // Save current batsmen positions
+            currentBatsmen: {
+                striker: { ...currentBatsmen.striker },
+                nonStriker: { ...currentBatsmen.nonStriker }
+            },
+            ballFaceBatsman: { ...matchData[battingTeam].ballFaceBatsman },
+            otherSideBatsman: { ...matchData[battingTeam].otherSideBatsman },
+            // Track if batsmen should be swapped back
+            shouldSwapBack: (runs % 2 !== 0) && !(((matchData[battingTeam].totalBalls || 0) + 1) % 6 === 0)
+        };
 
         // Prepare updates object for Firebase
         const updates = {};
@@ -583,6 +625,7 @@ const LiveMatch = () => {
                 : matchData.team2.overs || 0;
 
         // Handle ball count and over completion
+        let batsmenSwapped = false;
         const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
         const isOverCompleted = newBallsInOver % 6 === 0;
 
@@ -597,12 +640,26 @@ const LiveMatch = () => {
                 striker: prev.nonStriker,
                 nonStriker: prev.striker
             }));
+            batsmenSwapped = true;
         }
 
         try {
             // Update all paths in Firebase in a single transaction
             await update(ref(database), updates);
-
+            saveActionToHistory({
+                type: 'score',
+                runs,
+                matchPath,
+                battingTeam,
+                bowlingTeam,
+                strikerId,
+                bowlerId,
+                previousState: {
+                    ...previousState,
+                    batsmenSwapped
+                },
+                timestamp: Date.now()
+            });
             // Check if match should end (only in second innings)
             const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
 
@@ -689,6 +746,97 @@ const LiveMatch = () => {
         const overLimit = matchData.common.overLimit || 20;
         const maxBalls = overLimit * 6;
 
+        // Save comprehensive previous state for undo
+        const previousState = {
+            // Team stats
+            teamRuns: matchData[battingTeam]?.totalRuns || 0,
+            teamBalls: matchData[battingTeam]?.totalBalls || 0,
+            teamOvers: matchData[battingTeam]?.overs || 0,
+            teamExtraAmount: matchData[battingTeam]?.totalExtraAmount || 0,
+            teamWickets: matchData[battingTeam]?.totalWickets || 0,
+
+            // Live score data
+            liveScoreTeam1: liveScore.team1.score || 0,
+            liveScoreTeam2: liveScore.team2.score || 0,
+            liveOversTeam1: liveScore.team1.overs || 0,
+            liveOversTeam2: liveScore.team2.overs || 0,
+            liveWicketsTeam1: liveScore.team1.wicket || 0,
+            liveWicketsTeam2: liveScore.team2.wicket || 0,
+
+            // Current batsmen complete state
+            strikerId: strikerId,
+            strikerRuns: matchData[battingTeam].players[strikerId]?.runs || 0,
+            strikerBalls: matchData[battingTeam].players[strikerId]?.balls || 0,
+            strikerStrikeRate: matchData[battingTeam].players[strikerId]?.strikeRate || 0,
+            strikerStatus: matchData[battingTeam].players[strikerId]?.status || 'batting',
+
+            nonStrikerId: currentBatsmen.nonStriker.id,
+            nonStrikerRuns: matchData[battingTeam].players[currentBatsmen.nonStriker.id]?.runs || 0,
+            nonStrikerBalls: matchData[battingTeam].players[currentBatsmen.nonStriker.id]?.balls || 0,
+            nonStrikerStatus: matchData[battingTeam].players[currentBatsmen.nonStriker.id]?.status || 'batting',
+
+            // Bowler stats
+            bowlerId: currentBowler.id,
+            bowlerRuns: matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0,
+            bowlerBalls: matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0,
+            bowlerOvers: matchData[bowlingTeam].bowlers[currentBowler.id]?.overs || 0,
+            bowlerEconomy: matchData[bowlingTeam].bowlers[currentBowler.id]?.economy || 0,
+            bowlerWickets: matchData[bowlingTeam].bowlers[currentBowler.id]?.wickets || 0,
+
+            // Arrays and lists
+            extraTypes: [...(matchData[battingTeam].extraTypes || [])],
+            overTypes: [...currentOverTypes],
+            fallOfWickets: JSON.parse(JSON.stringify(matchData[battingTeam].fallOfWickets || {})),
+
+            // Complete batsmen state
+            currentBatsmen: {
+                striker: { ...currentBatsmen.striker },
+                nonStriker: { ...currentBatsmen.nonStriker }
+            },
+            ballFaceBatsman: JSON.parse(JSON.stringify(matchData[battingTeam].ballFaceBatsman || {})),
+            otherSideBatsman: JSON.parse(JSON.stringify(matchData[battingTeam].otherSideBatsman || {})),
+
+            // Boundaries
+            boundaries: {
+                sixes: matchData[battingTeam].players[strikerId]?.boundaries?.sixes || 0,
+                fours: matchData[battingTeam].players[strikerId]?.boundaries?.fours || 0,
+                twos: matchData[battingTeam].players[strikerId]?.boundaries?.twos || 0,
+                singles: matchData[battingTeam].players[strikerId]?.boundaries?.singles || 0,
+            },
+
+            // Run out specific state - COMPLETE tracking
+            isRunOut: extraRunOutInput === "2",
+            outBatsman: outBatsman,
+            outBatsmanType: outBatsmanType,
+            outBatsmanStatus: outBatsman ? matchData[battingTeam].players[outBatsman]?.status : null,
+            outBatsmanDismissal: outBatsman ? matchData[battingTeam].players[outBatsman]?.dismissal : null,
+            outBatsmanRuns: outBatsman ? matchData[battingTeam].players[outBatsman]?.runs : 0,
+            outBatsmanBalls: outBatsman ? matchData[battingTeam].players[outBatsman]?.balls : 0,
+            outBatsmanBoundaries: outBatsman ? {
+                sixes: matchData[battingTeam].players[outBatsman]?.boundaries?.sixes || 0,
+                fours: matchData[battingTeam].players[outBatsman]?.boundaries?.fours || 0,
+                twos: matchData[battingTeam].players[outBatsman]?.boundaries?.twos || 0,
+                singles: matchData[battingTeam].players[outBatsman]?.boundaries?.singles || 0,
+            } : null,
+
+            // Fielder information
+            fielder: fielder,
+
+            // Current UI state
+            currentSelectingFor: selectingFor,
+            currentShowBatsmanSelector: showBatsmanSelector,
+            currentShowRunOutPlayerShistModal: showRunOutPlayerShistModal,
+            currentAfterOutStriker: afterOutStriker,
+
+            // Extra runs specific
+            extraRunsInput: extraRunsInput,
+            extraReasonInput: extraReasonInput,
+            extraRunOutInput: extraRunOutInput,
+            currentExtraType: currentExtraType,
+            currentDismissalType: currentDismissalType,
+            runsBeforeOut: runsBeforeOut
+        };
+
         const updates = {};
 
         // Update extraTypes array and over type array
@@ -746,8 +894,6 @@ const LiveMatch = () => {
                 } else if (extraRuns === 1) {
                     updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/singles`] = (matchData[battingTeam].players[strikerId]?.boundaries?.singles || 0) + 1;
                 }
-
-                // If misfield (extraReason = false), don't add runs to striker (only bonus run added above)
             }
 
             // Update strike rate
@@ -796,24 +942,6 @@ const LiveMatch = () => {
                 (matchData[bowlingTeam].bowlers[currentBowler.id]?.runs || 0) + extraRuns,
                 (matchData[bowlingTeam].bowlers[currentBowler.id]?.balls || 0) + 1
             );
-
-            const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
-            const isOverCompleted = newBallsInOver % 6 === 0;
-
-            // Check if match should end (only in second innings)
-            const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
-
-            if (shouldEndMatch && extraRunOutInput !== "2") {
-                await update(ref(database), updates);
-                setShowMOMSelector(true);
-            }
-            else if (((matchData[battingTeam].totalBalls || 0) + 1) >= maxBalls && extraRunOutInput !== "2") {
-                await update(ref(database), updates);
-                await handleInningsCompletion();
-            }
-            else if (isOverCompleted && extraRunOutInput !== "2") {
-                await handleOverCompletion(extraRuns);
-            }
         }
 
         const newBallsInOver = (matchData[battingTeam].totalBalls || 0) + 1;
@@ -843,6 +971,12 @@ const LiveMatch = () => {
                 over: currentOver
             };
 
+            if (outBatsmanType === 'striker') {
+                updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = null;
+            } else {
+                updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = null;
+            }
+
             setSelectingFor(outBatsmanType);
             setShowBatsmanSelector(true);
         } else {
@@ -856,17 +990,65 @@ const LiveMatch = () => {
                     striker: prev.nonStriker,
                     nonStriker: prev.striker
                 }));
+                previousState.batsmenSwapped = true;
             }
         }
 
         try {
             // Update all paths in Firebase
             await update(ref(database), updates);
+
+            saveActionToHistory({
+                type: 'extra',
+                extraType: type,
+                runs: extraRuns,
+                matchPath,
+                battingTeam,
+                bowlingTeam,
+                strikerId,
+                bowlerId: currentBowler.id,
+                previousState,
+                timestamp: Date.now(),
+                isRunOut: extraRunOutInput === "2",
+                outBatsman: outBatsman,
+                outBatsmanType: outBatsmanType,
+                fielder: fielder,
+                dismissalText: extraRunOutInput === "2" ? `run out (${matchData[bowlingTeam].players[fielder]?.name || 'fielder'})` : null,
+                currentState: {
+                    selectingFor: selectingFor,
+                    showBatsmanSelector: showBatsmanSelector,
+                    showRunOutPlayerShistModal: showRunOutPlayerShistModal,
+                    afterOutStriker: afterOutStriker,
+                    extraRunsInput: extraRunsInput,
+                    extraReasonInput: extraReasonInput,
+                    extraRunOutInput: extraRunOutInput,
+                    currentExtraType: currentExtraType,
+                    currentDismissalType: currentDismissalType,
+                    runsBeforeOut: runsBeforeOut,
+                    fielder: fielder,
+                    outBatsman: outBatsman,
+                    outBatsmanType: outBatsmanType
+                }
+            });
+
             setExtraRunsInput("0");
             setExtraReasonInput("1");
             setExtraRunOutInput("1")
             setFielder(null);
 
+            // Check match completion for LB
+            if (type === 'LB' && extraRunOutInput !== "2") {
+                const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
+                if (shouldEndMatch) {
+                    setShowMOMSelector(true);
+                }
+                else if (((matchData[battingTeam].totalBalls || 0) + 1) >= maxBalls) {
+                    await handleInningsCompletion();
+                }
+                else if (isOverCompleted) {
+                    await handleOverCompletion(extraRuns);
+                }
+            }
         } catch (error) {
             console.error('Error recording extra:', error);
             alert('Failed to record extra');
@@ -911,6 +1093,67 @@ const LiveMatch = () => {
         const overLimit = matchData.common.overLimit || 20;
         const maxBalls = overLimit * 6;
 
+        const previousState = {
+            // Batsman stats
+            batsmanId: strikerId,
+            batsmanName: matchData[battingTeam].players[strikerId]?.name,
+            batsmanStatus: matchData[battingTeam].players[strikerId]?.status || 'batting',
+            batsmanDismissal: matchData[battingTeam].players[strikerId]?.dismissal || '',
+            batsmanRuns: matchData[battingTeam].players[strikerId]?.runs || 0,
+            batsmanBalls: matchData[battingTeam].players[strikerId]?.balls || 0,
+            batsmanStrikeRate: matchData[battingTeam].players[strikerId]?.strikeRate || 0,
+
+            // Bowler stats
+            bowlerId: bowlerId,
+            bowlerRuns: matchData[bowlingTeam].bowlers[bowlerId]?.runs || 0,
+            bowlerBalls: matchData[bowlingTeam].bowlers[bowlerId]?.balls || 0,
+            bowlerOvers: matchData[bowlingTeam].bowlers[bowlerId]?.overs || 0,
+            bowlerEconomy: matchData[bowlingTeam].bowlers[bowlerId]?.economy || 0,
+            bowlerWickets: matchData[bowlingTeam].bowlers[bowlerId]?.wickets || 0,
+
+            // Team stats
+            teamRuns: matchData[battingTeam].totalRuns || 0,
+            teamBalls: matchData[battingTeam].totalBalls || 0,
+            teamOvers: matchData[battingTeam].overs || 0,
+            teamWickets: matchData[battingTeam].totalWickets || 0,
+
+            // Live score data
+            liveScoreTeam1: liveScore.team1.score || 0,
+            liveScoreTeam2: liveScore.team2.score || 0,
+            liveOversTeam1: liveScore.team1.overs || 0,
+            liveOversTeam2: liveScore.team2.overs || 0,
+            liveWicketsTeam1: liveScore.team1.wicket || 0,
+            liveWicketsTeam2: liveScore.team2.wicket || 0,
+
+            // Arrays and lists
+            overTypes: [...(matchData.common.overBallsTypes || [])],
+            fallOfWickets: { ...(matchData[battingTeam].fallOfWickets || {}) },
+
+            // Current batsmen state
+            currentBatsmen: {
+                striker: { ...currentBatsmen.striker },
+                nonStriker: { ...currentBatsmen.nonStriker }
+            },
+            ballFaceBatsman: { ...matchData[battingTeam].ballFaceBatsman },
+            otherSideBatsman: { ...matchData[battingTeam].otherSideBatsman },
+
+            // For run out specific
+            runsBeforeOut: runsBeforeOut,
+            outBatsman: outBatsman,
+            outBatsmanType: outBatsmanType,
+            outBatsmanStatus: outBatsman ? matchData[battingTeam].players[outBatsman]?.status : null,
+            outBatsmanDismissal: outBatsman ? matchData[battingTeam].players[outBatsman]?.dismissal : null,
+            outBatsmanRuns: outBatsman ? matchData[battingTeam].players[outBatsman]?.runs : 0,
+            outBatsmanBalls: outBatsman ? matchData[battingTeam].players[outBatsman]?.balls : 0,
+
+            // Current UI state
+            currentSelectingFor: selectingFor,
+            currentShowBatsmanSelector: showBatsmanSelector,
+
+            // Fielder information
+            fielder: fielder
+        };
+
         const updates = {};
         const matchPath = matchData.common.title;
 
@@ -923,7 +1166,8 @@ const LiveMatch = () => {
 
         // Update batsman status
         if (currentDismissalType !== 'run out') {
-            updates[`${matchPath}/${battingTeam}/players/${strikerId}/status`] = 'out';
+            updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = null;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/status`] = "out";
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] =
                 (matchData[battingTeam].players[strikerId]?.balls || 0) + 1;
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] =
@@ -932,7 +1176,12 @@ const LiveMatch = () => {
                     (matchData[battingTeam].players[strikerId]?.balls || 0) + 1
                 );
         } else {
-            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = 'out';
+            if (outBatsmanType === 'striker') {
+                updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = null;
+            } else {
+                updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = null;
+            }
+            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = "out";
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] =
                 (matchData[battingTeam].players[strikerId]?.balls || 0) + 1;
             updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] =
@@ -1029,10 +1278,27 @@ const LiveMatch = () => {
             over: currentOver
         };
 
-        // In handleDismissalConfirmation function, after updating the dismissal:
         try {
             // Update all paths in Firebase
             await update(ref(database), updates);
+
+            // Save to history with comprehensive wicket data
+            saveActionToHistory({
+                type: 'wicket',
+                dismissalType: currentDismissalType,
+                matchPath,
+                battingTeam,
+                bowlingTeam,
+                strikerId,
+                bowlerId,
+                previousState,
+                timestamp: Date.now(),
+                fielder: fielder,
+                isRunOut: currentDismissalType === 'run out',
+                outBatsman: outBatsman,
+                runsBeforeOut: runsBeforeOut,
+                dismissalText: dismissalText
+            });
 
             // Check if match should end (only in second innings)
             const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
@@ -1074,6 +1340,7 @@ const LiveMatch = () => {
         setCurrentDismissalType(null);
     };
 
+    // Inning Completion
     const handleInningsCompletion = async () => {
         const updatedMatchData = JSON.parse(JSON.stringify(matchData));
 
@@ -1326,6 +1593,390 @@ const LiveMatch = () => {
         }
     }
 
+    // Undo function
+    const saveActionToHistory = (action) => {
+        setActionHistory(prev => {
+            const newHistory = [...prev, action];
+            // Keep only the last maxHistorySize actions
+            if (newHistory.length > maxHistorySize) {
+                return newHistory.slice(-maxHistorySize);
+            }
+            return newHistory;
+        });
+    };
+
+    // Undo function
+    const handleUndo = async () => {
+        if (actionHistory.length === 0) {
+            alert('No actions to undo');
+            return;
+        }
+
+        const lastAction = actionHistory[actionHistory.length - 1];
+
+        try {
+            // Revert the action based on its type
+            switch (lastAction.type) {
+                case 'score':
+                    await undoScore(lastAction);
+                    break;
+                case 'extra':
+                    await undoExtra(lastAction);
+                    break;
+                case 'wicket':
+                    await undoWicket(lastAction);
+                    break;
+                default:
+                    console.warn('Unknown action type:', lastAction.type);
+            }
+
+            // Remove the action from history
+            setActionHistory(prev => prev.slice(0, -1));
+
+        } catch (error) {
+            console.error('Error undoing action:', error);
+            alert('Failed to undo action');
+        }
+    };
+
+    // Undo score function
+    const undoScore = async (action) => {
+        const { matchPath, battingTeam, bowlingTeam, strikerId, bowlerId, previousState } = action;
+
+        const updates = {};
+
+        // Revert batsman stats
+        updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] = previousState.strikerRuns;
+        updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] = previousState.strikerBalls;
+        updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] = previousState.strikerStrikeRate;
+
+        // Revert boundaries
+        if (previousState.boundaries) {
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/sixes`] = previousState.boundaries.sixes;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/fours`] = previousState.boundaries.fours;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/twos`] = previousState.boundaries.twos;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/singles`] = previousState.boundaries.singles;
+        }
+
+        // Revert bowler stats
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/runs`] = previousState.bowlerRuns;
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/balls`] = previousState.bowlerBalls;
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/overs`] = previousState.bowlerOvers;
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/economy`] = previousState.bowlerEconomy;
+
+        // Revert team totals
+        updates[`${matchPath}/${battingTeam}/totalBalls`] = previousState.teamBalls;
+        updates[`${matchPath}/${battingTeam}/overs`] = previousState.teamOvers;
+        updates[`${matchPath}/${battingTeam}/totalRuns`] = previousState.teamRuns;
+
+        // Revert LiveScore data
+        updates['LiveData/liveScore/team1/score'] = previousState.liveScoreTeam1;
+        updates['LiveData/liveScore/team2/score'] = previousState.liveScoreTeam2;
+        updates['LiveData/liveScore/team1/overs'] = previousState.liveOversTeam1;
+        updates['LiveData/liveScore/team2/overs'] = previousState.liveOversTeam2;
+
+        // Revert over types
+        updates[`${matchPath}/common/overBallsTypes`] = previousState.overTypes;
+
+        // Revert batsmen positions if they were swapped
+        if (previousState.batsmenSwapped) {
+            updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = previousState.ballFaceBatsman;
+            updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = previousState.otherSideBatsman;
+            setCurrentBatsmen(previousState.currentBatsmen);
+        }
+
+        try {
+            await update(ref(database), updates);
+            console.log('Score undo completed successfully');
+        } catch (error) {
+            console.error('Error undoing score:', error);
+            throw error;
+        }
+    };
+
+    // Undo extra function
+    const undoExtra = async (action) => {
+        const {
+            matchPath,
+            battingTeam,
+            bowlingTeam,
+            strikerId,
+            bowlerId,
+            previousState,
+            isRunOut,
+            outBatsman
+        } = action;
+
+        const updates = {};
+
+        try {
+            // Revert extra types and over types
+            if (previousState.extraTypes) {
+                updates[`${matchPath}/${battingTeam}/extraTypes`] = previousState.extraTypes;
+            }
+            if (previousState.overTypes) {
+                updates[`${matchPath}/common/overBallsTypes`] = previousState.overTypes;
+            }
+
+            // Revert new batsman
+            const currentBattingTeamData = matchData[battingTeam];
+            const currentStriker = currentBattingTeamData.ballFaceBatsman;
+            const currentNonStriker = currentBattingTeamData.otherSideBatsman;
+            const originalStriker = previousState.currentBatsmen.striker;
+            const originalNonStriker = previousState.currentBatsmen.nonStriker;
+
+            // Check if striker changed and reset new batsman
+            if (currentStriker.id !== originalStriker.id) {
+                updates[`${matchPath}/${battingTeam}/players/${currentStriker.id}/status`] = 'yet to bat';
+                console.log(`Reset new striker ${currentStriker.name} to yet to bat`);
+            }
+
+            // Check if non-striker changed and reset new batsman
+            if (currentNonStriker.id !== originalNonStriker.id) {
+                updates[`${matchPath}/${battingTeam}/players/${currentNonStriker.id}/status`] = 'yet to bat';
+                console.log(`Reset new non-striker ${currentNonStriker.name} to yet to bat`);
+            }
+
+            // Revert team totals
+            updates[`${matchPath}/${battingTeam}/totalRuns`] = previousState.teamRuns;
+            updates[`${matchPath}/${battingTeam}/totalExtraAmount`] = previousState.teamExtraAmount;
+            updates[`${matchPath}/${battingTeam}/totalBalls`] = previousState.teamBalls;
+            updates[`${matchPath}/${battingTeam}/overs`] = previousState.teamOvers;
+            updates[`${matchPath}/${battingTeam}/totalWickets`] = previousState.teamWickets;
+
+            // Revert LiveScore data
+            updates['LiveData/liveScore/team1/score'] = previousState.liveScoreTeam1;
+            updates['LiveData/liveScore/team2/score'] = previousState.liveScoreTeam2;
+            updates['LiveData/liveScore/team1/overs'] = previousState.liveOversTeam1;
+            updates['LiveData/liveScore/team2/overs'] = previousState.liveOversTeam2;
+            updates['LiveData/liveScore/team1/wicket'] = previousState.liveWicketsTeam1;
+            updates['LiveData/liveScore/team2/wicket'] = previousState.liveWicketsTeam2;
+
+            // Revert batsman stats
+            if (strikerId) {
+                updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] = previousState.strikerRuns;
+                updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] = previousState.strikerBalls;
+                updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] = previousState.strikerStrikeRate;
+                updates[`${matchPath}/${battingTeam}/players/${strikerId}/status`] = previousState.strikerStatus;
+
+                // Revert boundaries if they exist
+                if (previousState.boundaries) {
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/sixes`] = previousState.boundaries.sixes;
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/fours`] = previousState.boundaries.fours;
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/twos`] = previousState.boundaries.twos;
+                    updates[`${matchPath}/${battingTeam}/players/${strikerId}/boundaries/singles`] = previousState.boundaries.singles;
+                }
+            }
+
+            // Revert non-striker stats
+            if (previousState.nonStrikerId) {
+                updates[`${matchPath}/${battingTeam}/players/${previousState.nonStrikerId}/runs`] = previousState.nonStrikerRuns;
+                updates[`${matchPath}/${battingTeam}/players/${previousState.nonStrikerId}/balls`] = previousState.nonStrikerBalls;
+                updates[`${matchPath}/${battingTeam}/players/${previousState.nonStrikerId}/status`] = previousState.nonStrikerStatus;
+            }
+
+            // Revert bowler stats
+            if (bowlerId) {
+                updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/runs`] = previousState.bowlerRuns;
+                updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/balls`] = previousState.bowlerBalls;
+                updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/overs`] = previousState.bowlerOvers;
+                updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/economy`] = previousState.bowlerEconomy;
+                updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/wickets`] = previousState.bowlerWickets;
+            }
+
+            // Handle run out undo
+            if (isRunOut && outBatsman) {
+                console.log('Undoing run out from processExtra for batsman:', outBatsman);
+
+                // Revert the out batsman completely
+                updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = previousState.outBatsmanStatus;
+                updates[`${matchPath}/${battingTeam}/players/${outBatsman}/dismissal`] = previousState.outBatsmanDismissal;
+                updates[`${matchPath}/${battingTeam}/players/${outBatsman}/runs`] = previousState.outBatsmanRuns;
+                updates[`${matchPath}/${battingTeam}/players/${outBatsman}/balls`] = previousState.outBatsmanBalls;
+
+                // Revert out batsman boundaries if they exist
+                if (previousState.outBatsmanBoundaries) {
+                    updates[`${matchPath}/${battingTeam}/players/${outBatsman}/boundaries/sixes`] = previousState.outBatsmanBoundaries.sixes;
+                    updates[`${matchPath}/${battingTeam}/players/${outBatsman}/boundaries/fours`] = previousState.outBatsmanBoundaries.fours;
+                    updates[`${matchPath}/${battingTeam}/players/${outBatsman}/boundaries/twos`] = previousState.outBatsmanBoundaries.twos;
+                    updates[`${matchPath}/${battingTeam}/players/${outBatsman}/boundaries/singles`] = previousState.outBatsmanBoundaries.singles;
+                }
+
+                // RESTORE COMPLETE BATSMEN POSITIONS
+                updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = previousState.ballFaceBatsman;
+                updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = previousState.otherSideBatsman;
+
+                // RESTORE FALL OF WICKETS
+                const wicketNumber = previousState.teamWickets + 1;
+                updates[`${matchPath}/${battingTeam}/fallOfWickets/${wicketNumber}`] = null;
+            }
+
+            // Revert batsmen positions for non-run out extras
+            if (!isRunOut && previousState.batsmenSwapped) {
+                updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = previousState.ballFaceBatsman;
+                updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = previousState.otherSideBatsman;
+            }
+
+            // Execute all updates
+            await update(ref(database), updates);
+
+            // Update local state after successful Firebase update
+            if (isRunOut || previousState.batsmenSwapped) {
+                setCurrentBatsmen(previousState.currentBatsmen);
+            }
+
+            console.log('Extra undo completed successfully');
+
+        } catch (error) {
+            console.error('Error undoing extra:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                updates: updates
+            });
+            alert('Failed to undo extra action. Please check console for details.');
+            throw error;
+        }
+    };
+
+    // Undo wicket function
+    const undoWicket = async (action) => {
+        const {
+            matchPath,
+            battingTeam,
+            bowlingTeam,
+            strikerId,
+            bowlerId,
+            previousState,
+            dismissalType,
+            isRunOut,
+            outBatsman
+        } = action;
+
+        const updates = {};
+
+        // Revert over types
+        updates[`${matchPath}/common/overBallsTypes`] = previousState.overTypes;
+
+        // Revert batsman status and stats
+        if (!isRunOut) {
+            // Regular wicket (bowled, caught, lbw, stumped, etc.)
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/status`] = previousState.batsmanStatus;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/dismissal`] = previousState.batsmanDismissal;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] = previousState.batsmanBalls;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] = previousState.batsmanStrikeRate;
+        } else {
+            // Run out wicket
+            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = previousState.outBatsmanStatus;
+            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/dismissal`] = previousState.outBatsmanDismissal;
+
+            // Revert striker stats for runs scored before run out
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/runs`] = previousState.batsmanRuns;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/balls`] = previousState.batsmanBalls;
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/strikeRate`] = previousState.batsmanStrikeRate;
+        }
+
+        // Revert bowler stats
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/balls`] = previousState.bowlerBalls;
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/overs`] = previousState.bowlerOvers;
+        updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/economy`] = previousState.bowlerEconomy;
+
+        // Revert wickets for bowler (except for run out and retired hurt)
+        if (dismissalType !== 'run out' && dismissalType !== 'retired hurt') {
+            updates[`${matchPath}/${bowlingTeam}/bowlers/${bowlerId}/wickets`] = previousState.bowlerWickets;
+        }
+
+        // Revert team data
+        updates[`${matchPath}/${battingTeam}/totalWickets`] = previousState.teamWickets;
+        updates[`${matchPath}/${battingTeam}/totalBalls`] = previousState.teamBalls;
+        updates[`${matchPath}/${battingTeam}/overs`] = previousState.teamOvers;
+
+        // Revert runs for run out scenario
+        if (isRunOut) {
+            updates[`${matchPath}/${battingTeam}/totalRuns`] = previousState.teamRuns;
+        }
+
+        // Revert LiveScore data
+        updates['LiveData/liveScore/team1/score'] = previousState.liveScoreTeam1;
+        updates['LiveData/liveScore/team2/score'] = previousState.liveScoreTeam2;
+        updates['LiveData/liveScore/team1/overs'] = previousState.liveOversTeam1;
+        updates['LiveData/liveScore/team2/overs'] = previousState.liveOversTeam2;
+        updates['LiveData/liveScore/team1/wicket'] = previousState.liveWicketsTeam1;
+        updates['LiveData/liveScore/team2/wicket'] = previousState.liveWicketsTeam2;
+
+        // Remove from fall of wickets
+        const wicketNumber = previousState.teamWickets + 1;
+        updates[`${matchPath}/${battingTeam}/fallOfWickets/${wicketNumber}`] = null;
+
+        // Handle batsmen positions and new batsman status
+        const currentBattingTeamData = matchData[battingTeam];
+
+        // Get current batsmen (after potential selection)
+        const currentStriker = currentBattingTeamData.ballFaceBatsman;
+        const currentNonStriker = currentBattingTeamData.otherSideBatsman;
+
+        // Get original batsmen from previous state
+        const originalStriker = previousState.currentBatsmen.striker;
+        const originalNonStriker = previousState.currentBatsmen.nonStriker;
+
+        // RESTORE ORIGINAL BATSMEN POSITIONS
+        updates[`${matchPath}/${battingTeam}/ballFaceBatsman`] = previousState.ballFaceBatsman;
+        updates[`${matchPath}/${battingTeam}/otherSideBatsman`] = previousState.otherSideBatsman;
+
+        // Update local state with original batsmen
+        setCurrentBatsmen(previousState.currentBatsmen);
+
+        // RESTORE ORIGINAL BATSMEN STATUS TO "BATTING"
+        if (!isRunOut) {
+            // For regular wickets, restore the striker to batting
+            updates[`${matchPath}/${battingTeam}/players/${strikerId}/status`] = 'batting';
+        } else {
+            // For run out, restore the out batsman to batting
+            updates[`${matchPath}/${battingTeam}/players/${outBatsman}/status`] = 'batting';
+        }
+
+        // Check if striker changed and reset new batsman
+        if (currentStriker.id !== originalStriker.id) {
+            updates[`${matchPath}/${battingTeam}/players/${currentStriker.id}/status`] = 'yet to bat';
+            console.log(`Reset new striker ${currentStriker.name} to yet to bat`);
+        }
+
+        // Check if non-striker changed and reset new batsman
+        if (currentNonStriker.id !== originalNonStriker.id) {
+            updates[`${matchPath}/${battingTeam}/players/${currentNonStriker.id}/status`] = 'yet to bat';
+            console.log(`Reset new non-striker ${currentNonStriker.name} to yet to bat`);
+        }
+
+        try {
+            await update(ref(database), updates);
+
+            // Reset UI states
+            setSelectingFor(null);
+            setShowBatsmanSelector(false);
+            setShowRunOutPlayerShistModal(false);
+
+            // Reset local states
+            setOutBatsman(null);
+            setOutBatsmanType(null);
+            setFielder(null);
+            setRunsBeforeOut(0);
+            setCurrentDismissalType(null);
+
+            console.log(`Wicket undo completed successfully for ${dismissalType}`);
+
+            // Show appropriate success message
+            let successMessage = `${dismissalType} wicket undone successfully`;
+            if (isRunOut) {
+                successMessage = 'Run out undone! Original batsmen restored to batting.';
+            }
+            console.log(successMessage);
+
+        } catch (error) {
+            console.error('Error undoing wicket:', error);
+            throw error;
+        }
+    };
+
     if (loading) {
         return <div className="loading-container">Loading match data...</div>;
     }
@@ -1338,7 +1989,6 @@ const LiveMatch = () => {
                     <span className={`status-indicator ${isLive ? 'live' : 'not-live'}`}>
                         {isLive ? 'LIVE' : 'NOT LIVE'}
                     </span>
-                    {isLive ? <button className={"specialButton"} onClick={() => handleShiftBatters()}>Shift Batters</button> : null}
                 </div>
 
                 {isLive ? (
@@ -1411,6 +2061,32 @@ const LiveMatch = () => {
                             <button onClick={() => handleWicket('hit wicket')}>Hit Wicket</button>
                             <button onClick={() => handleWicket('retired hurt')}>Retired Hurt</button>
                         </div>
+                    </div>
+                )}
+
+                {matchData && (
+                    <div className="scoring-controls">
+                        <p className='liveScoreActionCard'>Special Controls</p>
+
+                        <div className="undo-section">
+                            <button
+                                onClick={handleUndo}
+                                disabled={actionHistory.length === 0}
+                                className="undo-btn"
+                            >
+                                Undo Last Action ({actionHistory.length})
+                            </button>
+
+                            {isLive ?
+                                <button
+                                    className={"shift-btn"}
+                                    onClick={() => handleShiftBatters()}>
+                                    Shift Batters
+                                </button>
+                                : null
+                            }
+                        </div>
+
                     </div>
                 )}
             </div>
@@ -1500,7 +2176,10 @@ const LiveMatch = () => {
             {showBatsmanSelector && (
                 <div className="modal-overlay">
                     <div className="player-selector-modal">
-                        <h3>Select {selectingFor === 'striker' ? 'Striker' : 'Non-Striker'}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <h3>Select {selectingFor === 'striker' ? 'Striker' : 'Non-Striker'}</h3>
+                            <h4 style={{ color: 'red', cursor: 'pointer' }} onClick={() => setShowBatsmanSelector(false)}>X</h4>
+                        </div>
                         <div className="player-list">
                             {Object.entries(
                                 matchData.common.firstBat === 1 ?
@@ -1526,7 +2205,10 @@ const LiveMatch = () => {
             {showBowlerSelector && (
                 <div className="modal-overlay">
                     <div className="player-selector-modal">
-                        <h3>Select Bowler</h3>
+                        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <h3>Select Bowler</h3>
+                            <h4 style={{ color: 'red', cursor: 'pointer' }} onClick={() => setShowBowlerSelector(false)}>X</h4>
+                        </div>
                         <div className="player-list">
                             {Object.entries(
                                 matchData.common.firstBat === 1 ?
