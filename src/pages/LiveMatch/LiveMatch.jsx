@@ -109,6 +109,7 @@ const LiveMatch = () => {
                             }
                         };
                         setMatchData(formattedData);
+                        setLoading(false);
 
                         // Handle both ID and name for batsmen
                         const team1Batsman = matchData.team1?.ballFaceBatsman || {};
@@ -151,6 +152,14 @@ const LiveMatch = () => {
                                 },
                         );
 
+                        const isSecondInnings = formattedData.common.firstBat === 0;
+                        if (isSecondInnings) {
+                            const battingTeam = formattedData.common.firstBat === 0 ? 'team2' : 'team1';
+                            const shouldEndMatch = checkMatchCompletion(formattedData[battingTeam]);
+                            if (shouldEndMatch && !showMOMSelector) {
+                                setShowMOMSelector(true);
+                            }
+                        }
                     } else {
                         setMatchData(null);
                         setCurrentBatsmen({
@@ -252,6 +261,7 @@ const LiveMatch = () => {
                     result: '',
                     mom: '',
                     finished: 0,
+                    overLimit: overLimit,
                     status: statusInput,
                 },
                 currentMatchPath: dbMatchTitle
@@ -362,12 +372,28 @@ const LiveMatch = () => {
         const team2Wickets = matchData.team2.totalWickets || 0;
         const overLimit = matchData.common.overLimit || 20;
         const maxBalls = overLimit * 6;
+        const team2Balls = matchData.team2.totalBalls || 0;
 
         const shouldEndMatch = (team2Runs > team1Runs) ||
             (team2Wickets >= 10) ||
-            ((battingTeamData.totalBalls || 0) >= maxBalls);
+            (team2Balls >= maxBalls);
 
         return shouldEndMatch;
+    };
+
+    // Auto check match completion after every ball
+    const autoCheckMatchCompletion = async () => {
+        if (!matchData) return;
+
+        const isSecondInnings = matchData.common.firstBat === 0;
+        if (!isSecondInnings) return;
+
+        const battingTeam = matchData.common.firstBat === 0 ? 'team2' : 'team1';
+        const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
+
+        if (shouldEndMatch) {
+            setShowMOMSelector(true);
+        }
     };
 
     // Helping functions to calculations
@@ -2451,7 +2477,15 @@ const LiveMatch = () => {
                                 }
                             </div>
                             <button
-                                onClick={checkMatchCompletion}
+                                onClick={() => {
+                                    const battingTeam = matchData.common.firstBat === 1 ? 'team1' : 'team2';
+                                    const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
+                                    if (shouldEndMatch) {
+                                        setShowMOMSelector(true);
+                                    } else {
+                                        alert('Match cannot end yet. Conditions not met.');
+                                    }
+                                }}
                                 className="end-btn"
                             >
                                 End Match
