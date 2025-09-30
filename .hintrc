@@ -11,6 +11,15 @@
           "scrollbar-width: none"
         ]
       }
+    ],
+    "manifest-file-extension": "off",
+    "compat-api/html": [
+      "default",
+      {
+        "ignore": [
+          "meta[name=theme-color]"
+        ]
+      }
     ]
   }
 }
