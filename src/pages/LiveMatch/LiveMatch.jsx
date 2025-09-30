@@ -381,21 +381,6 @@ const LiveMatch = () => {
         return shouldEndMatch;
     };
 
-    // Auto check match completion after every ball
-    const autoCheckMatchCompletion = async () => {
-        if (!matchData) return;
-
-        const isSecondInnings = matchData.common.firstBat === 0;
-        if (!isSecondInnings) return;
-
-        const battingTeam = matchData.common.firstBat === 0 ? 'team2' : 'team1';
-        const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
-
-        if (shouldEndMatch) {
-            setShowMOMSelector(true);
-        }
-    };
-
     // Helping functions to calculations
     const ballsToOvers = (balls) => {
         const overs = Math.floor(balls / 6);
