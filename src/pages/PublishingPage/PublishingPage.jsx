@@ -6,7 +6,7 @@ import {
     RiFacebookFill,
     RiWebhookFill
 } from "react-icons/ri";
-import { ref, get, runTransaction } from 'firebase/database';
+import { ref, get, update } from 'firebase/database';
 import { database } from '../../components/firebase';
 
 import logo from "../../Images/Logo.png";
@@ -96,15 +96,13 @@ const PublishingPage = () => {
 
     const handleDownload = async () => {
         try {
-            // Increment download count in Firebase
-            const countRef = ref(database, 'downloadCount');
-            await runTransaction(countRef, (currentCount) => {
-                return (currentCount || 0) + 1;
-            });
+            const rootRef = ref(database);
+            const snapshot = await get(ref(database, "downloadCount"));
+            let currentCount = snapshot.exists() ? snapshot.val() : 0;
 
-            // Update local state
-            setDownloadCount(prev => prev + 1);
+            await update(rootRef, { downloadCount: currentCount + 1 });
 
+            setDownloadCount(currentCount + 1);
         } catch (error) {
             console.error("Error updating download count:", error);
         }
@@ -163,9 +161,11 @@ const PublishingPage = () => {
                         cricket tournament. Compete with the best, honor tradition, and carve your name in gaming history.
                     </p>
                     <div className="header__btn">
-                        <a href={apk} download>
-                            <button>Download App</button>
-                        </a>
+                        <button onClick={() => handleDownload()}>
+                            <a href={apk} download>
+                                <button>Download App</button>
+                            </a>
+                        </button>
                         <div className="download__count">
                             <span>{downloadCount}+ Downloads</span>
                         </div>
