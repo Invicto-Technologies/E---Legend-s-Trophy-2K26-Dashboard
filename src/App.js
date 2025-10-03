@@ -8,6 +8,7 @@ import TopStories from './pages/TopStories/TopStories';
 import Teams from './pages/Teams/Teams';
 import Ranking from './pages/Ranking/Ranking';
 import Login from './pages/Login/Login';
+import PublishingPage from './pages/PublishingPage/PublishingPage';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -42,7 +43,7 @@ function App() {
         <div className="main-content">
           <Routes>
             <Route
-              path="/login"
+              path="/gtpxj"
               element={
                 isLoggedIn ?
                   <Navigate to="/" replace /> :
@@ -54,7 +55,7 @@ function App() {
               element={
                 isLoggedIn ?
                   <LiveMatch /> :
-                  <Navigate to="/login" replace />
+                  <Navigate to="/Download" replace />
               }
             />
             <Route
@@ -62,7 +63,7 @@ function App() {
               element={
                 isLoggedIn ?
                   <UpcomingMatches /> :
-                  <Navigate to="/login" replace />
+                  <Navigate to="/Download" replace />
               }
             />
             <Route
@@ -70,7 +71,7 @@ function App() {
               element={
                 isLoggedIn ?
                   <Fixtures /> :
-                  <Navigate to="/login" replace />
+                  <Navigate to="/Download" replace />
               }
             />
             <Route
@@ -78,7 +79,7 @@ function App() {
               element={
                 isLoggedIn ?
                   <TopStories /> :
-                  <Navigate to="/login" replace />
+                  <Navigate to="/Download" replace />
               }
             />
             <Route
@@ -86,7 +87,7 @@ function App() {
               element={
                 isLoggedIn ?
                   <Teams /> :
-                  <Navigate to="/login" replace />
+                  <Navigate to="/Download" replace />
               }
             />
             <Route
@@ -94,7 +95,13 @@ function App() {
               element={
                 isLoggedIn ?
                   <Ranking /> :
-                  <Navigate to="/login" replace />
+                  <Navigate to="/Download" replace />
+              }
+            />
+            <Route
+              path="/Download"
+              element={
+                <PublishingPage />
               }
             />
           </Routes>

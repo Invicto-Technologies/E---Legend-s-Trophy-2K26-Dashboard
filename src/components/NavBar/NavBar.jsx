@@ -9,7 +9,7 @@ const NavBar = ({ onLogout }) => {
     const handleLogout = async () => {
         await removeLoginStatus();
         onLogout();
-        navigate('/login');
+        navigate('/gtpxj');
     };
 
     const removeLoginStatus = async () => {
