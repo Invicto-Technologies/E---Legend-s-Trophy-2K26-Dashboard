@@ -153,7 +153,7 @@ const LiveMatch = () => {
                         );
 
                         const isSecondInnings = formattedData.common.firstBat === 0;
-                        if (isSecondInnings) {
+                        if (isSecondInnings && formattedData) {
                             const battingTeam = formattedData.common.firstBat === 0 ? 'team2' : 'team1';
                             const shouldEndMatch = checkMatchCompletion(formattedData[battingTeam]);
                             if (shouldEndMatch && !showMOMSelector) {
@@ -363,6 +363,7 @@ const LiveMatch = () => {
 
     // Checking match completion
     const checkMatchCompletion = (battingTeamData) => {
+        if (!matchData || !matchData.common) return false;
         const isSecondInnings = matchData.common.firstBat === 0;
 
         if (!isSecondInnings) return false;
@@ -566,7 +567,7 @@ const LiveMatch = () => {
 
     // Handle scoring runs
     const handleScore = async (runs) => {
-        if (!currentBatsmen?.striker?.id || !currentBatsmen?.nonStriker?.id || !currentBowler?.id || !matchData) {
+        if (!matchData || !matchData.common || !currentBatsmen?.striker?.id || !currentBatsmen?.nonStriker?.id || !currentBowler?.id) {
             alert('Please select all players before scoring');
             return;
         }
@@ -2365,33 +2366,106 @@ const LiveMatch = () => {
                     </span>
                 </div>
 
-                {isLive ? (
-                    <div className="live-match-display">
-                        <div className="match-header">
-                            <h3>{liveScore.matchTitle || 'Match Title'}</h3>
-                            <p className="match-status">{liveScore.status || 'Match status'}</p>
-                        </div>
-
-                        <div className="scorecard">
-                            <div className={`team-score ${liveScore.firstBat === 1 ? 'batting' : ''}`}>
-                                <h4>{liveScore.team1.name || 'Team 1'} ({matchData.common.overLimit} overs)</h4>
-                                <p className="score">
-                                    {liveScore.team1.score || 0}/{liveScore.team1.wicket || 0}
-                                </p>
-                                <p className="overs">({liveScore.team1.overs || 0} overs)</p>
+                {isLive && matchData ? (
+                    <>
+                        <div className="live-match-display">
+                            <div className="match-header">
+                                <h3>{liveScore.matchTitle || 'Match Title'}</h3>
+                                <p className="match-status">{liveScore.status || 'Match status'}</p>
                             </div>
 
-                            <div className="vs-separator">vs</div>
+                            <div className="scorecard">
+                                <div className={`team-score ${liveScore.firstBat === 1 ? 'batting' : ''}`}>
+                                    <h4>{liveScore.team1.name || 'Team 1'} ({matchData.common.overLimit} overs)</h4>
+                                    <p className="score">
+                                        {liveScore.team1.score || 0}/{liveScore.team1.wicket || 0}
+                                    </p>
+                                    <p className="overs">({liveScore.team1.overs || 0} overs)</p>
+                                </div>
 
-                            <div className={`team-score ${liveScore.firstBat === 0 ? 'batting' : ''}`}>
-                                <h4>{liveScore.team2.name || 'Team 2'} ({matchData.common.overLimit} overs)</h4>
-                                <p className="score">
-                                    {liveScore.team2.score || 0}/{liveScore.team2.wicket || 0}
-                                </p>
-                                <p className="overs">({liveScore.team2.overs || 0} overs)</p>
+                                <div className="vs-separator">vs</div>
+
+                                <div className={`team-score ${liveScore.firstBat === 0 ? 'batting' : ''}`}>
+                                    <h4>{liveScore.team2.name || 'Team 2'} ({matchData.common.overLimit} overs)</h4>
+                                    <p className="score">
+                                        {liveScore.team2.score || 0}/{liveScore.team2.wicket || 0}
+                                    </p>
+                                    <p className="overs">({liveScore.team2.overs || 0} overs)</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+
+                        <div className="scoring-controls">
+                            <p className='liveScoreActionCard'>Scoring Controls</p>
+
+                            <div className="runs-buttons">
+                                <button onClick={() => handleScore(0)}>0</button>
+                                <button onClick={() => handleScore(1)}>1</button>
+                                <button onClick={() => handleScore(2)}>2</button>
+                                <button onClick={() => handleScore(3)}>3</button>
+                                <button onClick={() => handleScore(4)}>4</button>
+                                <button onClick={() => handleScore(6)}>6</button>
+                            </div>
+
+                            <div className="extras-buttons">
+                                <button onClick={() => handleExtra('WB')}>Wide (WB)</button>
+                                <button onClick={() => handleExtra('NB')}>No Ball (NB)</button>
+                                <button onClick={() => handleExtra('LB')}>Leg Bye (LB)</button>
+                            </div>
+
+                            <div className="wicket-buttons">
+                                <button onClick={() => handleWicket('bowled')}>Bowled</button>
+                                <button onClick={() => handleWicket('caught')}>Caught</button>
+                                <button onClick={() => handleWicket('lbw')}>LBW</button>
+                            </div>
+
+                            <div className="wicket-buttons" style={{ marginBottom: '0px' }}>
+                                <button onClick={() => handleWicket('stumped')}>Stumped</button>
+                                <button onClick={() => handleWicket('run out')}>Run Out</button>
+                                <button onClick={() => handleWicket('hit wicket')}>Hit Wicket</button>
+                                <button onClick={() => handleWicket('retired hurt')}>Retired Hurt</button>
+                            </div>
+                        </div>
+
+                        <div className="scoring-controls">
+                            <p className='liveScoreActionCard'>Special Controls</p>
+
+                            <div className="undo-section">
+                                <div style={{ display: 'flex', flexDirection: 'row' }}>
+                                    <button
+                                        onClick={handleUndo}
+                                        disabled={actionHistory.length === 0}
+                                        className="undo-btn"
+                                    >
+                                        Undo Last Action ({actionHistory.length})
+                                    </button>
+
+                                    {isLive ?
+                                        <button
+                                            className={"shift-btn"}
+                                            onClick={() => handleShiftBatters()}>
+                                            Shift Batters
+                                        </button>
+                                        : null
+                                    }
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const battingTeam = matchData.common.firstBat === 1 ? 'team1' : 'team2';
+                                        const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
+                                        if (shouldEndMatch) {
+                                            setShowMOMSelector(true);
+                                        } else {
+                                            alert('Match cannot end yet. Conditions not met.');
+                                        }
+                                    }}
+                                    className="end-btn"
+                                >
+                                    End Match
+                                </button>
+                            </div>
+                        </div>
+                    </>
                 ) : (
                     <div className="no-live-match">
                         <p>No live match currently. Start a new match when ready.</p>
@@ -2403,86 +2477,10 @@ const LiveMatch = () => {
                         </button>
                     </div>
                 )}
-
-                {matchData && (
-                    <div className="scoring-controls">
-                        <p className='liveScoreActionCard'>Scoring Controls</p>
-
-                        <div className="runs-buttons">
-                            <button onClick={() => handleScore(0)}>0</button>
-                            <button onClick={() => handleScore(1)}>1</button>
-                            <button onClick={() => handleScore(2)}>2</button>
-                            <button onClick={() => handleScore(3)}>3</button>
-                            <button onClick={() => handleScore(4)}>4</button>
-                            <button onClick={() => handleScore(6)}>6</button>
-                        </div>
-
-                        <div className="extras-buttons">
-                            <button onClick={() => handleExtra('WB')}>Wide (WB)</button>
-                            <button onClick={() => handleExtra('NB')}>No Ball (NB)</button>
-                            <button onClick={() => handleExtra('LB')}>Leg Bye (LB)</button>
-                        </div>
-
-                        <div className="wicket-buttons">
-                            <button onClick={() => handleWicket('bowled')}>Bowled</button>
-                            <button onClick={() => handleWicket('caught')}>Caught</button>
-                            <button onClick={() => handleWicket('lbw')}>LBW</button>
-                        </div>
-
-                        <div className="wicket-buttons" style={{ marginBottom: '0px' }}>
-                            <button onClick={() => handleWicket('stumped')}>Stumped</button>
-                            <button onClick={() => handleWicket('run out')}>Run Out</button>
-                            <button onClick={() => handleWicket('hit wicket')}>Hit Wicket</button>
-                            <button onClick={() => handleWicket('retired hurt')}>Retired Hurt</button>
-                        </div>
-                    </div>
-                )}
-
-                {matchData && (
-                    <div className="scoring-controls">
-                        <p className='liveScoreActionCard'>Special Controls</p>
-
-                        <div className="undo-section">
-                            <div style={{ display: 'flex', flexDirection: 'row' }}>
-                                <button
-                                    onClick={handleUndo}
-                                    disabled={actionHistory.length === 0}
-                                    className="undo-btn"
-                                >
-                                    Undo Last Action ({actionHistory.length})
-                                </button>
-
-                                {isLive ?
-                                    <button
-                                        className={"shift-btn"}
-                                        onClick={() => handleShiftBatters()}>
-                                        Shift Batters
-                                    </button>
-                                    : null
-                                }
-                            </div>
-                            <button
-                                onClick={() => {
-                                    const battingTeam = matchData.common.firstBat === 1 ? 'team1' : 'team2';
-                                    const shouldEndMatch = checkMatchCompletion(matchData[battingTeam]);
-                                    if (shouldEndMatch) {
-                                        setShowMOMSelector(true);
-                                    } else {
-                                        alert('Match cannot end yet. Conditions not met.');
-                                    }
-                                }}
-                                className="end-btn"
-                            >
-                                End Match
-                            </button>
-                        </div>
-
-                    </div>
-                )}
             </div>
 
-            <div style={{ maxWidth: '900px' }}>
-                {matchData && (
+            {isLive && matchData && (
+                <div style={{ maxWidth: '900px' }}>
                     <div>
                         <div className="match-info">
                             <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -2559,8 +2557,8 @@ const LiveMatch = () => {
                             />
                         }
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Batman selection model */}
             {showBatsmanSelector && (

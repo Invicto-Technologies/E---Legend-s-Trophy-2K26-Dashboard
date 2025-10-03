@@ -9,7 +9,7 @@ import {
 import { ref, get, update } from 'firebase/database';
 import { database } from '../../components/firebase';
 
-import logo from "../../Images/Logo.png";
+import logo from "../../Images/Logo_White.png";
 import apk from "../../apk/E Legends Trophy 2025.apk"
 import videoBg from "../../video/videoBg.mp4"
 
@@ -121,7 +121,7 @@ const PublishingPage = () => {
                         <a href="https://web.facebook.com/profile.php?id=100063745324292">
                             <img src={logo} alt="logo" className="logo-white" />
                         </a>
-                        <text style={{ marginLeft: '15px', fontWeight: 'bold', color: 'rgba(218, 218, 218, 1)' }}>E Legends' Trophy 2025</text>
+                        <text style={{ marginLeft: '25px', fontWeight: 'bold', color: 'rgba(218, 218, 218, 1)' }}>E Legends' Trophy 2025</text>
                     </div>
                     <div
                         className="nav__menu__btn"
