@@ -1,0 +1,112 @@
+.wagon-wheel-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+}
+
+.wagon-wheel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.wagon-wheel-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.wagon-shots-count {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.wagon-filter-pills {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.wf-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.wf-pill:hover {
+    background: rgba(0, 240, 255, 0.15);
+    color: #00f0ff;
+    border-color: rgba(0, 240, 255, 0.4);
+}
+
+.wf-pill.active {
+    background: linear-gradient(135deg, #00f0ff, #0284c7);
+    color: #041019;
+    font-weight: 600;
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+}
+
+.wagon-wheel-svg-wrap {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.wagon-wheel-svg {
+    border-radius: 50%;
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+}
+
+.wagon-zone-sector {
+    transition: fill 0.2s ease;
+}
+
+.wagon-zone-sector.selected {
+    stroke: #00f0ff;
+    stroke-width: 2;
+}
+
+.wagon-zone-label {
+    font-size: 9.5px;
+    fill: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.wagon-selection-prompt {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+.selected-tag {
+    color: #00f0ff;
+}
+
+.selected-tag strong {
+    color: #fff;
+    text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+}

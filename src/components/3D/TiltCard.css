@@ -1,0 +1,35 @@
+.tilt-card-wrapper {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s ease;
+    border-radius: 18px;
+    overflow: hidden;
+    will-change: transform;
+    cursor: pointer;
+}
+
+.tilt-card-wrapper:hover {
+    box-shadow: 0 20px 40px -15px rgba(0, 240, 255, 0.25),
+        0 0 25px 0 rgba(0, 240, 255, 0.15);
+}
+
+.tilt-card-inner {
+    position: relative;
+    z-index: 2;
+    transform-style: preserve-3d;
+    justify-items: center;
+    text-align: center;
+    height: 100%;
+}
+
+.tilt-card-glare {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 3;
+    transition: opacity 0.25s ease;
+    mix-blend-mode: screen;
+}

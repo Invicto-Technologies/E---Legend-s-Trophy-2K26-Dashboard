@@ -43,11 +43,11 @@ const Login = ({ onLogin }) => {
                     <div className="logo-placeholder">
                         <img
                             src={logo}
-                            alt="E-Legend's 2K25 Logo"
+                            alt="E-Legend's 2K26 Logo"
                             className="logo-image"
                         />
                     </div>
-                    <h1>E-Legend's Trophy 2K25</h1>
+                    <h1>E-Legend's Trophy 2K26</h1>
                     <p>Cricket Score Dashboard</p>
                 </div>
             </div>

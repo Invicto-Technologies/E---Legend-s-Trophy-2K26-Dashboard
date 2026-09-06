@@ -1,0 +1,775 @@
+/* ==========================================================================
+   ADMIN MAIN NAVBAR
+   ========================================================================== */
+.admin-nav-header {
+    background: #090d16;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.admin-nav-inner {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* Left Group */
+.admin-left-group {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.admin-brand-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+}
+
+.admin-logo-img {
+    height: 38px;
+    width: auto;
+}
+
+.admin-brand-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-brand-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #f8fafc;
+    display: block;
+}
+
+.admin-console-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #00f0ff;
+    letter-spacing: 0.12em;
+    display: block;
+    margin-top: -2px;
+}
+
+/* Primary Nav (Dashboard only in header) */
+.admin-primary-nav {
+    display: flex;
+    align-items: center;
+}
+
+.admin-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 600;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.admin-nav-item .nav-icon {
+    font-size: 1.15rem;
+}
+
+.admin-nav-item:hover {
+    color: #f8fafc;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-nav-item.active {
+    color: #00f0ff;
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.28);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+}
+
+/* Tournament Selector Dropdown in Header */
+.admin-tourney-selector-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 4px 10px 4px 6px;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.admin-tourney-selector-wrap:hover {
+    border-color: rgba(0, 240, 255, 0.35);
+    background: rgba(15, 23, 42, 0.85);
+}
+
+/* Custom Interactive Trigger */
+.custom-select-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    outline: none;
+    font-family: inherit;
+    transition: background 0.15s ease;
+}
+
+.custom-select-trigger:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.custom-select-trigger.menu-open {
+    background: rgba(0, 240, 255, 0.08);
+}
+
+.selector-icon-bubble {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.selector-trophy-icon {
+    font-size: 1.15rem;
+    color: #00f0ff;
+}
+
+.selector-field {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.selector-caption {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+}
+
+.selected-tourney-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+    max-width: 210px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    line-height: 1.2;
+}
+
+.selected-tourney-name.is-placeholder {
+    color: #94a3b8;
+    font-style: italic;
+    font-weight: 600;
+}
+
+.selector-icon-bubble.neutral {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+.selector-icon-bubble.neutral .selector-trophy-icon {
+    color: #94a3b8;
+}
+
+.select-dropdown-arrow {
+    font-size: 1.3rem;
+    color: #94a3b8;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+    flex-shrink: 0;
+    margin-left: 2px;
+}
+
+.select-dropdown-arrow.rotated {
+    transform: rotate(180deg);
+    color: #00f0ff;
+}
+
+.selector-active-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+    flex-shrink: 0;
+}
+
+.selector-active-badge .badge-icon {
+    font-size: 0.8rem;
+}
+
+/* ==========================================================================
+   CUSTOM DROPDOWN PANEL (SELECTION PART)
+   ========================================================================== */
+.custom-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    min-width: 340px;
+    max-width: 380px;
+    background: rgba(13, 21, 38, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 240, 255, 0.28);
+    border-radius: 16px;
+    box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 240, 255, 0.12);
+    overflow: hidden;
+    z-index: 1200;
+    animation: customDropdownAnim 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes customDropdownAnim {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.dropdown-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dropdown-panel-title {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: #00f0ff;
+    text-transform: uppercase;
+}
+
+.dropdown-panel-count {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.dropdown-options-list {
+    max-height: 290px;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Custom Scrollbar for Dropdown List */
+.dropdown-options-list::-webkit-scrollbar {
+    width: 5px;
+}
+
+.dropdown-options-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dropdown-options-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+}
+
+.dropdown-option-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+
+.dropdown-option-item:hover {
+    background: rgba(0, 240, 255, 0.08);
+    border-color: rgba(0, 240, 255, 0.22);
+    transform: translateX(3px);
+}
+
+.dropdown-option-item.selected {
+    background: rgba(0, 240, 255, 0.14);
+    border-color: rgba(0, 240, 255, 0.35);
+}
+
+.option-trophy-bubble {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.dropdown-option-item:hover .option-trophy-bubble,
+.dropdown-option-item.selected .option-trophy-bubble {
+    background: rgba(0, 240, 255, 0.18);
+    color: #00f0ff;
+    transform: scale(1.05);
+}
+
+.option-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.option-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.option-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdown-option-item.selected .option-name {
+    color: #00f0ff;
+}
+
+.option-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    color: #10b981;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+.option-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    animation: livePulseAnim 1.6s infinite ease-in-out;
+}
+
+@keyframes livePulseAnim {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.option-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.option-status-pill {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.option-status-pill.status-upcoming {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.option-status-pill.status-active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.option-status-pill.status-completed,
+.option-status-pill.status-historical {
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.option-meta-pill {
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(0, 240, 255, 0.12);
+    color: #00f0ff;
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.option-trophy-bubble.neutral {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+}
+
+.dropdown-option-item:hover .option-trophy-bubble.neutral,
+.dropdown-option-item.selected .option-trophy-bubble.neutral {
+    background: rgba(0, 240, 255, 0.16);
+    color: #00f0ff;
+}
+
+.option-year, .option-id {
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.option-check-icon {
+    color: #00f0ff;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    margin-left: 6px;
+}
+
+.dropdown-panel-footer {
+    padding: 10px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.25);
+    text-align: center;
+}
+
+.dropdown-console-link {
+    color: #38bdf8;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dropdown-console-link:hover {
+    color: #00f0ff;
+    text-decoration: underline;
+}
+
+/* Right Actions */
+.admin-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.view-site-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.view-site-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.admin-logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #f87171;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.admin-logout-btn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .admin-tourney-selector-wrap {
+        padding: 4px 8px;
+    }
+    .selected-tourney-name {
+        font-size: 0.85rem;
+        max-width: 140px;
+    }
+    .selector-active-badge {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-nav-inner {
+        padding: 0 12px;
+        height: 60px;
+    }
+    .admin-logo-img {
+        height: 30px;
+    }
+    .admin-brand-name {
+        font-size: 0.92rem;
+    }
+    .view-site-btn span,
+    .admin-logout-btn span,
+    .admin-nav-item span {
+        display: none;
+    }
+    .view-site-btn,
+    .admin-logout-btn,
+    .admin-nav-item {
+        padding: 8px;
+        font-size: 1.15rem;
+    }
+}
+
+@media (max-width: 520px) {
+    .admin-console-badge {
+        display: none;
+    }
+    .selector-caption {
+        display: none;
+    }
+    .selected-tourney-name {
+        max-width: 110px;
+    }
+    .custom-dropdown-panel {
+        left: -30px;
+        min-width: 290px;
+    }
+}
+
+/* ==========================================================================
+   LIGHT THEME OVERRIDES
+   ========================================================================== */
+[data-theme="light"] .admin-nav-header {
+    background: #ffffff;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .admin-logo-img {
+    filter: brightness(0);
+}
+
+[data-theme="light"] .admin-brand-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .admin-console-badge {
+    color: #0284c7;
+}
+
+[data-theme="light"] .admin-nav-item {
+    color: #475569;
+}
+
+[data-theme="light"] .admin-nav-item:hover {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.08);
+}
+
+[data-theme="light"] .admin-nav-item.active {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.12);
+    border: 1px solid rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .admin-tourney-selector-wrap {
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .admin-tourney-selector-wrap:hover {
+    border-color: rgba(2, 132, 199, 0.5);
+    background: #ffffff;
+}
+
+[data-theme="light"] .custom-select-trigger:hover {
+    background: rgba(15, 23, 42, 0.03);
+}
+
+[data-theme="light"] .custom-select-trigger.menu-open {
+    background: rgba(2, 132, 199, 0.08);
+}
+
+[data-theme="light"] .selector-icon-bubble {
+    background: rgba(2, 132, 199, 0.12);
+    border: 1px solid rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .selector-trophy-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .selector-caption {
+    color: #64748b;
+}
+
+[data-theme="light"] .selected-tourney-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .select-dropdown-arrow {
+    color: #64748b;
+}
+
+[data-theme="light"] .select-dropdown-arrow.rotated {
+    color: #0284c7;
+}
+
+[data-theme="light"] .selector-active-badge {
+    background: rgba(2, 132, 199, 0.12);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+/* Light Theme Custom Dropdown Selection Menu */
+[data-theme="light"] .custom-dropdown-panel {
+    background: #ffffff;
+    border: 1px solid rgba(2, 132, 199, 0.3);
+    box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.15), 0 4px 15px rgba(2, 132, 199, 0.08);
+}
+
+[data-theme="light"] .dropdown-panel-header {
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+[data-theme="light"] .dropdown-panel-title {
+    color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-panel-count {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+[data-theme="light"] .dropdown-option-item:hover {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .dropdown-option-item.selected {
+    background: rgba(2, 132, 199, 0.12);
+    border-color: rgba(2, 132, 199, 0.35);
+}
+
+[data-theme="light"] .option-trophy-bubble {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+[data-theme="light"] .dropdown-option-item:hover .option-trophy-bubble,
+[data-theme="light"] .dropdown-option-item.selected .option-trophy-bubble {
+    background: rgba(2, 132, 199, 0.15);
+    color: #0284c7;
+}
+
+[data-theme="light"] .option-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .dropdown-option-item.selected .option-name {
+    color: #0284c7;
+}
+
+[data-theme="light"] .option-check-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-panel-footer {
+    background: #f8fafc;
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+[data-theme="light"] .dropdown-console-link {
+    color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-console-link:hover {
+    color: #0369a1;
+}
+
+[data-theme="light"] .view-site-btn {
+    background: rgba(15, 23, 42, 0.05);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    color: #334155;
+}
+
+[data-theme="light"] .view-site-btn:hover {
+    background: rgba(15, 23, 42, 0.1);
+    color: #0f172a;
+}

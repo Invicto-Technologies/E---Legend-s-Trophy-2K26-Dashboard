@@ -1,5 +1,5 @@
 {
-  "name": "e-legends-trophy-2k25-dashboard",
+  "name": "e-legends-trophy-2K26-dashboard",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -8,7 +8,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "ajv": "^8.12.0",
-    "e-legends-trophy-2k25-dashboard": "file:",
+    "e-legends-trophy-2K26-dashboard": "file:",
     "firebase": "^11.8.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -16,6 +16,7 @@
     "react-router-dom": "^6.30.1",
     "react-scripts": "5.0.1",
     "scrollreveal": "^4.0.9",
+    "three": "^0.185.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

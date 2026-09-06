@@ -1,0 +1,172 @@
+.theme-3d-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    outline: none;
+    transform-style: preserve-3d;
+    transition: transform 0.15s ease-out;
+    user-select: none;
+}
+
+.theme-3d-toggle:focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 4px;
+    border-radius: 24px;
+}
+
+/* 3D Track Pill */
+.toggle-track {
+    width: 64px;
+    height: 32px;
+    border-radius: 20px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    box-sizing: border-box;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dark Mode Track Styling */
+.theme-3d-toggle.is-dark .toggle-track {
+    background: linear-gradient(135deg, #090e1a, #0f172a);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+/* Light Mode Track Styling */
+.theme-3d-toggle.is-light .toggle-track {
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.08),
+        0 2px 10px rgba(245, 158, 11, 0.2);
+}
+
+/* Track Background Glyphs */
+.track-icon {
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 0.35;
+    z-index: 1;
+}
+
+.track-icon.active {
+    opacity: 0; /* Hidden under thumb */
+}
+
+.glyph-sun {
+    color: #f59e0b;
+}
+
+.glyph-moon {
+    color: #38bdf8;
+}
+
+/* 3D Sliding Thumb */
+.toggle-thumb-3d {
+    position: absolute;
+    top: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Position in Light vs Dark */
+.theme-3d-toggle.is-light .toggle-thumb-3d {
+    left: 4px;
+    transform: translateX(0);
+}
+
+.theme-3d-toggle.is-dark .toggle-thumb-3d {
+    left: 4px;
+    transform: translateX(32px);
+}
+
+/* Thumb Internal Face & 3D Lighting */
+.thumb-face {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.theme-3d-toggle.is-dark .thumb-face {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+}
+
+.theme-3d-toggle.is-light .thumb-face {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+}
+
+.thumb-glyph {
+    font-size: 0.85rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    animation: thumbGlyphPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes thumbGlyphPop {
+    0% {
+        transform: scale(0.6) rotate(-45deg);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) rotate(0);
+        opacity: 1;
+    }
+}
+
+/* Label Pill */
+.toggle-status-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.theme-3d-toggle.is-dark .toggle-status-label {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.theme-3d-toggle.is-light .toggle-status-label {
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* Hover and Active Micro-Interactions */
+.theme-3d-toggle:hover .toggle-thumb-3d {
+    filter: brightness(1.1);
+}
+
+.theme-3d-toggle:active .toggle-thumb-3d {
+    transform: scale(0.92);
+}

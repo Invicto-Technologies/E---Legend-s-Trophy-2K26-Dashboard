@@ -1,0 +1,527 @@
+/* ==========================================================================
+   PROFESSIONAL MATCH CARD (Home Results & Fixtures)
+   ========================================================================== */
+
+.pro-match-card {
+    background: linear-gradient(145deg, rgba(15, 23, 42, 0.85) 0%, rgba(7, 10, 19, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+    border-radius: 20px;
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pro-match-card:hover {
+    border-color: rgba(0, 240, 255, 0.35);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 240, 255, 0.08);
+    transform: translateY(-3px);
+}
+
+.pro-match-card.is-completed {
+    border-top: 3px solid #10b981;
+}
+
+.pro-match-card.is-scheduled {
+    border-top: 3px solid #f59e0b;
+}
+
+/* Header Top Bar */
+.pmc-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.pmc-stage-badge {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #00f0ff;
+    letter-spacing: 0.06em;
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    padding: 3px 10px;
+    border-radius: 8px;
+}
+
+.pmc-status-pill {
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 9999px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.pmc-status-pill.completed {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #10b981;
+}
+
+.pmc-status-pill.scheduled {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+}
+
+.pmc-schedule-snippet {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-left: auto;
+}
+
+.pmc-cal-icon {
+    font-size: 0.9rem;
+    color: #00f0ff;
+}
+
+.pmc-time-dot {
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+/* Competitors Grid */
+.pmc-competitors {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+    background: rgba(2, 6, 23, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.pmc-team-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 10px;
+    transition: background 0.2s ease;
+}
+
+.pmc-team-row.winner {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.pmc-team-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pmc-team-crest {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1.5px solid rgba(0, 240, 255, 0.3);
+    flex-shrink: 0;
+}
+
+.pmc-team-avatar-fallback {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(2, 132, 199, 0.3));
+    border: 1.5px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+    font-weight: 800;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pmc-team-name {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: -0.01em;
+}
+
+.pmc-team-row.winner .pmc-team-name {
+    color: #ffffff;
+}
+
+.pmc-winner-star {
+    font-size: 0.95rem;
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+}
+
+.pmc-team-score-block {
+    text-align: right;
+}
+
+.pmc-score-text {
+    font-size: 0.96rem;
+    font-weight: 800;
+    color: #00f0ff;
+    letter-spacing: 0.02em;
+}
+
+.pmc-score-pending {
+    font-size: 1rem;
+    color: #475569;
+    font-weight: 600;
+}
+
+.pmc-divider-vs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: -4px 0;
+}
+
+.pmc-vs-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.pmc-vs-text {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 0.05em;
+}
+
+/* Status / Outcome Banner */
+.pmc-status-banner {
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.pmc-status-banner.result-mode {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.pmc-status-banner.venue-mode {
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.18);
+    color: #cbd5e1;
+}
+
+.pmc-result-text,
+.pmc-venue-text {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pmc-banner-icon {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+
+.pmc-banner-icon.success {
+    color: #10b981;
+}
+
+.pmc-banner-icon.pin {
+    color: #f59e0b;
+}
+
+/* Card Footer */
+.pmc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.pmc-potm-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    padding: 4px 10px;
+    border-radius: 8px;
+    color: #f8fafc;
+}
+
+.potm-label {
+    color: #f59e0b;
+    font-weight: 700;
+}
+
+.potm-name {
+    color: #ffffff;
+}
+
+.pmc-venue-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.pmc-action-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #00f0ff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.82rem;
+    transition: transform 0.2s ease;
+}
+
+.pmc-action-link:hover {
+    transform: translateX(3px);
+}
+
+/* ==========================================================================
+   SPACE-SAVING UPCOMING MATCH CARD (Single-Row Competitors)
+   ========================================================================== */
+
+.pro-match-card.is-scheduled.space-saving {
+    padding: 16px 18px 14px;
+    gap: 12px;
+}
+
+.pmc-teams-single-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(2, 6, 23, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+.pmc-single-team {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.pmc-single-team.left {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.pmc-single-team.right {
+    justify-content: flex-end;
+    text-align: right;
+}
+
+.pmc-single-crest {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1.5px solid rgba(0, 240, 255, 0.35);
+    flex-shrink: 0;
+}
+
+.pmc-single-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(2, 132, 199, 0.3));
+    border: 1.5px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+    font-weight: 800;
+    font-size: 0.72rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pmc-single-name {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+}
+
+.pmc-single-vs-wrap {
+    flex-shrink: 0;
+    padding: 0 4px;
+}
+
+.pmc-single-vs-pill {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 3px 8px;
+    border-radius: 9999px;
+    letter-spacing: 0.08em;
+}
+
+.pmc-upcoming-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 4px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    flex-wrap: wrap;
+}
+
+.pmc-upcoming-venue {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #cbd5e1;
+    font-weight: 500;
+}
+
+.pmc-pin-icon {
+    color: #f59e0b;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+
+.pmc-upcoming-format {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.pmc-cricket-icon {
+    font-size: 0.85rem;
+    color: #00f0ff;
+}
+
+/* ==========================================================================
+   LIGHT THEME OVERRIDES
+   ========================================================================== */
+
+[data-theme="light"] .pro-match-card {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+}
+
+[data-theme="light"] .pro-match-card:hover {
+    border-color: rgba(2, 132, 199, 0.4);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .pmc-stage-badge {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.25);
+    color: #0284c7;
+}
+
+[data-theme="light"] .pmc-schedule-snippet {
+    color: #64748b;
+}
+
+[data-theme="light"] .pmc-time-dot {
+    color: #0f172a;
+}
+
+[data-theme="light"] .pmc-competitors {
+    background: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .pmc-team-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .pmc-score-text {
+    color: #0284c7;
+}
+
+[data-theme="light"] .pmc-vs-line {
+    background: rgba(148, 163, 184, 0.25);
+}
+
+[data-theme="light"] .pmc-status-banner.result-mode {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="light"] .pmc-status-banner.venue-mode {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.25);
+    color: #334155;
+}
+
+[data-theme="light"] .pmc-footer {
+    border-top-color: rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .pmc-potm-pill {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #0f172a;
+}
+
+[data-theme="light"] .potm-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .pmc-action-link {
+    color: #0284c7;
+}
+
+[data-theme="light"] .pmc-teams-single-row {
+    background: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+[data-theme="light"] .pmc-single-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .pmc-single-avatar {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(14, 165, 233, 0.2));
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+[data-theme="light"] .pmc-upcoming-venue {
+    color: #334155;
+}
+
+[data-theme="light"] .pmc-upcoming-format {
+    color: #64748b;
+}

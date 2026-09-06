@@ -26,7 +26,7 @@ const NavBar = ({ onLogout }) => {
         <>
             <nav className="navbar">
                 <div className="navbar-brand">
-                    <Link to="/">E-Legend's 2K25 Dashboard</Link>
+                    <Link to="/">E-Legend's Trophy 2K26</Link>
                 </div>
                 <ul className="navbar-links">
                     <li className={location.pathname === '/' ? 'active' : ''}>
