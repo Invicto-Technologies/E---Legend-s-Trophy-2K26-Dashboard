@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import TiltCard from '../../../components/3D/TiltCard';
 import { MdLock, MdPerson, MdLogin, MdArrowBack } from 'react-icons/md';
-import logoImg from '../../../Images/Logo_White.png';
+import logoImg from '../../../Images/e22_logo_transparent.png';
 import './AdminLogin.css';
 
 const AdminLogin = ({ onLogin }) => {

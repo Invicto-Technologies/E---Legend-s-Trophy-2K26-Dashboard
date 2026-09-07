@@ -12,14 +12,12 @@ import {
     resolveTournamentLabels
 } from '../../services/rtdbService';
 import {
-    MdCalendarToday,
-    MdLocationOn,
     MdEmojiEvents,
     MdPlayArrow,
-    MdAccessTime,
     MdSportsCricket,
     MdArrowForward,
-    MdEventAvailable
+    MdEventAvailable,
+    MdLocationOn
 } from 'react-icons/md';
 import './Fixtures3D.css';
 
@@ -134,44 +132,109 @@ const Fixtures3D = () => {
                     {/* LIVE MATCHES TAB */}
                     {activeTab === 'live' && (
                         <div className="fixtures-tab-content">
-                            {isMatchLive && liveData?.liveScore ? (
-                                <div className="fixtures-live-wrap">
-                                    <TiltCard className="fixture-live-card" maxTilt={8}>
-                                        <div className="flc-header">
-                                            <span className="live-badge-glow">
-                                                <span className="ping-dot" /> LIVE IN PROGRESS
-                                            </span>
-                                            <span className="flc-match-title">{liveData.liveScore.matchTitle} Match</span>
-                                        </div>
+                            {isMatchLive && liveData?.liveScore ? (() => {
+                                const ls = liveData.liveScore;
+                                const t1 = ls.team1 || {};
+                                const t2 = ls.team2 || {};
+                                const t1Name = t1.name || 'Team 1';
+                                const t2Name = t2.name || 'Team 2';
+                                const t1Obj = teams[t1Name] || {};
+                                const t2Obj = teams[t2Name] || {};
+                                const t1Logo = t1Obj.logo || t1Obj.logoUrl || t1Obj.crest;
+                                const t2Logo = t2Obj.logo || t2Obj.logoUrl || t2Obj.crest;
 
-                                        <div className="flc-matchup">
-                                            <div className="flc-team">
-                                                <h2>{liveData.liveScore.team1?.name}</h2>
-                                                <span className="flc-score">
-                                                    {liveData.liveScore.team1?.score ?? 0}/{liveData.liveScore.team1?.wicket ?? 0}
-                                                    <small> ({liveData.liveScore.team1?.overs ?? 0} ov)</small>
+                                const firstBat = ls.firstBat ?? 1;
+                                const t2Started = (t2.overs && Number(t2.overs) > 0) || (t2.score && Number(t2.score) > 0);
+                                const isT2Batting = firstBat === 1 ? t2Started : !((t1.overs && Number(t1.overs) > 0) || (t1.score && Number(t1.score) > 0));
+                                const isT1Batting = !isT2Batting;
+
+                                const t1Overs = Number(t1.overs) || 0;
+                                const t2Overs = Number(t2.overs) || 0;
+                                const t1Crr = t1Overs > 0 ? (Number(t1.score || 0) / t1Overs).toFixed(2) : null;
+                                const t2Crr = t2Overs > 0 ? (Number(t2.score || 0) / t2Overs).toFixed(2) : null;
+
+                                return (
+                                    <div className="fixtures-live-wrap">
+                                        <TiltCard className="fixture-live-card" maxTilt={6}>
+                                            <div className="flc-header">
+                                                <div className="flc-header-left">
+                                                    <span className="live-badge-glow">
+                                                        <span className="ping-dot" /> LIVE IN PROGRESS
+                                                    </span>
+                                                    <span className="flc-match-title">{ls.matchTitle || 'Active'} Match</span>
+                                                </div>
+                                                <span className="flc-venue-chip">
+                                                    <MdLocationOn className="flc-chip-icon" /> Faculty Cricket Grounds
                                                 </span>
                                             </div>
-                                            <div className="flc-vs-pill">VS</div>
-                                            <div className="flc-team">
-                                                <h2>{liveData.liveScore.team2?.name}</h2>
-                                                <span className="flc-score">
-                                                    {liveData.liveScore.team2?.score ?? 0}/{liveData.liveScore.team2?.wicket ?? 0}
-                                                    <small> ({liveData.liveScore.team2?.overs ?? 0} ov)</small>
-                                                </span>
+
+                                            <div className="flc-matchup">
+                                                {/* Team 1 Box */}
+                                                <div className={`flc-team-box ${isT1Batting ? 'is-batting' : ''}`}>
+                                                    <div className="flc-team-crest-wrap">
+                                                        {t1Logo ? (
+                                                            <img src={t1Logo} alt={t1Name} className="flc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                        ) : (
+                                                            <div className="flc-team-crest-fallback">{t1Name.substring(0, 3)}</div>
+                                                        )}
+                                                        {isT1Batting && <span className="flc-batting-tag">🏏 BATTING</span>}
+                                                    </div>
+                                                    <h2 className="flc-team-name">{t1Name}</h2>
+                                                    <div className="flc-score-display">
+                                                        <span className="flc-score-num">{t1.score ?? 0}</span>
+                                                        <span className="flc-score-sep">/</span>
+                                                        <span className="flc-score-wkt">{t1.wicket ?? 0}</span>
+                                                    </div>
+                                                    <div className="flc-team-meta">
+                                                        <span className="flc-overs-pill">({t1.overs ?? 0} ov)</span>
+                                                        {t1Crr && <span className="flc-crr-pill">CRR {t1Crr}</span>}
+                                                    </div>
+                                                </div>
+
+                                                {/* Center VS Indicator */}
+                                                <div className="flc-center-indicator">
+                                                    <div className="flc-vs-pill">VS</div>
+                                                    <span className="flc-format-tag">15 Overs T20</span>
+                                                </div>
+
+                                                {/* Team 2 Box */}
+                                                <div className={`flc-team-box ${isT2Batting ? 'is-batting' : ''}`}>
+                                                    <div className="flc-team-crest-wrap">
+                                                        {t2Logo ? (
+                                                            <img src={t2Logo} alt={t2Name} className="flc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                        ) : (
+                                                            <div className="flc-team-crest-fallback">{t2Name.substring(0, 3)}</div>
+                                                        )}
+                                                        {isT2Batting && <span className="flc-batting-tag">🏏 BATTING</span>}
+                                                    </div>
+                                                    <h2 className="flc-team-name">{t2Name}</h2>
+                                                    <div className="flc-score-display">
+                                                        <span className="flc-score-num">{t2.score ?? 0}</span>
+                                                        <span className="flc-score-sep">/</span>
+                                                        <span className="flc-score-wkt">{t2.wicket ?? 0}</span>
+                                                    </div>
+                                                    <div className="flc-team-meta">
+                                                        <span className="flc-overs-pill">({t2.overs ?? 0} ov)</span>
+                                                        {t2Crr && <span className="flc-crr-pill">CRR {t2Crr}</span>}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <p className="flc-status-note">{liveData.liveScore.status}</p>
+                                            {ls.status && (
+                                                <div className="flc-status-banner">
+                                                    <p className="flc-status-note">{ls.status}</p>
+                                                </div>
+                                            )}
 
-                                        <div className="flc-actions">
-                                            <Link to="/live" className="flc-enter-btn">
-                                                <MdPlayArrow /> Enter Match Center
-                                            </Link>
-                                        </div>
-                                    </TiltCard>
-                                </div>
-                            ) : (
+                                            <div className="flc-actions">
+                                                <Link to="/live" className="flc-enter-btn">
+                                                    <MdPlayArrow /> Enter Live Match Center <MdArrowForward className="flc-arrow" />
+                                                </Link>
+                                            </div>
+                                        </TiltCard>
+                                    </div>
+                                );
+                            })() : (
                                 <div className="fixtures-compact-empty">
                                     <div className="f-empty-icon-wrap live">
                                         <MdSportsCricket />

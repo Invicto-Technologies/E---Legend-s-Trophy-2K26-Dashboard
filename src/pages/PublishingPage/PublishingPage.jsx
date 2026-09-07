@@ -25,7 +25,7 @@ import { FaGooglePlay } from 'react-icons/fa';
 import { RiFacebookFill, RiShareLine } from 'react-icons/ri';
 import './PublishingPage.css';
 
-import logoWhite from '../../Images/Logo_White.png';
+import logoWhite from '../../Images/e22_logo_transparent.png';
 import sponsorLogo from '../../Images/Support1.jpeg';
 import apkFile from '../../apk/E Legends Trophy 2025.apk';
 import videoBg from '../../video/videoBg.mp4';

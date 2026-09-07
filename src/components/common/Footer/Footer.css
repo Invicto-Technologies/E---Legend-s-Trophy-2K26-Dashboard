@@ -83,3 +83,8 @@
         gap: 30px;
     }
 }
+
+/* Light Theme Overrides */
+[data-theme="light"] .footer-logo {
+    filter: brightness(0);
+}

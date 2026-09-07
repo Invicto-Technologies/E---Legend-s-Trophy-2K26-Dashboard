@@ -14,7 +14,7 @@ import {
     MdHistoryEdu
 } from 'react-icons/md';
 import './UserNavbar.css';
-import logoImg from '../../Images/Logo_White.png';
+import logoImg from '../../Images/e22_logo_transparent.png';
 
 const UserNavbar = () => {
     const location = useLocation();

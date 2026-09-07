@@ -176,3 +176,12 @@
         font-size: 1.3rem;
     }
 }
+
+/* Light Theme Overrides */
+[data-theme="light"] .login-logo {
+    filter: brightness(0);
+}
+
+[data-theme="light"] .login-header h2 {
+    color: #0f172a;
+}

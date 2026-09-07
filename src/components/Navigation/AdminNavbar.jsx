@@ -14,7 +14,7 @@ import { useAdminTournament } from '../../contexts/AdminTournamentContext';
 import { resolveTournamentKey } from '../../services/rtdbService';
 import './AdminNavbar.css';
 import '../../components/common/ConfirmationModal.css';
-import logoImg from '../../Images/Logo_White.png';
+import logoImg from '../../Images/e22_logo_transparent.png';
 
 const AdminNavbar = ({ onLogout }) => {
     const navigate = useNavigate();

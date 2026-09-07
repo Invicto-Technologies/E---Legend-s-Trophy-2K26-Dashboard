@@ -6,8 +6,7 @@ import {
     MdLocationOn,
     MdSportsCricket,
     MdArrowForward,
-    MdCheckCircle,
-    MdAccessTime
+    MdCheckCircle
 } from 'react-icons/md';
 import './MatchCard.css';
 

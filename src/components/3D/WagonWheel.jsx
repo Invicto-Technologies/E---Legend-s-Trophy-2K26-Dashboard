@@ -1,16 +1,29 @@
 import React, { useState } from 'react';
 import './WagonWheel.css';
 
-export const WAGON_WHEEL_ZONES = [
-    { id: 'third_man', name: 'Third Man', angleStart: 0, angleEnd: 45, side: 'Off' },
-    { id: 'point', name: 'Point', angleStart: 45, angleEnd: 90, side: 'Off' },
-    { id: 'cover', name: 'Cover', angleStart: 90, angleEnd: 135, side: 'Off' },
-    { id: 'mid_off', name: 'Mid-off', angleStart: 135, angleEnd: 180, side: 'Off' },
-    { id: 'mid_on', name: 'Mid-on', angleStart: 180, angleEnd: 225, side: 'Leg' },
-    { id: 'mid_wicket', name: 'Mid-wicket', angleStart: 225, angleEnd: 270, side: 'Leg' },
-    { id: 'square_leg', name: 'Square Leg', angleStart: 270, angleEnd: 315, side: 'Leg' },
-    { id: 'fine_leg', name: 'Fine Leg', angleStart: 315, angleEnd: 360, side: 'Leg' }
+export const WAGON_WHEEL_ZONES_RHB = [
+    { id: 'mid_off', name: 'Mid-off', angleStart: 0, angleEnd: 45, side: 'Off' },
+    { id: 'cover', name: 'Cover', angleStart: 45, angleEnd: 90, side: 'Off' },
+    { id: 'point', name: 'Point', angleStart: 90, angleEnd: 135, side: 'Off' },
+    { id: 'third_man', name: 'Third Man', angleStart: 135, angleEnd: 180, side: 'Off' },
+    { id: 'fine_leg', name: 'Fine Leg', angleStart: 180, angleEnd: 225, side: 'Leg' },
+    { id: 'square_leg', name: 'Square Leg', angleStart: 225, angleEnd: 270, side: 'Leg' },
+    { id: 'mid_wicket', name: 'Mid-wicket', angleStart: 270, angleEnd: 315, side: 'Leg' },
+    { id: 'mid_on', name: 'Mid-on', angleStart: 315, angleEnd: 360, side: 'Leg' }
 ];
+
+export const WAGON_WHEEL_ZONES_LHB = [
+    { id: 'mid_on', name: 'Mid-on', angleStart: 0, angleEnd: 45, side: 'Leg' },
+    { id: 'mid_wicket', name: 'Mid-wicket', angleStart: 45, angleEnd: 90, side: 'Leg' },
+    { id: 'square_leg', name: 'Square Leg', angleStart: 90, angleEnd: 135, side: 'Leg' },
+    { id: 'fine_leg', name: 'Fine Leg', angleStart: 135, angleEnd: 180, side: 'Leg' },
+    { id: 'third_man', name: 'Third Man', angleStart: 180, angleEnd: 225, side: 'Off' },
+    { id: 'point', name: 'Point', angleStart: 225, angleEnd: 270, side: 'Off' },
+    { id: 'cover', name: 'Cover', angleStart: 270, angleEnd: 315, side: 'Off' },
+    { id: 'mid_off', name: 'Mid-off', angleStart: 315, angleEnd: 360, side: 'Off' }
+];
+
+export const WAGON_WHEEL_ZONES = WAGON_WHEEL_ZONES_RHB;
 
 const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
     const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
@@ -21,16 +34,16 @@ const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
 };
 
 const describeArc = (x, y, radius, startAngle, endAngle) => {
-    const start = polarToCartesian(x, y, radius, endAngle);
-    const end = polarToCartesian(x, y, radius, startAngle);
+    const start = polarToCartesian(x, y, radius, startAngle);
+    const end = polarToCartesian(x, y, radius, endAngle);
     const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
-    return ['M', x, y, 'L', start.x, start.y, 'A', radius, radius, 0, largeArcFlag, 0, end.x, end.y, 'Z'].join(' ');
+    return ['M', x, y, 'L', start.x, start.y, 'A', radius, radius, 0, largeArcFlag, 1, end.x, end.y, 'Z'].join(' ');
 };
 
 const getRunColor = (runs, isWicket = false) => {
     if (isWicket) return '#ef4444'; // Red
     switch (runs) {
-        case 6: return '#8b5cf6'; // Violet
+        case 6: return '#a855f7'; // Purple
         case 4: return '#00f0ff'; // Cyan
         case 3: return '#f59e0b'; // Amber
         case 2: return '#10b981'; // Emerald
@@ -45,6 +58,7 @@ const WagonWheel = ({
     selectedZone = null,
     onSelectZone = null,
     batsmanName = '',
+    batsmanHand = 'Right Hand',
     size = 380
 }) => {
     const [hoveredZone, setHoveredZone] = useState(null);
@@ -54,13 +68,19 @@ const WagonWheel = ({
     const outerRadius = (size / 2) - 20;
     const innerCircleRadius = outerRadius * 0.58;
 
-    // Filter shots
-    const filteredShots = shots.filter(s => {
+    const zones = batsmanHand === 'Left Hand' ? WAGON_WHEEL_ZONES_LHB : WAGON_WHEEL_ZONES_RHB;
+
+    // Filter out dot balls (runs === 0) and extras - ONLY draw lines for bat scoring runs (1, 2, 3, 4, 6)
+    const scoringShots = shots.filter(s => {
+        if (s.isExtra || s.extraType) return false;
+        if (Number(s.runs) <= 0) return false;
+        return true;
+    });
+
+    const filteredShots = scoringShots.filter(s => {
         if (filterType === 'all') return true;
-        if (filterType === 'dots') return s.runs === 0;
-        if (filterType === 'singles') return s.runs === 1;
+        if (filterType === 'singles') return s.runs === 1 || s.runs === 2 || s.runs === 3;
         if (filterType === 'boundaries') return s.runs === 4 || s.runs === 6;
-        if (filterType === 'wickets') return s.isWicket;
         return true;
     });
 
@@ -69,8 +89,11 @@ const WagonWheel = ({
             {/* Header info */}
             {batsmanName && (
                 <div className="wagon-wheel-header">
-                    <h4>{batsmanName}</h4>
-                    <span className="wagon-shots-count">{shots.length} Deliveries</span>
+                    <div>
+                        <h4>{batsmanName}</h4>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{batsmanHand} Batsman</span>
+                    </div>
+                    <span className="wagon-shots-count">{scoringShots.length} Scoring Shots</span>
                 </div>
             )}
 
@@ -80,7 +103,7 @@ const WagonWheel = ({
                     className={`wf-pill ${filterType === 'all' ? 'active' : ''}`}
                     onClick={() => setFilterType('all')}
                 >
-                    All ({shots.length})
+                    All Shots ({scoringShots.length})
                 </button>
                 <button
                     className={`wf-pill ${filterType === 'boundaries' ? 'active' : ''}`}
@@ -92,13 +115,7 @@ const WagonWheel = ({
                     className={`wf-pill ${filterType === 'singles' ? 'active' : ''}`}
                     onClick={() => setFilterType('singles')}
                 >
-                    1s & 2s
-                </button>
-                <button
-                    className={`wf-pill ${filterType === 'dots' ? 'active' : ''}`}
-                    onClick={() => setFilterType('dots')}
-                >
-                    Dots
+                    1s, 2s & 3s
                 </button>
             </div>
 
@@ -117,7 +134,7 @@ const WagonWheel = ({
                             <stop offset="100%" stopColor="#040d09" />
                         </radialGradient>
                         <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feGaussianBlur stdDeviation="2.5" result="blur" />
                             <feMerge>
                                 <feMergeNode in="blur" />
                                 <feMergeNode in="SourceGraphic" />
@@ -148,14 +165,14 @@ const WagonWheel = ({
                     />
 
                     {/* 8 Field Zones */}
-                    {WAGON_WHEEL_ZONES.map((zone) => {
+                    {zones.map((zone) => {
                         const pathData = describeArc(center, center, outerRadius - 2, zone.angleStart, zone.angleEnd);
                         const isSelected = selectedZone === zone.name;
                         const isHovered = hoveredZone === zone.name;
 
                         // Zone midpoint for label
                         const midAngle = (zone.angleStart + zone.angleEnd) / 2;
-                        const labelPos = polarToCartesian(center, center, outerRadius * 0.78, midAngle);
+                        const labelPos = polarToCartesian(center, center, outerRadius * 0.76, midAngle);
 
                         return (
                             <g key={zone.id} className="wagon-zone-group">
@@ -193,19 +210,27 @@ const WagonWheel = ({
                         rx="2"
                         opacity="0.85"
                     />
+                    <circle cx={center} cy={center} r="3" fill="#00f0ff" />
 
-                    {/* Render Trajectory Lines */}
+                    {/* Render Trajectory Lines ONLY for Bat Scoring Shots (No Dots, No Extras) */}
                     {filteredShots.map((shot, idx) => {
-                        const angle = shot.angle !== undefined ? shot.angle : (
-                            // Default angle based on zone name
-                            (() => {
-                                const matched = WAGON_WHEEL_ZONES.find(z => z.name === shot.zone);
-                                if (matched) return (matched.angleStart + matched.angleEnd) / 2;
-                                return Math.random() * 360;
-                            })()
+                        const zoneName = shot.zone || shot.wagonZone || shot.name || '';
+                        const cleanTarget = zoneName.replace(/[\s_-]+/g, '').toLowerCase();
+                        const matched = zones.find(z =>
+                            z.name.replace(/[\s_-]+/g, '').toLowerCase() === cleanTarget ||
+                            z.id.replace(/[\s_-]+/g, '').toLowerCase() === cleanTarget
                         );
 
-                        const distanceRatio = shot.runs === 6 ? 1.0 : shot.runs === 4 ? 0.95 : (0.3 + (shot.runs * 0.18));
+                        let angle = (idx * 45) % 360;
+                        if (shot.angle !== undefined) {
+                            angle = shot.angle;
+                        } else if (matched) {
+                            const zoneSpan = matched.angleEnd - matched.angleStart;
+                            const spreadOffset = (idx * 13) % (zoneSpan * 0.7) - (zoneSpan * 0.35);
+                            angle = ((matched.angleStart + matched.angleEnd) / 2) + spreadOffset;
+                        }
+
+                        const distanceRatio = shot.runs >= 6 ? 1.0 : shot.runs === 4 ? 0.92 : shot.runs === 3 ? 0.75 : shot.runs === 2 ? 0.58 : 0.42;
                         const targetPos = polarToCartesian(center, center, outerRadius * distanceRatio, angle);
                         const color = getRunColor(shot.runs, shot.isWicket);
 
@@ -218,7 +243,7 @@ const WagonWheel = ({
                                     y2={targetPos.y}
                                     stroke={color}
                                     strokeWidth={shot.runs >= 4 ? '2.5' : '1.5'}
-                                    strokeOpacity={0.8}
+                                    strokeOpacity={0.85}
                                     filter={shot.runs >= 4 ? 'url(#glow)' : undefined}
                                 />
                                 <circle
