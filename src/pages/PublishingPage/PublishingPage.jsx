@@ -19,7 +19,12 @@ import {
     MdOpenInNew,
     MdBolt,
     MdMilitaryTech,
-    MdVerified
+    MdVerified,
+    MdPolicy,
+    MdLock,
+    MdShield,
+    MdPrivacyTip,
+    MdCheckCircleOutline
 } from 'react-icons/md';
 import { FaGooglePlay } from 'react-icons/fa';
 import { RiFacebookFill, RiShareLine } from 'react-icons/ri';
@@ -169,6 +174,11 @@ const PublishingPage = () => {
                                 <RiShareLine />
                                 <span>Share</span>
                             </button>
+
+                            <a href="#privacy-policy" className="pub-privacy-btn" title="View App Privacy Policy" id="view-privacy-btn">
+                                <MdPrivacyTip />
+                                <span>Privacy Policy</span>
+                            </a>
                         </div>
 
                         {downloadStarted && (
@@ -300,6 +310,170 @@ const PublishingPage = () => {
                                 Flawless contrast indoors and under bright outdoor sun on the cricket grounds with fluid transitions.
                             </p>
                         </TiltCard>
+                    </div>
+                </div>
+            </section>
+
+            {/* App Privacy & Policy Section */}
+            <section className="pub-privacy-section" id="privacy-policy">
+                <div className="pub-container">
+                    <div className="section-title-wrap">
+                        <span className="section-eyebrow">
+                            <MdShield className="eyebrow-icon" /> DATA TRANSPARENCY & PROTECTION
+                        </span>
+                        <h2 className="section-heading">
+                            APP PRIVACY & <span className="gradient-text">POLICY</span>
+                        </h2>
+                        <p className="section-subtext">
+                            Official privacy disclosure and data governance statement for the <strong>E-Legends Trophy</strong> Android Application (<code>com.eltrophy.app.e_legends_trophy</code>). We are committed to safeguarding user trust with complete transparency and zero unnecessary data collection.
+                        </p>
+                    </div>
+
+                    {/* Trust Highlights Grid */}
+                    <div className="privacy-trust-grid">
+                        <div className="trust-pill-card">
+                            <MdCheckCircleOutline className="trust-icon" />
+                            <div>
+                                <h4>100% Free & No Ads</h4>
+                                <p>No commercial monetization, ad trackers, or third-party marketing SDKs.</p>
+                            </div>
+                        </div>
+                        <div className="trust-pill-card">
+                            <MdCheckCircleOutline className="trust-icon" />
+                            <div>
+                                <h4>No Account Required</h4>
+                                <p>Instant score access without signing up, passwords, or personal profiles.</p>
+                            </div>
+                        </div>
+                        <div className="trust-pill-card">
+                            <MdCheckCircleOutline className="trust-icon" />
+                            <div>
+                                <h4>TLS / HTTPS Encrypted</h4>
+                                <p>All match data and live commentary streams securely over HTTPS/TLS.</p>
+                            </div>
+                        </div>
+                        <div className="trust-pill-card">
+                            <MdCheckCircleOutline className="trust-icon" />
+                            <div>
+                                <h4>Google Play Compliant</h4>
+                                <p>Strict adherence to Google Play Developer Program and User Data Policies.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Policy Detailed Cards Grid */}
+                    <div className="privacy-cards-grid">
+                        <div className="privacy-card">
+                            <div className="privacy-card-header">
+                                <div className="p-icon-box cyan-accent">
+                                    <MdPolicy />
+                                </div>
+                                <div>
+                                    <h3>1. Information Collection & Use</h3>
+                                    <span className="p-card-tag">Strictly Minimal & Anonymous</span>
+                                </div>
+                            </div>
+                            <div className="privacy-card-body">
+                                <p>
+                                    The <strong>E-Legends Trophy</strong> application is designed solely as a live collegiate cricket companion for undergraduates, faculty, and alumni.
+                                </p>
+                                <ul>
+                                    <li><strong>Personal Information:</strong> We do <em>not</em> collect, store, or solicit personal details such as your legal name, email address, phone number, physical address, contacts, or financial details.</li>
+                                    <li><strong>Anonymous Diagnostics:</strong> Standard non-identifying telemetry (such as crash stack traces and device model performance) may be processed anonymously via Google Play Services to ensure stability across various Android releases.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="privacy-card">
+                            <div className="privacy-card-header">
+                                <div className="p-icon-box gold-accent">
+                                    <MdSecurity />
+                                </div>
+                                <div>
+                                    <h3>2. Device Permissions Explained</h3>
+                                    <span className="p-card-tag">Essential Access Only</span>
+                                </div>
+                            </div>
+                            <div className="privacy-card-body">
+                                <p>
+                                    Our application requests only the essential system permissions necessary to deliver a live scoreboard experience:
+                                </p>
+                                <ul>
+                                    <li><code>android.permission.INTERNET</code>: Enables communication with Google Firebase Realtime Database to receive instant ball-by-ball commentary, team standings, and match updates.</li>
+                                    <li><code>android.permission.ACCESS_NETWORK_STATE</code>: Detects internet availability to notify users when network connectivity is lost.</li>
+                                    <li><code>android.permission.POST_NOTIFICATIONS</code> (Optional): Used solely to alert users when a scheduled match commences or milestone events occur. Users may toggle notifications on or off at any time in system settings.</li>
+                                    <li><strong>Zero Sensitive Permissions:</strong> We do <em>not</em> access your camera, microphone, gallery, storage, GPS location, or contact list.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="privacy-card">
+                            <div className="privacy-card-header">
+                                <div className="p-icon-box live-accent">
+                                    <MdLock />
+                                </div>
+                                <div>
+                                    <h3>3. Third-Party Services & Cloud Security</h3>
+                                    <span className="p-card-tag">Google Infrastructure</span>
+                                </div>
+                            </div>
+                            <div className="privacy-card-body">
+                                <p>
+                                    To provide reliable and instantaneous score synchronization, the app leverages verified cloud infrastructure provided by <strong>Google LLC</strong>:
+                                </p>
+                                <ul>
+                                    <li><strong>Google Firebase Realtime Database:</strong> Cloud database synchronizing official match scores and tournament fixtures. All network communications are encrypted in transit via TLS 1.3 / HTTPS.</li>
+                                    <li><strong>Google Play Services:</strong> Manages application deployment, integrity validation, and automatic release distribution.</li>
+                                    <li><strong>No Data Brokering:</strong> We do not sell, rent, trade, or share user data with any advertisers or third-party marketing entities.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="privacy-card">
+                            <div className="privacy-card-header">
+                                <div className="p-icon-box purple-accent">
+                                    <MdShield />
+                                </div>
+                                <div>
+                                    <h3>4. Children's Privacy & Data Retention</h3>
+                                    <span className="p-card-tag">Family Safe (All Ages)</span>
+                                </div>
+                            </div>
+                            <div className="privacy-card-body">
+                                <p>
+                                    Our application provides public sporting information suitable for cricket fans of all ages, including collegiate students and youth:
+                                </p>
+                                <ul>
+                                    <li>We do not knowingly collect or solicit personal information from children under 13 years of age.</li>
+                                    <li>Because no user accounts or persistent profiles exist, we retain zero personal records on our servers.</li>
+                                    <li>Users can clear temporary offline cached match cards anytime via Android Settings &gt; Apps &gt; E-Legends Trophy &gt; Storage &gt; Clear Cache.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Policy Metadata & Contact Bar */}
+                    <div className="privacy-meta-bar">
+                        <div className="privacy-meta-info">
+                            <span className="p-meta-item">
+                                <strong>Application:</strong> E-Legends Trophy 2K26
+                            </span>
+                            <span className="p-meta-item">
+                                <strong>Package ID:</strong> <code>com.eltrophy.app.e_legends_trophy</code>
+                            </span>
+                            <span className="p-meta-item">
+                                <strong>Last Updated:</strong> September 2026
+                            </span>
+                            <span className="p-meta-item">
+                                <strong>Compliance:</strong> Google Play Policies
+                            </span>
+                        </div>
+                        <div className="privacy-contact-action">
+                            <span>Inquiries regarding our privacy policy?</span>
+                            <a href="mailto:elegendstrophy@gmail.com" className="p-contact-btn">
+                                Contact Committee
+                            </a>
+                        </div>
                     </div>
                 </div>
             </section>

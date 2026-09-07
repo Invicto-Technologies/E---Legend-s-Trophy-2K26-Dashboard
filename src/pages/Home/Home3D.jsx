@@ -72,6 +72,7 @@ const CountUpNumber = ({ target = 0, duration = 1600, shouldStart = false, suffi
         animId = requestAnimationFrame(step);
 
         return () => cancelAnimationFrame(animId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [target, shouldStart, duration]);
 
     if (!shouldStart && displayVal === 0) {

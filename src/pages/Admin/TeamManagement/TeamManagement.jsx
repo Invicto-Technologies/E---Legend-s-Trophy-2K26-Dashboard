@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ConfirmationModal from '../../../components/common/ConfirmationModal';
 import ToastNotification from '../../../components/common/ToastNotification';
 import Footer from '../../../components/common/Footer/Footer';
-import { subscribeTeams, updateTeamSquad, registerCaptainAuth, createNewTeam, deleteTeam, updateTeamDetails } from '../../../services/rtdbService';
+import { subscribeTeams, updateTeamSquad, registerCaptainAuth, createNewTeam, deleteTeam } from '../../../services/rtdbService';
 import {
     MdPerson,
     MdEdit,
@@ -18,8 +18,7 @@ import {
     MdGroups,
     MdDeleteForever,
     MdShield,
-    MdImage,
-    MdAutoAwesome
+    MdImage
 } from 'react-icons/md';
 import { FaCrown, FaBolt } from 'react-icons/fa6';
 import { GiCricketBat, GiCrossedSwords, GiGloves } from 'react-icons/gi';

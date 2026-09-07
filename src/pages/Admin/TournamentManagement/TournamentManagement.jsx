@@ -326,6 +326,7 @@ const TournamentManagement = () => {
                 handleOpenCompleteModal(currentLiveTourney);
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.search, activeTournament?.activeId, isAllMatchesFinished, tournamentList]);
 
     const handleDelete = (editionId, displayName) => {
