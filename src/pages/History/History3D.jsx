@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
@@ -21,12 +22,14 @@ import {
     MdPerson,
     MdArrowForward
 } from 'react-icons/md';
+import PageLoader from '../../components/common/PageLoader/PageLoader';
 import './History3D.css';
 
 const History3D = () => {
     const { editionId: routeEditionId } = useParams();
     const navigate = useNavigate();
 
+    const [isLoading, setIsLoading] = useState(true);
     const [tournamentIndex, setTournamentIndex] = useState([]);
     const [activeTourney, setActiveTourney] = useState(null);
     const [selectedEditionId, setSelectedEditionId] = useState(routeEditionId || '2K25');
@@ -86,10 +89,16 @@ const History3D = () => {
     // 3. Subscribe to selected tournament edition data
     useEffect(() => {
         if (!selectedEditionId) return;
+        setIsLoading(true);
         const unsub = subscribeTournamentEdition(selectedEditionId, (data) => {
             setEditionData(data);
+            setIsLoading(false);
         });
-        return () => unsub();
+        const timer = setTimeout(() => setIsLoading(false), 1200);
+        return () => {
+            clearTimeout(timer);
+            unsub();
+        };
     }, [selectedEditionId]);
 
     const handleSelectEdition = (id) => {
@@ -110,9 +119,37 @@ const History3D = () => {
 
     const rankings = editionData?.RankingData || editionData?.rankings || {};
     const pointsTable = (rankings.pointsTable || []).filter(Boolean);
-    const batters = Object.values(rankings.batters || {});
-    const bowlers = Object.values(rankings.bowlers || {});
+    const batters = Object.values(rankings.batters || {})
+        .filter(Boolean)
+        .sort((a, b) => {
+            const scoreA = Number(a.scores ?? a.runs ?? a.rating ?? 0);
+            const scoreB = Number(b.scores ?? b.runs ?? b.rating ?? 0);
+            if (scoreB !== scoreA) return scoreB - scoreA;
+            const srA = Number(a.strikeRate ?? 0);
+            const srB = Number(b.strikeRate ?? 0);
+            return srB - srA;
+        });
+    const bowlers = Object.values(rankings.bowlers || {})
+        .filter(Boolean)
+        .sort((a, b) => {
+            const wA = Number(a.wickets ?? a.takenWickets ?? a.rating ?? 0);
+            const wB = Number(b.wickets ?? b.takenWickets ?? b.rating ?? 0);
+            if (wB !== wA) return wB - wA;
+            const ecoA = (a.balls > 0 || a.overs > 0 || a.economy !== undefined) ? Number(a.economy || 0) : 999;
+            const ecoB = (b.balls > 0 || b.overs > 0 || b.economy !== undefined) ? Number(b.economy || 0) : 999;
+            return ecoA - ecoB;
+        });
     const stories = Object.values(editionData?.AllStories || editionData?.stories || {});
+
+    if (isLoading && !editionData) {
+        return (
+            <PageLoader
+                message={`Loading ${selectedEditionId} Tournament Archives...`}
+                subtitle="Retrieving historical match scorecards, champion rosters & photo stories"
+                tournamentName="E-Legends Hall of Fame"
+            />
+        );
+    }
 
     return (
         <div className="history-3d-page">
@@ -406,7 +443,7 @@ const History3D = () => {
                                                     <td>{idx + 1}</td>
                                                     <td><strong>{b.name}</strong></td>
                                                     <td><span className="team-badge-sub">{b.team}</span></td>
-                                                    <td className="stat-highlight">{b.rating}</td>
+                                                    <td className="stat-highlight">{b.scores ?? b.runs ?? b.rating ?? 0}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -434,7 +471,7 @@ const History3D = () => {
                                                     <td>{idx + 1}</td>
                                                     <td><strong>{b.name}</strong></td>
                                                     <td><span className="team-badge-sub">{b.team}</span></td>
-                                                    <td className="stat-highlight">{b.rating}</td>
+                                                    <td className="stat-highlight">{b.wickets ?? b.takenWickets ?? b.rating ?? 0}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -486,7 +523,7 @@ const History3D = () => {
                     inn2BowlingTeam = team2.name || 'Bowlers';
                 }
 
-                return (
+                return createPortal(
                     <div className="scorecard-modal-overlay" onClick={() => setActiveScorecardModal(null)}>
                         <div className="scorecard-modal-card" onClick={(e) => e.stopPropagation()}>
                             <button className="scorecard-modal-close" onClick={() => setActiveScorecardModal(null)}>
@@ -725,7 +762,8 @@ const History3D = () => {
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 );
             })()}
 

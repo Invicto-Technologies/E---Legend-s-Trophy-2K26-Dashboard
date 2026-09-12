@@ -4,73 +4,94 @@
   --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* Dark Mode Default Tokens (Night Stadium Atmosphere) */
-  --bg-space: #070a13;
-  --bg-space-secondary: #0b1120;
-  --bg-space-tertiary: #111827;
-  --bg-card: rgba(15, 23, 42, 0.72);
+  /* Dark Mode Default Tokens (Standard Deep Navy/Slate Athletic Atmosphere) */
+  --bg-space: #0b0f19;
+  --bg-space-low-opacity: rgba(11, 15, 25, 0.6);
+  --bg-space-secondary: #0f172a;
+  --bg-space-tertiary: #1e293b;
+  --bg-card: rgba(15, 23, 42, 0.75);
   --bg-card-solid: #0f172a;
-  --bg-card-hover: rgba(30, 41, 59, 0.85);
-  --bg-card-border: rgba(255, 255, 255, 0.08);
-  --bg-card-border-hover: rgba(0, 240, 255, 0.35);
+  --bg-card-hover: rgba(30, 41, 59, 0.88);
+  --bg-card-border: rgba(148, 163, 184, 0.12);
+  --bg-card-border-hover: rgba(59, 130, 246, 0.4);
 
   --text-main: #f8fafc;
+  --text-primary: #f8fafc;
+  --bg-primary: #0b0f19;
+  --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
   --text-subtle: #64748b;
 
-  --accent-cyan: #00f0ff;
-  --accent-blue: #38bdf8;
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #60a5fa;
+  --accent-primary-subtle: rgba(59, 130, 246, 0.14);
+  --accent-blue: #3b82f6;
+  --accent-blue-light: #60a5fa;
+  --primary-blue: #3b82f6;
+  --primary-blue-light: #60a5fa;
+  --accent-cyan: #38bdf8;
+  --accent-purple: #3b82f6;
+  --accent-gold: #3b82f6;
   --accent-emerald: #10b981;
-  --accent-gold: #f59e0b;
   --accent-rose: #ef4444;
-  --accent-purple: #8b5cf6;
 
-  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  --card-hover-shadow: 0 15px 35px rgba(0, 240, 255, 0.15);
-  --nav-bg: rgba(7, 10, 18, 0.85);
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --card-hover-shadow: 0 15px 35px rgba(37, 99, 235, 0.2);
+  --nav-bg: rgba(11, 15, 25, 0.88);
   --nav-border: rgba(255, 255, 255, 0.08);
 
-  --hero-glow-1: rgba(0, 240, 255, 0.12);
-  --hero-glow-2: rgba(139, 92, 246, 0.08);
+  --hero-glow-1: rgba(37, 99, 235, 0.16);
+  --hero-glow-2: rgba(59, 130, 246, 0.08);
 }
 
-/* Light Mode Tokens (Crisp Day Stadium Atmosphere) */
+/* Light Mode Tokens (Standard Clean Corporate / Athletic Blue Atmosphere) */
 [data-theme="light"] {
   --bg-space: #f8fafc;
-  --bg-space-gradient: radial-gradient(ellipse at 50% 0%, #e0f2fe 0%, #eef5fc 45%, #f8fafc 85%);
+  --bg-space-low-opacity: rgba(255, 255, 255, 0.3);
+  --bg-space-gradient: radial-gradient(ellipse at 50% 0%, #e0f2fe 0%, #f0f7ff 45%, #f8fafc 85%);
   --bg-space-secondary: #f1f5f9;
   --bg-space-tertiary: #e2e8f0;
-  --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-card: rgba(255, 255, 255, 0.95);
   --bg-card-solid: #ffffff;
   --bg-card-hover: #ffffff;
-  --bg-card-border: rgba(148, 163, 184, 0.32);
-  --bg-card-border-hover: rgba(2, 132, 199, 0.5);
+  --bg-card-border: rgba(203, 213, 225, 0.8);
+  --bg-card-border-hover: rgba(37, 99, 235, 0.45);
 
-  --text-main: #090d16;
-  --text-muted: #334155;
-  --text-subtle: #475569;
+  --text-main: #0f172a;
+  --text-primary: #0f172a;
+  --bg-primary: #f8fafc;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
 
-  --accent-cyan: #0284c7;
+  --accent-primary: #1d4ed8;
+  --accent-primary-hover: #1e40af;
+  --accent-primary-subtle: rgba(37, 99, 235, 0.08);
   --accent-blue: #2563eb;
+  --accent-blue-light: #3b82f6;
+  --primary-blue: #2563eb;
+  --primary-blue-light: #1d4ed8;
+  --accent-cyan: #0284c7;
+  --accent-purple: #2563eb;
+  --accent-gold: #1d4ed8;
   --accent-emerald: #059669;
-  --accent-gold: #d97706;
   --accent-rose: #dc2626;
-  --accent-purple: #7c3aed;
 
-  --card-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.07), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
-  --card-hover-shadow: 0 15px 35px rgba(2, 132, 199, 0.16);
+  --card-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
+  --card-hover-shadow: 0 15px 35px rgba(37, 99, 235, 0.14);
   --nav-bg: rgba(255, 255, 255, 0.92);
-  --nav-border: rgba(148, 163, 184, 0.28);
+  --nav-border: rgba(203, 213, 225, 0.7);
 
-  --hero-glow-1: rgba(2, 132, 199, 0.12);
-  --hero-glow-2: rgba(245, 158, 11, 0.12);
+  --hero-glow-1: rgba(37, 99, 235, 0.12);
+  --hero-glow-2: rgba(29, 78, 216, 0.06);
 }
 
 * {
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background-color: var(--bg-space);
@@ -84,7 +105,12 @@ html, body {
   transition: background-color 0.45s ease, color 0.45s ease;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-display);
   color: var(--text-main);
 }
@@ -125,9 +151,11 @@ body.theme-in-transition.warp-to-night .app-root {
   0% {
     filter: brightness(1);
   }
+
   38% {
     filter: brightness(1.22) contrast(1.04);
   }
+
   100% {
     filter: brightness(1);
   }
@@ -137,9 +165,11 @@ body.theme-in-transition.warp-to-night .app-root {
   0% {
     filter: brightness(1);
   }
+
   38% {
     filter: brightness(0.78) contrast(1.08);
   }
+
   100% {
     filter: brightness(1);
   }
@@ -158,7 +188,10 @@ body.theme-in-transition.warp-to-night .app-root {
 }
 
 /* Global Button & Link Utilities */
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font-family: inherit;
 }
 

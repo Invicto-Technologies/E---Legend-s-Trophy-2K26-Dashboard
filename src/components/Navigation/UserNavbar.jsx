@@ -44,6 +44,11 @@ const UserNavbar = () => {
         };
     }, []);
 
+    // Close mobile menu on route change
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [location.pathname]);
+
     const labels = resolveTournamentLabels(tourneyData);
 
     const isActive = (path) => {
@@ -55,7 +60,7 @@ const UserNavbar = () => {
     return (
         <header className={`user-nav-header ${isScrolled ? 'scrolled' : ''}`}>
             <div className="user-nav-inner">
-                {/* Brand */}
+                {/* Brand — left anchor */}
                 <Link to="/" className="user-nav-brand" data-tooltip={labels.fullName}>
                     <img src={logoImg} alt="E-Legends Logo" className="brand-logo-img" />
                     <span className="brand-text">
@@ -64,41 +69,52 @@ const UserNavbar = () => {
                     </span>
                 </Link>
 
-                {/* Desktop Nav Links */}
-                <nav className="user-nav-links">
-                    <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
-                        <MdHome className="nav-icon" /> Home
-                    </Link>
-                    <Link to="/fixtures" className={`nav-link ${isActive('/fixtures') ? 'active' : ''}`}>
-                        <MdCalendarToday className="nav-icon" /> Fixtures
-                    </Link>
-                    <Link to="/live" className={`nav-link live-link ${isActive('/live') ? 'active' : ''}`}>
-                        <MdLiveTv className="nav-icon" />
-                        <span>Live Score</span>
-                        {isLive && <span className="live-pulse-dot" />}
-                    </Link>
-                    <Link to="/rankings" className={`nav-link ${isActive('/rankings') ? 'active' : ''}`}>
-                        <MdEmojiEvents className="nav-icon" /> Rankings
-                    </Link>
-                    <Link to="/history" className={`nav-link ${isActive('/history') ? 'active' : ''}`}>
-                        <MdHistoryEdu className="nav-icon" /> History
-                    </Link>
-                    <Link to="/download" className={`nav-link ${isActive('/download') ? 'active' : ''}`}>
-                        <MdDownload className="nav-icon" /> App
-                    </Link>
-                </nav>
-
-                {/* Right Action */}
+                {/* Right side: Desktop pill nav + ThemeToggle + Admin + Hamburger */}
                 <div className="user-nav-right">
-                    <ThemeToggle />
-                    <Link to="/admin" className="admin-portal-btn">
-                        <MdAdminPanelSettings />
-                        <span>Admin</span>
-                    </Link>
+                    {/* Desktop Nav Links (pill) */}
+                    <nav className="user-nav-links" aria-label="Main navigation">
+                        <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
+                            <MdHome className="nav-icon" /> Home
+                        </Link>
+                        <Link to="/fixtures" className={`nav-link ${isActive('/fixtures') ? 'active' : ''}`}>
+                            <MdCalendarToday className="nav-icon" /> Fixtures
+                        </Link>
+                        <Link to="/live" className={`nav-link live-link ${isActive('/live') ? 'active' : ''}`}>
+                            <MdLiveTv className="nav-icon" />
+                            <span>Live Score</span>
+                            {isLive && <span className="live-pulse-dot" />}
+                        </Link>
+                        <Link to="/rankings" className={`nav-link ${isActive('/rankings') ? 'active' : ''}`}>
+                            <MdEmojiEvents className="nav-icon" /> Rankings
+                        </Link>
+                        <Link to="/history" className={`nav-link ${isActive('/history') ? 'active' : ''}`}>
+                            <MdHistoryEdu className="nav-icon" /> History
+                        </Link>
+                        <Link to="/download" className={`nav-link ${isActive('/download') ? 'active' : ''}`}>
+                            <MdDownload className="nav-icon" /> App
+                        </Link>
+
+                        {/* Separator */}
+                        <span className="nav-divider" aria-hidden="true" />
+
+                        {/* Theme toggle inside the pill */}
+                        <div className="nav-theme-slot">
+                            <ThemeToggle />
+                        </div>
+
+                        {/* Admin button inside the pill */}
+                        <Link to="/admin" className="nav-link nav-admin-btn" aria-label="Admin console">
+                            <MdAdminPanelSettings className="nav-icon" />
+                            <span>Admin</span>
+                        </Link>
+                    </nav>
+
+                    {/* Hamburger (mobile only) */}
                     <button
                         className="mobile-toggle-btn"
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                         aria-label="Toggle Navigation"
+                        aria-expanded={mobileMenuOpen}
                     >
                         {mobileMenuOpen ? <MdClose /> : <MdMenu />}
                     </button>

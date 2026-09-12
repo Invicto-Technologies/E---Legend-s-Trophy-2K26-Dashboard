@@ -127,6 +127,35 @@
     color: #00f0ff;
 }
 
+/* Main History Content Section */
+.history-content-section {
+    position: relative;
+    overflow: hidden;
+    padding-bottom: 80px;
+}
+
+.history-content-section::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url('../../Images/cricket_stadium_bg.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+}
+
+[data-theme='light'] .history-content-section::before {
+    opacity: 0.30;
+}
+
+.history-content-section>* {
+    position: relative;
+    z-index: 1;
+}
+
 /* Edition Header Strip */
 .edition-header-strip {
     display: flex;
@@ -584,8 +613,13 @@
     font-size: 1.6rem;
 }
 
-.board-icon.gold { color: #00f0ff; }
-.board-icon.purple { color: #8b5cf6; }
+.board-icon.gold {
+    color: #00f0ff;
+}
+
+.board-icon.purple {
+    color: #8b5cf6;
+}
 
 .board-header h3 {
     margin: 0;
@@ -636,9 +670,21 @@
     color: #041019;
 }
 
-.nrr-pos { color: #10b981; font-weight: 700; }
-.nrr-neg { color: #ef4444; font-weight: 700; }
-.pts-cell { font-size: 1.15rem; font-weight: 900; color: #00f0ff; }
+.nrr-pos {
+    color: #10b981;
+    font-weight: 700;
+}
+
+.nrr-neg {
+    color: #ef4444;
+    font-weight: 700;
+}
+
+.pts-cell {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: #00f0ff;
+}
 
 .leaderboards-split {
     display: grid;
@@ -711,7 +757,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 9999;
+    z-index: 999999;
     padding: 24px 16px;
 }
 
@@ -727,12 +773,15 @@
     position: relative;
     box-shadow: 0 25px 65px rgba(0, 0, 0, 0.55), 0 0 40px rgba(0, 240, 255, 0.08);
     /* Hide scrollbars across all browsers */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE & Edge */
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE & Edge */
 }
 
 .scorecard-modal-card::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
+    /* Chrome, Safari, Opera */
     width: 0;
     height: 0;
 }
@@ -783,7 +832,8 @@
     margin-bottom: 24px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--bg-card-border);
-    padding-right: 54px; /* Ensure ample spacing from top-right close button */
+    padding-right: 54px;
+    /* Ensure ample spacing from top-right close button */
     gap: 8px;
 }
 
@@ -1028,6 +1078,7 @@
     .hall-of-fame-grid {
         grid-template-columns: 1fr;
     }
+
     .leaderboards-split {
         grid-template-columns: 1fr;
     }
@@ -1118,7 +1169,7 @@
         align-self: flex-start;
     }
 
-    .sm-table th, 
+    .sm-table th,
     .sm-table td {
         padding: 8px 10px;
         font-size: 0.82rem;

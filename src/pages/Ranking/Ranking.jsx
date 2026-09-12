@@ -23,10 +23,30 @@ const Ranking = () => {
         });
     }, []);
 
-    // Sort players by rating (highest to lowest)
-    const getSortedPlayers = (players) => {
+    // Sort players according to official rules:
+    // Batters: higher score first, if equal higher strike rate first
+    // Bowlers: higher wickets first, if equal lower economy first
+    const getSortedPlayers = (players, type) => {
+        const isBatters = type === 'batters' || activeTab === 'batters';
         return Object.values(players)
-            .sort((a, b) => b.rating - a.rating)
+            .filter(Boolean)
+            .sort((a, b) => {
+                if (isBatters) {
+                    const scoreA = Number(a.scores ?? a.runs ?? a.rating ?? 0);
+                    const scoreB = Number(b.scores ?? b.runs ?? b.rating ?? 0);
+                    if (scoreB !== scoreA) return scoreB - scoreA;
+                    const srA = Number(a.strikeRate ?? 0);
+                    const srB = Number(b.strikeRate ?? 0);
+                    return srB - srA;
+                } else {
+                    const wA = Number(a.wickets ?? a.takenWickets ?? a.rating ?? 0);
+                    const wB = Number(b.wickets ?? b.takenWickets ?? b.rating ?? 0);
+                    if (wB !== wA) return wB - wA;
+                    const ecoA = (a.balls > 0 || a.overs > 0 || a.economy !== undefined) ? Number(a.economy || 0) : 999;
+                    const ecoB = (b.balls > 0 || b.overs > 0 || b.economy !== undefined) ? Number(b.economy || 0) : 999;
+                    return ecoA - ecoB;
+                }
+            })
             .map((player, index) => ({ ...player, rank: index + 1 }));
     };
 
@@ -43,10 +63,19 @@ const Ranking = () => {
     const handlePlayerInputChange = (e) => {
         const { name, value } = e.target;
         if (editingPlayer) {
-            setEditingPlayer(prev => ({
-                ...prev,
-                [name]: name === 'rating' || name === 'id' ? Number(value) : value
-            }));
+            setEditingPlayer(prev => {
+                const updated = {
+                    ...prev,
+                    [name]: name === 'name' || name === 'team' || name === 'overs' ? value : Number(value)
+                };
+                if (name === 'scores') {
+                    updated.runs = Number(value);
+                }
+                if (name === 'wickets') {
+                    updated.takenWickets = Number(value);
+                }
+                return updated;
+            });
         }
     };
 
@@ -65,7 +94,9 @@ const Ranking = () => {
     const updatePlayer = async (type) => {
         try {
             const playerRef = ref(database, `RankingData/${type}/${editingPlayer.id}`);
-            await set(playerRef, editingPlayer);
+            const dataToSave = { ...editingPlayer };
+            delete dataToSave.rating; // Remove legacy rating
+            await set(playerRef, dataToSave);
             setEditingPlayer(null);
             alert(`${type.slice(0, -1)} updated successfully!`);
         } catch (error) {
@@ -138,17 +169,73 @@ const Ranking = () => {
                                 disabled
                             />
                         </div>
-                        <div className="form-group">
-                            <label>Rating:</label>
-                            <input
-                                type="number"
-                                name="rating"
-                                value={editingPlayer.rating}
-                                onChange={handlePlayerInputChange}
-                                min="0"
-                                max="1000"
-                            />
-                        </div>
+                        {activeTab === 'batters' ? (
+                            <>
+                                <div className="form-group">
+                                    <label>Score (Runs):</label>
+                                    <input
+                                        type="number"
+                                        name="scores"
+                                        value={editingPlayer.scores ?? editingPlayer.runs ?? editingPlayer.rating ?? 0}
+                                        onChange={handlePlayerInputChange}
+                                        min="0"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Overs Played:</label>
+                                    <input
+                                        type="text"
+                                        name="overs"
+                                        value={editingPlayer.overs ?? editingPlayer.oversPlayed ?? '0.0'}
+                                        onChange={handlePlayerInputChange}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Strike Rate:</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        name="strikeRate"
+                                        value={editingPlayer.strikeRate ?? 0}
+                                        onChange={handlePlayerInputChange}
+                                        min="0"
+                                    />
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="form-group">
+                                    <label>Taken Wickets:</label>
+                                    <input
+                                        type="number"
+                                        name="wickets"
+                                        value={editingPlayer.wickets ?? editingPlayer.takenWickets ?? editingPlayer.rating ?? 0}
+                                        onChange={handlePlayerInputChange}
+                                        min="0"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Overs Bowled:</label>
+                                    <input
+                                        type="text"
+                                        name="overs"
+                                        value={editingPlayer.overs ?? editingPlayer.oversBowled ?? '0.0'}
+                                        onChange={handlePlayerInputChange}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Economy:</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        name="economy"
+                                        value={editingPlayer.economy ?? 0}
+                                        onChange={handlePlayerInputChange}
+                                        min="0"
+                                    />
+                                </div>
+                            </>
+                        )}
                         <div className="form-actions">
                             <button
                                 onClick={() => updatePlayer(getPlayerType())}
@@ -169,26 +256,52 @@ const Ranking = () => {
                         <div className="ranking-table">
                             <table>
                                 <thead>
-                                    <tr>
-                                        <th>Rank</th>
-                                        <th>Name</th>
-                                        <th>Team</th>
-                                        <th>{activeTab === 'batters' ? "Runs" : "Wickets"}</th>
-                                        <th>Actions</th>
-                                    </tr>
+                                    {activeTab === 'batters' ? (
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Name</th>
+                                            <th>Team</th>
+                                            <th>Scores (Runs)</th>
+                                            <th>Overs</th>
+                                            <th>Strike Rate</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    ) : (
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Name</th>
+                                            <th>Team</th>
+                                            <th>Taken Wickets</th>
+                                            <th>Overs</th>
+                                            <th>Economy</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    )}
                                 </thead>
                                 <tbody>
-                                    {!getSortedPlayers(activeTab === 'batters' ? batters : bowlers) &&
+                                    {!getSortedPlayers(activeTab === 'batters' ? batters : bowlers, activeTab) &&
                                         (
-                                            <p style={{marginTop:'20px'}}>There are no {activeTab === 'batters' ? 'batters' : 'bowlers'} available yet</p>
+                                            <p style={{ marginTop: '20px' }}>There are no {activeTab === 'batters' ? 'batters' : 'bowlers'} available yet</p>
                                         )
                                     }
-                                    {getSortedPlayers(activeTab === 'batters' ? batters : bowlers).map((player) => (
+                                    {getSortedPlayers(activeTab === 'batters' ? batters : bowlers, activeTab).map((player) => (
                                         <tr key={player.id} className={player.rank <= 3 ? 'top-three' : ''}>
                                             <td>{player.rank}</td>
                                             <td>{player.name}</td>
                                             <td>{player.team}</td>
-                                            <td>{player.rating}</td>
+                                            {activeTab === 'batters' ? (
+                                                <>
+                                                    <td><strong>{player.scores ?? player.runs ?? player.rating ?? 0}</strong></td>
+                                                    <td>{player.overs ?? player.oversPlayed ?? (player.balls ? `${Math.floor(player.balls / 6)}.${player.balls % 6}` : '0.0')}</td>
+                                                    <td>{Number(player.strikeRate || 0).toFixed(2)}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td><strong>{player.wickets ?? player.takenWickets ?? player.rating ?? 0}</strong></td>
+                                                    <td>{player.overs ?? player.oversBowled ?? (player.balls ? `${Math.floor(player.balls / 6)}.${player.balls % 6}` : '0.0')}</td>
+                                                    <td>{Number(player.economy || 0).toFixed(2)}</td>
+                                                </>
+                                            )}
                                             <td>
                                                 <button
                                                     onClick={() => setEditingPlayer(player)}

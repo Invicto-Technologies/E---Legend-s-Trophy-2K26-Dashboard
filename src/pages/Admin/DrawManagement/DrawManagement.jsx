@@ -8,13 +8,15 @@ import {
     subscribeTeams,
     subscribeFixtures,
     updateFixturesData,
-    setMatchData
+    setMatchData,
+    subscribeLiveData
 } from '../../../services/rtdbService';
 import {
     MdCalendarToday,
     MdLocationOn,
     MdPlayArrow,
     MdCheck,
+    MdCheckCircle,
     MdSettings,
     MdPeople,
     MdDragIndicator,
@@ -31,7 +33,9 @@ import {
     MdEdit
 } from 'react-icons/md';
 import AdminSubNav from '../../../components/Navigation/AdminSubNav';
+import PageLoader from '../../../components/common/PageLoader/PageLoader';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
+import { isMatchFinished, isMatchCurrentlyLive } from '../../../components/common/MatchCard/MatchCard';
 import './DrawManagement.css';
 
 const DEFAULT_TEAMS = ['E21', 'E22', 'E23', 'E24'];
@@ -41,6 +45,7 @@ const DrawManagement = () => {
     const toastRef = useRef();
     const { selectedTournamentId } = useAdminTournament();
 
+    const [isLoading, setIsLoading] = useState(true);
     const [teamsData, setTeamsData] = useState({});
     const [drawType, setDrawType] = useState('league'); // 'league' or 'elimination'
     const [generatedMatches, setGeneratedMatches] = useState([]);
@@ -51,6 +56,8 @@ const DrawManagement = () => {
     const [clearDrawConfirmOpen, setClearDrawConfirmOpen] = useState(false);
     const [fixturesStatus, setFixturesStatus] = useState(0); // 0 = Draft, 1 = Published
     const [isEditingEnabled, setIsEditingEnabled] = useState(false); // Controls edit unlock when published
+    const [liveData, setLiveData] = useState(null);
+    const [liveMatchBlockedModal, setLiveMatchBlockedModal] = useState(null);
 
     // Team Drag and Drop state (Individual team slot swapping)
     const [draggedTeamInfo, setDraggedTeamInfo] = useState(null); // { matchId, slot: 'team1'|'team2', teamName }
@@ -74,6 +81,7 @@ const DrawManagement = () => {
 
     useEffect(() => {
         const unsubTeams = subscribeTeams((data) => setTeamsData(data || {}), selectedTournamentId);
+        const unsubLive = subscribeLiveData((data) => setLiveData(data || null));
         const unsubFix = subscribeFixtures((data) => {
             if (data?.isFixtures !== undefined) {
                 const status = Number(data.isFixtures);
@@ -84,31 +92,71 @@ const DrawManagement = () => {
                 }
             }
             if (data?.finishedMatches) {
-                // Initialize matches list with team1 and team2
-                const list = Object.values(data.finishedMatches).map(m => {
+                // Initialize matches list with team1 and team2, filtering any duplicates
+                const rawList = Array.isArray(data.finishedMatches)
+                    ? data.finishedMatches.filter(Boolean)
+                    : Object.values(data.finishedMatches).filter(Boolean);
+
+                const seenKeys = new Set();
+                const list = [];
+                rawList.forEach(m => {
+                    const normTitle = String(m.title || m.name || '').trim().toLowerCase();
+                    const normId = String(m.id || '').trim().toLowerCase();
+                    const key = normTitle || normId;
+                    if (key && seenKeys.has(key)) {
+                        return;
+                    }
+                    if (key) seenKeys.add(key);
+
                     const [t1 = '', t2 = ''] = (m.teams || '').split(' vs ');
-                    return {
+                    list.push({
                         ...m,
                         team1: m.team1 || t1,
                         team2: m.team2 || t2,
                         date: m.date || '',
                         time: m.time || ''
-                    };
+                    });
                 });
                 setGeneratedMatches(list);
             } else {
                 setGeneratedMatches([]);
             }
+            setIsLoading(false);
         }, selectedTournamentId);
 
+        const timer = setTimeout(() => setIsLoading(false), 1200);
+
         return () => {
+            clearTimeout(timer);
             unsubTeams();
             unsubFix();
+            unsubLive();
         };
     }, [selectedTournamentId]);
 
     const availableTeamKeys = Object.keys(teamsData).length > 0 ? Object.keys(teamsData) : DEFAULT_TEAMS;
     const isPublishedAndLocked = fixturesStatus === 1 && !isEditingEnabled;
+
+    const currentLiveTitle = (liveData?.currentMatchPath
+        ? liveData.currentMatchPath.split('/').pop()
+        : liveData?.liveScore?.matchTitle || '').trim();
+    const isAnyMatchLive = Boolean(liveData?.isLive);
+
+    const isMatchStartedOrConcluded = (m) => {
+        if (!m) return false;
+        if (isMatchFinished(m)) return true;
+        if (isMatchCurrentlyLive(m, liveData)) return true;
+        if (isAnyMatchLive && currentLiveTitle && (
+            (m.title && m.title.trim().toLowerCase() === currentLiveTitle.toLowerCase()) ||
+            (m.id && String(m.id).trim().toLowerCase() === currentLiveTitle.toLowerCase())
+        )) {
+            return true;
+        }
+        return false;
+    };
+
+    const hasAnyMatchStarted = generatedMatches.some(isMatchStartedOrConcluded);
+    const startedMatchesCount = generatedMatches.filter(isMatchStartedOrConcluded).length;
 
     // Helpers to normalize date and time for native <input type="date"> and <input type="time">
     const normalizeDateForInput = (val) => {
@@ -150,6 +198,10 @@ const DrawManagement = () => {
 
     // Generate Draw Fixtures (Date and time initially NOT set, marked Unpublished until published)
     const handleGenerateDraw = () => {
+        if (hasAnyMatchStarted) {
+            toastRef.current.showToast('error', 'Cannot re-generate draw: tournament matches have already started or concluded.');
+            return;
+        }
         if (isPublishedAndLocked) {
             toastRef.current.showToast('warning', "Draw is published. Click 'Enable Editing' to re-generate fixtures.");
             return;
@@ -244,6 +296,11 @@ const DrawManagement = () => {
 
     // Team Drag & Drop Handlers (Shifting individual teams across matches)
     const handleTeamDragStart = (e, match, slot) => {
+        if (isMatchStartedOrConcluded(match)) {
+            e.preventDefault();
+            toastRef.current.showToast('warning', isMatchFinished(match) ? 'Completed match team lineups are locked and cannot be shifted.' : 'Live match team lineups are locked and cannot be shifted.');
+            return;
+        }
         if (isMatchLocked(match)) {
             e.preventDefault();
             toastRef.current.showToast('info', 'Finals and semi-finals team slots are fixed and cannot be shifted.');
@@ -261,7 +318,7 @@ const DrawManagement = () => {
 
     const handleTeamDragOver = (e, targetMatch, targetSlot) => {
         e.preventDefault();
-        if (isMatchLocked(targetMatch)) {
+        if (isMatchStartedOrConcluded(targetMatch) || isMatchLocked(targetMatch)) {
             e.dataTransfer.dropEffect = 'none';
             return;
         }
@@ -276,6 +333,13 @@ const DrawManagement = () => {
         e.stopPropagation();
 
         if (!draggedTeamInfo) {
+            setDraggedTeamInfo(null);
+            setDragOverTeamInfo(null);
+            return;
+        }
+
+        if (isMatchStartedOrConcluded(targetMatch)) {
+            toastRef.current.showToast('warning', isMatchFinished(targetMatch) ? 'Cannot shift teams into a completed match.' : 'Cannot shift teams into an active live match.');
             setDraggedTeamInfo(null);
             setDragOverTeamInfo(null);
             return;
@@ -384,6 +448,10 @@ const DrawManagement = () => {
 
     // Request deletion of a fixture from the list (triggers confirmation modal)
     const handleDeleteMatch = (match) => {
+        if (isMatchStartedOrConcluded(match)) {
+            toastRef.current.showToast('warning', isMatchFinished(match) ? 'Completed matches cannot be deleted.' : 'Active live match cannot be deleted.');
+            return;
+        }
         if (isPublishedAndLocked) {
             toastRef.current.showToast('warning', "Draw is published. Click 'Enable Editing' to delete matches.");
             return;
@@ -403,6 +471,11 @@ const DrawManagement = () => {
 
     // Confirmed clearing of entire draw
     const handleConfirmClearDraw = async () => {
+        if (hasAnyMatchStarted) {
+            toastRef.current.showToast('error', 'Cannot clear draw: tournament matches have already started or concluded.');
+            setClearDrawConfirmOpen(false);
+            return;
+        }
         setGeneratedMatches([]);
         setFixturesStatus(0);
         setIsEditingEnabled(true);
@@ -423,6 +496,11 @@ const DrawManagement = () => {
 
     const handleSaveMatchSchedule = () => {
         if (!editingMatch) return;
+        if (isMatchStartedOrConcluded(editingMatch)) {
+            toastRef.current.showToast('warning', 'Completed or live matches cannot be rescheduled.');
+            setEditingMatch(null);
+            return;
+        }
         const updated = generatedMatches.map(m => {
             if (m.id === editingMatch.id) {
                 return {
@@ -567,6 +645,16 @@ const DrawManagement = () => {
 
     const unscheduledMatchesCount = generatedMatches.filter(m => !m.date || !m.time).length;
 
+    if (isLoading && generatedMatches.length === 0) {
+        return (
+            <PageLoader
+                message="Loading Draw & Fixtures..."
+                subtitle="Loading teams, schedules and fixture allocations"
+                tournamentName="Draw Manager"
+            />
+        );
+    }
+
     return (
         <div className="draw-mgmt-page">
             <AdminSubNav />
@@ -638,7 +726,14 @@ const DrawManagement = () => {
                             value={drawType}
                             onChange={(e) => setDrawType(e.target.value)}
                             className="dm-select"
-                            disabled={isPublishedAndLocked}
+                            disabled={isPublishedAndLocked || hasAnyMatchStarted}
+                            title={
+                                hasAnyMatchStarted
+                                    ? "Tournament format is locked because matches have already started or concluded"
+                                    : isPublishedAndLocked
+                                    ? "Draw is published. Click 'Enable Editing' to change format"
+                                    : "Select tournament format"
+                            }
                         >
                             <option value="league">Round Robin League + Final</option>
                             <option value="elimination">Knockout / Single Elimination</option>
@@ -658,10 +753,16 @@ const DrawManagement = () => {
 
                     <div className="dm-control-actions">
                         <button
-                            className={`dm-generate-btn ${isPublishedAndLocked ? 'disabled' : ''}`}
+                            className={`dm-generate-btn ${isPublishedAndLocked || hasAnyMatchStarted ? 'disabled' : ''}`}
                             onClick={handleGenerateDraw}
-                            disabled={isPublishedAndLocked}
-                            title={isPublishedAndLocked ? "Draw is published. Click 'Enable Editing' to re-generate fixtures." : "Generate automated fixtures"}
+                            disabled={isPublishedAndLocked || hasAnyMatchStarted}
+                            title={
+                                hasAnyMatchStarted
+                                    ? "Cannot re-generate draw: tournament matches have already started or concluded."
+                                    : isPublishedAndLocked
+                                    ? "Draw is published. Click 'Enable Editing' to re-generate fixtures."
+                                    : "Generate automated fixtures"
+                            }
                         >
                             <MdSettings /> Generate Draw
                         </button>
@@ -676,15 +777,30 @@ const DrawManagement = () => {
                         {generatedMatches.length > 0 && (
                             <button
                                 type="button"
-                                className={`dm-clear-draw-btn ${isPublishedAndLocked ? 'disabled' : ''}`}
+                                className={`dm-clear-draw-btn ${isPublishedAndLocked || hasAnyMatchStarted ? 'disabled' : ''}`}
                                 onClick={() => setClearDrawConfirmOpen(true)}
-                                disabled={isPublishedAndLocked}
-                                title={isPublishedAndLocked ? "Draw is published. Click 'Enable Editing' to clear the draw." : "Remove all generated matches and clear the draw"}
+                                disabled={isPublishedAndLocked || hasAnyMatchStarted}
+                                title={
+                                    hasAnyMatchStarted
+                                        ? "Cannot clear draw: tournament matches have already started or concluded."
+                                        : isPublishedAndLocked
+                                        ? "Draw is published. Click 'Enable Editing' to clear the draw."
+                                        : "Remove all generated matches and clear the draw"
+                                }
                             >
                                 <MdDeleteSweep /> Clear Full Draw
                             </button>
                         )}
                     </div>
+
+                    {hasAnyMatchStarted && (
+                        <div className="dm-tournament-started-notice">
+                            <MdLock />
+                            <span>
+                                Tournament in progress ({startedMatchesCount} of {generatedMatches.length} matches started/completed). Format, draw regeneration, and clearing are locked to protect match records.
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Fixtures List */}
@@ -710,110 +826,207 @@ const DrawManagement = () => {
                         </div>
                     ) : (
                         <div className="dm-matches-grid">
-                            {generatedMatches.map((match, index) => {
-                                const isLocked = isMatchLocked(match);
-                                const [t1 = match.team1 || 'Team 1', t2 = match.team2 || 'Team 2'] = (match.teams || '').split(' vs ');
-                                const isScheduled = Boolean(match.date && match.time);
+                            {(() => {
+                                const isAnyMatchLive = Boolean(liveData?.isLive);
+                                const currentLiveTitle = (liveData?.currentMatchPath
+                                    ? liveData.currentMatchPath.split('/').pop()
+                                    : liveData?.liveScore?.matchTitle || '').trim();
 
-                                return (
-                                    <div key={match.id} className="dm-match-card-wrapper">
-                                        <TiltCard className={`dm-match-card ${!isScheduled ? 'is-unscheduled' : ''}`} maxTilt={5}>
-                                            <div className="dmm-header">
-                                                <div className="dmm-header-left">
-                                                    <span className="dmm-badge">{match.title}</span>
+                                return generatedMatches.map((match, index) => {
+                                    const [t1 = match.team1 || 'Team 1', t2 = match.team2 || 'Team 2'] = (match.teams || '').split(' vs ');
+                                    const isScheduled = Boolean(match.date && match.time);
+                                    const isCompleted = isMatchFinished(match);
+                                    const isThisMatchLive = !isCompleted && isAnyMatchLive && currentLiveTitle && (
+                                        (match.title && match.title.trim().toLowerCase() === currentLiveTitle.toLowerCase()) ||
+                                        (match.id && String(match.id).trim().toLowerCase() === currentLiveTitle.toLowerCase())
+                                    );
+                                    const isBlockedByOtherLive = !isCompleted && isAnyMatchLive && !isThisMatchLive;
+                                    const isMatchStartedOrLive = isCompleted || isThisMatchLive;
+                                    const isLocked = isMatchLocked(match) || isMatchStartedOrLive;
+                                    const isSlotDraggable = !isLocked && !isPublishedAndLocked && !isMatchStartedOrLive;
+
+                                    return (
+                                        <div key={match.id} className="dm-match-card-wrapper">
+                                            <TiltCard className={`dm-match-card ${!isScheduled ? 'is-unscheduled' : ''} ${isThisMatchLive ? 'is-live-match-card' : ''} ${isCompleted ? 'is-completed-match-card' : ''}`} maxTilt={5}>
+                                                <div className="dmm-header">
+                                                    <div className="dmm-header-left">
+                                                        <span className="dmm-badge">{match.title}</span>
+                                                        {isCompleted ? (
+                                                            <span className="dmm-completed-indicator" title={match.result || 'Match Completed'}>
+                                                                <MdCheckCircle /> COMPLETED
+                                                            </span>
+                                                        ) : isThisMatchLive ? (
+                                                            <span className="dmm-live-indicator">
+                                                                <span className="dm-live-dot" /> LIVE NOW
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="dmm-header-right">
+                                                        {isScheduled ? (
+                                                            <span className="dmm-date scheduled" title="Scheduled match timing">
+                                                                <MdEventAvailable /> {match.date} • {formatDisplayTime(match.time)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="dmm-date unscheduled" title="Date and time not set">
+                                                                <MdWarningAmber /> Date & Time Not Set
+                                                            </span>
+                                                        )}
+                                                        <button
+                                                            className={`dmm-delete-btn ${isPublishedAndLocked || isMatchStartedOrLive ? 'disabled' : ''}`}
+                                                            onClick={() => handleDeleteMatch(match)}
+                                                            disabled={isPublishedAndLocked || isMatchStartedOrLive}
+                                                            title={
+                                                                isCompleted
+                                                                    ? "Completed matches cannot be deleted"
+                                                                    : isThisMatchLive
+                                                                    ? "Live match cannot be deleted"
+                                                                    : isPublishedAndLocked
+                                                                    ? "Draw is published. Click 'Enable Editing' to delete matches"
+                                                                    : "Delete this match box"
+                                                            }
+                                                        >
+                                                            <MdDelete />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="dmm-header-right">
-                                                    {isScheduled ? (
-                                                        <span className="dmm-date scheduled" title="Scheduled match timing">
-                                                            <MdEventAvailable /> {match.date} • {formatDisplayTime(match.time)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="dmm-date unscheduled" title="Date and time not set">
-                                                            <MdWarningAmber /> Date & Time Not Set
-                                                        </span>
-                                                    )}
-                                                    <button
-                                                        className={`dmm-delete-btn ${isPublishedAndLocked ? 'disabled' : ''}`}
-                                                        onClick={() => handleDeleteMatch(match)}
-                                                        disabled={isPublishedAndLocked}
-                                                        title={isPublishedAndLocked ? "Draw is published. Click 'Enable Editing' to delete matches" : "Delete this match box"}
+
+                                                {/* Interactive Matchup Arena with Draggable Team Badges */}
+                                                <div className="dmm-matchup-arena">
+                                                    <div
+                                                        className={`dmm-team-slot ${!isSlotDraggable ? (isMatchStartedOrLive ? 'is-match-started-locked' : 'is-locked') : isPublishedAndLocked ? 'is-published-locked' : 'is-draggable'} ${dragOverTeamInfo?.matchId === match.id && dragOverTeamInfo?.slot === 'team1' ? 'is-team-drag-over' : ''} ${draggedTeamInfo?.matchId === match.id && draggedTeamInfo?.slot === 'team1' ? 'is-team-dragging' : ''}`}
+                                                        draggable={isSlotDraggable}
+                                                        onDragStart={(e) => handleTeamDragStart(e, match, 'team1')}
+                                                        onDragOver={(e) => handleTeamDragOver(e, match, 'team1')}
+                                                        onDrop={(e) => handleTeamDrop(e, match, 'team1')}
+                                                        onDragEnd={handleTeamDragEnd}
+                                                        title={
+                                                            isCompleted
+                                                                ? "Match is completed. Teams are locked."
+                                                                : isThisMatchLive
+                                                                ? "Match is currently LIVE. Teams are locked."
+                                                                : isPublishedAndLocked
+                                                                ? "Draw is published. Click 'Enable Editing' to shift teams"
+                                                                : isMatchLocked(match)
+                                                                ? "Semi-Finals & Finals team slots are fixed"
+                                                                : "Drag team to shift/swap with another match"
+                                                        }
                                                     >
-                                                        <MdDelete />
+                                                        {!isSlotDraggable ? (
+                                                            <span className="team-lock-badge"><MdLock /></span>
+                                                        ) : (
+                                                            <span className="team-drag-grip"><MdDragIndicator /></span>
+                                                        )}
+                                                        <span className="team-slot-name">{t1}</span>
+                                                    </div>
+
+                                                    <div className="dmm-vs-divider">
+                                                        <span className="dmm-vs-text">VS</span>
+                                                        {!isLocked && !isPublishedAndLocked && <MdSwapHoriz className="dmm-swap-hint-icon" />}
+                                                    </div>
+
+                                                    <div
+                                                        className={`dmm-team-slot ${!isSlotDraggable ? (isMatchStartedOrLive ? 'is-match-started-locked' : 'is-locked') : isPublishedAndLocked ? 'is-published-locked' : 'is-draggable'} ${dragOverTeamInfo?.matchId === match.id && dragOverTeamInfo?.slot === 'team2' ? 'is-team-drag-over' : ''} ${draggedTeamInfo?.matchId === match.id && draggedTeamInfo?.slot === 'team2' ? 'is-team-dragging' : ''}`}
+                                                        draggable={isSlotDraggable}
+                                                        onDragStart={(e) => handleTeamDragStart(e, match, 'team2')}
+                                                        onDragOver={(e) => handleTeamDragOver(e, match, 'team2')}
+                                                        onDrop={(e) => handleTeamDrop(e, match, 'team2')}
+                                                        onDragEnd={handleTeamDragEnd}
+                                                        title={
+                                                            isCompleted
+                                                                ? "Match is completed. Teams are locked."
+                                                                : isThisMatchLive
+                                                                ? "Match is currently LIVE. Teams are locked."
+                                                                : isPublishedAndLocked
+                                                                ? "Draw is published. Click 'Enable Editing' to shift teams"
+                                                                : isMatchLocked(match)
+                                                                ? "Semi-Finals & Finals team slots are fixed"
+                                                                : "Drag team to shift/swap with another match"
+                                                        }
+                                                    >
+                                                        {!isSlotDraggable ? (
+                                                            <span className="team-lock-badge"><MdLock /></span>
+                                                        ) : (
+                                                            <span className="team-drag-grip"><MdDragIndicator /></span>
+                                                        )}
+                                                        <span className="team-slot-name">{t2}</span>
+                                                    </div>
+                                                </div>
+
+                                                {isCompleted && (match.result || match.score) && (
+                                                    <div className="dmm-result-banner" title={match.score || ''}>
+                                                        {match.result || match.score}
+                                                    </div>
+                                                )}
+
+                                                <div className="dmm-venue">
+                                                    <MdLocationOn /> {match.venue || 'Faculty Cricket Grounds'}
+                                                </div>
+
+                                                <div className="dmm-footer">
+                                                    <button
+                                                        className={`dmm-edit-btn ${isMatchStartedOrLive ? 'disabled' : ''} ${!isScheduled && !isMatchStartedOrLive ? 'highlight-schedule-btn' : ''}`}
+                                                        disabled={isMatchStartedOrLive}
+                                                        onClick={() => {
+                                                             if (isMatchStartedOrLive) return;
+                                                             setEditingMatch(match);
+                                                             setModalDate(normalizeDateForInput(match.date));
+                                                             setModalTime(normalizeTimeForInput(match.time));
+                                                             setModalVenue(match.venue || 'Faculty Cricket Grounds');
+                                                             setModalUmpire1(match.umpire1 || 'Mr. S. Ketheeswaran');
+                                                             setModalUmpire2(match.umpire2 || 'Mr. N. Ramanan');
+                                                         }}
+                                                        title={
+                                                            isCompleted
+                                                                ? "Completed match schedule is locked and cannot be edited"
+                                                                : isThisMatchLive
+                                                                ? "Live match schedule is locked and cannot be edited"
+                                                                : isScheduled
+                                                                ? 'Reschedule'
+                                                                : 'Set Date & Time'
+                                                        }
+                                                    >
+                                                        <MdCalendarToday /> {isCompleted ? 'Match Concluded' : isThisMatchLive ? 'Live In Progress' : isScheduled ? 'Reschedule' : 'Set Date & Time'}
                                                     </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Interactive Matchup Arena with Draggable Team Badges */}
-                                            <div className="dmm-matchup-arena">
-                                                <div
-                                                    className={`dmm-team-slot ${isLocked ? 'is-locked' : isPublishedAndLocked ? 'is-published-locked' : 'is-draggable'} ${dragOverTeamInfo?.matchId === match.id && dragOverTeamInfo?.slot === 'team1' ? 'is-team-drag-over' : ''} ${draggedTeamInfo?.matchId === match.id && draggedTeamInfo?.slot === 'team1' ? 'is-team-dragging' : ''}`}
-                                                    draggable={!isLocked && !isPublishedAndLocked}
-                                                    onDragStart={(e) => handleTeamDragStart(e, match, 'team1')}
-                                                    onDragOver={(e) => handleTeamDragOver(e, match, 'team1')}
-                                                    onDrop={(e) => handleTeamDrop(e, match, 'team1')}
-                                                    onDragEnd={handleTeamDragEnd}
-                                                    title={isPublishedAndLocked ? "Draw is published. Click 'Enable Editing' to shift teams" : isLocked ? "Semi-Finals & Finals team slots are fixed" : "Drag team to shift/swap with another match"}
-                                                >
-                                                    {!isLocked && !isPublishedAndLocked ? (
-                                                        <span className="team-drag-grip"><MdDragIndicator /></span>
+                                                    {isCompleted ? (
+                                                        <button
+                                                            className="dmm-score-btn completed"
+                                                            onClick={() => navigate(`/admin/scoring?match=${match.title}`)}
+                                                            title={match.result ? `Completed: ${match.result}` : 'Match Completed'}
+                                                        >
+                                                            <MdCheckCircle /> Completed
+                                                        </button>
+                                                    ) : isBlockedByOtherLive ? (
+                                                        <button
+                                                            className="dmm-score-btn blocked"
+                                                            onClick={() => setLiveMatchBlockedModal({
+                                                                attemptingMatch: match.title,
+                                                                currentLiveTitle: currentLiveTitle || 'Active Live Match'
+                                                            })}
+                                                            title={`Cannot start: Match "${currentLiveTitle}" is currently LIVE`}
+                                                        >
+                                                            <MdLock /> Locked (Match Live)
+                                                        </button>
+                                                    ) : isThisMatchLive ? (
+                                                        <button
+                                                            className="dmm-score-btn live"
+                                                            onClick={() => navigate(`/admin/scoring?match=${match.title}`)}
+                                                        >
+                                                            <MdPlayArrow /> Resume Live Scoring
+                                                        </button>
                                                     ) : (
-                                                        <span className="team-lock-badge"><MdLock /></span>
+                                                        <button
+                                                            className="dmm-score-btn"
+                                                            onClick={() => navigate(`/admin/scoring?match=${match.title}`)}
+                                                        >
+                                                            <MdPlayArrow /> Score Match
+                                                        </button>
                                                     )}
-                                                    <span className="team-slot-name">{t1}</span>
                                                 </div>
-
-                                                <div className="dmm-vs-divider">
-                                                    <span className="dmm-vs-text">VS</span>
-                                                    {!isLocked && !isPublishedAndLocked && <MdSwapHoriz className="dmm-swap-hint-icon" />}
-                                                </div>
-
-                                                <div
-                                                    className={`dmm-team-slot ${isLocked ? 'is-locked' : isPublishedAndLocked ? 'is-published-locked' : 'is-draggable'} ${dragOverTeamInfo?.matchId === match.id && dragOverTeamInfo?.slot === 'team2' ? 'is-team-drag-over' : ''} ${draggedTeamInfo?.matchId === match.id && draggedTeamInfo?.slot === 'team2' ? 'is-team-dragging' : ''}`}
-                                                    draggable={!isLocked && !isPublishedAndLocked}
-                                                    onDragStart={(e) => handleTeamDragStart(e, match, 'team2')}
-                                                    onDragOver={(e) => handleTeamDragOver(e, match, 'team2')}
-                                                    onDrop={(e) => handleTeamDrop(e, match, 'team2')}
-                                                    onDragEnd={handleTeamDragEnd}
-                                                    title={isPublishedAndLocked ? "Draw is published. Click 'Enable Editing' to shift teams" : isLocked ? "Semi-Finals & Finals team slots are fixed" : "Drag team to shift/swap with another match"}
-                                                >
-                                                    {!isLocked && !isPublishedAndLocked ? (
-                                                        <span className="team-drag-grip"><MdDragIndicator /></span>
-                                                    ) : (
-                                                        <span className="team-lock-badge"><MdLock /></span>
-                                                    )}
-                                                    <span className="team-slot-name">{t2}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="dmm-venue">
-                                                <MdLocationOn /> {match.venue || 'Faculty Cricket Grounds'}
-                                            </div>
-
-                                            <div className="dmm-footer">
-                                                <button
-                                                    className={`dmm-edit-btn ${!isScheduled ? 'highlight-schedule-btn' : ''}`}
-                                                    onClick={() => {
-                                                        setEditingMatch(match);
-                                                        setModalDate(normalizeDateForInput(match.date));
-                                                        setModalTime(normalizeTimeForInput(match.time));
-                                                        setModalVenue(match.venue || 'Faculty Cricket Grounds');
-                                                        setModalUmpire1(match.umpire1 || 'Mr. S. Ketheeswaran');
-                                                        setModalUmpire2(match.umpire2 || 'Mr. N. Ramanan');
-                                                    }}
-                                                >
-                                                    <MdCalendarToday /> {isScheduled ? 'Reschedule' : 'Set Date & Time'}
-                                                </button>
-                                                <button
-                                                    className="dmm-score-btn"
-                                                    onClick={() => navigate(`/admin/scoring?match=${match.title}`)}
-                                                >
-                                                    <MdPlayArrow /> Score Match
-                                                </button>
-                                            </div>
-                                        </TiltCard>
-                                    </div>
-                                );
-                            })}
+                                            </TiltCard>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     )}
                 </div>
@@ -1058,6 +1271,25 @@ const DrawManagement = () => {
                 type="danger"
                 onConfirm={handleConfirmClearDraw}
                 onCancel={() => setClearDrawConfirmOpen(false)}
+            />
+
+            {/* Live Match Blocked Alert Modal */}
+            <ConfirmationModal
+                isOpen={Boolean(liveMatchBlockedModal)}
+                title="Match Start Locked"
+                message={`Match "${liveMatchBlockedModal?.currentLiveTitle}" is currently LIVE in this tournament! Only one match can be scored at a time. Please conclude or stop scoring the active live match before starting "${liveMatchBlockedModal?.attemptingMatch}".`}
+                detail="Matches cannot start when another match is live. You can navigate to the active match to conclude it or update live scores."
+                confirmText="Go to Active Live Match"
+                cancelText="Dismiss"
+                type="danger"
+                onConfirm={() => {
+                    const liveTarget = liveMatchBlockedModal?.currentLiveTitle;
+                    setLiveMatchBlockedModal(null);
+                    if (liveTarget) {
+                        navigate(`/admin/scoring?match=${liveTarget}`);
+                    }
+                }}
+                onCancel={() => setLiveMatchBlockedModal(null)}
             />
 
             <Footer />

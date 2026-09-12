@@ -12,7 +12,7 @@ import {
     getMatchData,
     updateLiveData,
     saveFinishedMatch,
-    resolveTournamentKey
+    recordMatchRankings,
 } from '../../../services/rtdbService';
 import {
     MdUndo,
@@ -33,13 +33,19 @@ import {
     MdDirectionsRun,
     MdSportsBaseball,
     MdTrackChanges,
-    MdTimer
+    MdTimer,
+    MdBolt,
+    MdAutorenew,
+    MdCloudQueue,
+    MdGroups
 } from 'react-icons/md';
 import { GiCricketBat } from 'react-icons/gi';
 import { FaCoins, FaTrophy } from 'react-icons/fa6';
 import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
+import { generateSmartCommentary } from '../../../utils/commentaryEngine';
 import WagonWheel from '../../../components/3D/WagonWheel';
+import { calculateDlsTarget } from '../../../utils/dlsEngine';
 import './ScoringConsole.css';
 
 const ScoringConsole = () => {
@@ -58,7 +64,9 @@ const ScoringConsole = () => {
     const [isScoringActive, setIsScoringActive] = useState(false);
     const [isStartingMatch, setIsStartingMatch] = useState(false);
     const [matchData, setMatchData] = useState(null);
+    const [adminCommOverFilter, setAdminCommOverFilter] = useState('all');
     const userClosedLauncherRef = useRef(false);
+    const liveDataRef = useRef(null);
 
     // Published Matches Target-Tournament Style Dropdown State
     const [isMatchDropdownOpen, setIsMatchDropdownOpen] = useState(false);
@@ -76,6 +84,12 @@ const ScoringConsole = () => {
     const [openingStrikerId, setOpeningStrikerId] = useState(null);
     const [openingNonStrikerId, setOpeningNonStrikerId] = useState(null);
     const [openingBowlerId, setOpeningBowlerId] = useState(null);
+
+    // Squad Manager (Playing XI & Reserves) Modal State
+    const [showSquadManagerModal, setShowSquadManagerModal] = useState(false);
+    const [squadManagerTeamKey, setSquadManagerTeamKey] = useState('team1');
+    const [squadSwapTarget, setSquadSwapTarget] = useState(null);
+    const [squadSwapSelectedId, setSquadSwapSelectedId] = useState('');
 
     // Close Published Matches Dropdown on click outside or Escape
     useEffect(() => {
@@ -99,8 +113,8 @@ const ScoringConsole = () => {
         };
     }, [isMatchDropdownOpen]);
 
-    // Active Innings Tab ('team1' or 'team2')
-    const [activeInningsTab, setActiveInningsTab] = useState('team1');
+    // Active Innings Tab ('team1' or 'team2', defaults to currentBattingTeamKey)
+    const [activeInningsTab, setActiveInningsTab] = useState(null);
 
     // Crease state
     const [strikerId, setStrikerId] = useState(null);
@@ -124,9 +138,21 @@ const ScoringConsole = () => {
     const [showExtrasModal, setShowExtrasModal] = useState(false);
     const [extraType, setExtraType] = useState('Wide');
     const [extraRuns, setExtraRuns] = useState(0);
+    const [noBallRunsSource, setNoBallRunsSource] = useState('bat'); // 'bat' | 'bye' | 'legBye'
     const [showFinishModal, setShowFinishModal] = useState(false);
     const [showUndoConfirmModal, setShowUndoConfirmModal] = useState(false);
+    const [showSwitchInningsModal, setShowSwitchInningsModal] = useState(false);
+    const [secondInningsStrikerId, setSecondInningsStrikerId] = useState('');
+    const [secondInningsNonStrikerId, setSecondInningsNonStrikerId] = useState('');
+    const [secondInningsBowlerId, setSecondInningsBowlerId] = useState('');
     const [momSelection, setMomSelection] = useState('');
+
+    // DLS / Rain Delay State
+    const [showDlsModal, setShowDlsModal] = useState(false);
+    const [dlsRevisedOvers, setDlsRevisedOvers] = useState('');
+    const [dlsOfficialTarget, setDlsOfficialTarget] = useState('');
+    const [dlsCalculationData, setDlsCalculationData] = useState(null);
+    const [dlsIsManual, setDlsIsManual] = useState(false);
 
     // Next Bowler Modal State (Compulsory after over finishes)
     const [showNextBowlerModal, setShowNextBowlerModal] = useState(false);
@@ -134,12 +160,25 @@ const ScoringConsole = () => {
     const [completedOverNumber, setCompletedOverNumber] = useState(0);
     const [lastBowlerId, setLastBowlerId] = useState(null);
 
+    // Next Batsman Modal State (Compulsory after wicket falls)
+    const [showNextBatterModal, setShowNextBatterModal] = useState(false);
+    const [nextBatterModalData, setNextBatterModalData] = useState(null);
+    const [selectedNextBatterId, setSelectedNextBatterId] = useState('');
+    const [nextBatterStrikeRole, setNextBatterStrikeRole] = useState('striker'); // 'striker' | 'nonStriker'
+
     // Embedded Wheeler / Inline Config Panel Mode ('wheeler' | 'extras' | 'wicket')
     const [inlinePanelMode, setInlinePanelMode] = useState('wheeler');
 
     const handleOpenInlineExtra = (type) => {
         setExtraType(type);
-        setExtraRuns(0); // 0 additional runs by default
+        setNoBallRunsSource('bat');
+        if (type === 'Penalty') {
+            setExtraRuns(5); // 5 runs standard penalty by default
+        } else if (type === 'Bye' || type === 'Leg Bye') {
+            setExtraRuns(1); // 1 run (no mandatory penalty) by default
+        } else {
+            setExtraRuns(0); // 0 extra runs beyond +1 mandatory penalty by default
+        }
         setInlinePanelMode('extras');
     };
 
@@ -187,6 +226,7 @@ const ScoringConsole = () => {
     // 1b. Automatically redirect to active match scoring board if a match is live in this tournament
     useEffect(() => {
         const unsubLive = subscribeLiveData((data) => {
+            liveDataRef.current = data;
             if (data?.isLive && !userClosedLauncherRef.current) {
                 const liveTitle = data.currentMatchPath
                     ? data.currentMatchPath.split('/').pop()
@@ -206,22 +246,128 @@ const ScoringConsole = () => {
     // Helper to retrieve structured squad player list for a team
     const getTeamPlayerList = (teamName) => {
         if (!teamName) return [];
-        const teamObj = teamsData[teamName] || Object.values(teamsData || {}).find(t => t.name === teamName) || {};
-        const rawList = Object.values(teamObj.players || {});
+        const teamObj = findTeamData(teamName) || {};
+        const squadList = Object.values(teamObj.players || {}).map((p, idx) => ({
+            id: p.id || idx + 1,
+            name: p.name || `${teamName} Player ${idx + 1}`,
+            hand: p.hand || 'Right Hand',
+            role: p.role || '',
+            type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
+            imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || ''
+        }));
+        const extraList = Object.values(teamObj.extraPlayers || {}).map((p, idx) => ({
+            id: p.id || (squadList.length + idx + 1),
+            name: p.name || `${teamName} Reserve ${idx + 1}`,
+            hand: p.hand || 'Right Hand',
+            role: p.role || '',
+            type: p.type || 'Reserve',
+            imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || ''
+        }));
+        const rawList = [...squadList, ...extraList];
         if (rawList.length > 0) {
-            return rawList.map((p, idx) => ({
-                id: p.id || idx + 1,
-                name: p.name || `${teamName} Player ${idx + 1}`,
-                hand: p.hand || 'Right Hand',
-                type: p.type || 'Playing XI'
-            }));
+            return rawList;
         }
         return Array.from({ length: 11 }, (_, i) => ({
             id: i + 1,
             name: `${teamName} Player ${i + 1}`,
             hand: i % 4 === 0 ? 'Left Hand' : 'Right Hand',
-            type: 'Playing XI'
+            role: '',
+            type: 'Playing XI',
+            imageUrl: ''
         }));
+    };
+
+    // Helper to find team data from teamsData registry by name/key/id
+    const findTeamData = (teamIdentifier) => {
+        if (!teamIdentifier) return null;
+        if (teamsData[teamIdentifier]) return teamsData[teamIdentifier];
+        return Object.values(teamsData).find(t =>
+            t?.name?.toLowerCase() === String(teamIdentifier).toLowerCase() ||
+            t?.key?.toLowerCase() === String(teamIdentifier).toLowerCase() ||
+            String(t?.id) === String(teamIdentifier)
+        ) || Object.entries(teamsData).find(([k, v]) =>
+            k.toLowerCase() === String(teamIdentifier).toLowerCase() ||
+            v?.name?.toLowerCase() === String(teamIdentifier).toLowerCase()
+        )?.[1] || {};
+    };
+
+    // Helper to robustly resolve player type (Playing XI vs Reserve)
+    const resolvePlayerType = (p, teamObj, isLocked = false, rosterIndex = 0) => {
+        if (isLocked) return 'Playing XI';
+        if (p?.type === 'Playing XI' || p?.type === 'Reserve') {
+            return p.type;
+        }
+        const isExtraPlayer = Boolean(teamObj?.extraPlayers?.[p?.id]) ||
+            Object.values(teamObj?.extraPlayers || {}).some(ep =>
+                String(ep.id) === String(p?.id) ||
+                (ep.name && p?.name && ep.name.trim().toLowerCase() === p.name.trim().toLowerCase())
+            );
+        if (isExtraPlayer) {
+            return 'Reserve';
+        }
+        const squadPlayer = teamObj?.players?.[p?.id] ||
+            Object.values(teamObj?.players || {}).find(sp =>
+                String(sp.id) === String(p?.id) ||
+                (sp.nic && sp.nic === p?.nic) ||
+                (sp.name && p?.name && sp.name.trim().toLowerCase() === p.name.trim().toLowerCase())
+            );
+        if (squadPlayer?.type) {
+            return squadPlayer.type;
+        }
+        return rosterIndex < 11 ? 'Playing XI' : 'Reserve';
+    };
+
+    // Helper to construct structured player roster for a team
+    const buildPlayers = (teamObj, defaultPrefix = 'Player') => {
+        const result = {};
+        const squadList = Object.values(teamObj?.players || {}).map((p, idx) => ({
+            ...p,
+            type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve')
+        }));
+        const extraList = Object.values(teamObj?.extraPlayers || {}).map(p => ({
+            ...p,
+            type: p.type || 'Reserve'
+        }));
+        const rawList = [...squadList, ...extraList];
+        if (rawList.length > 0) {
+            rawList.forEach((p, idx) => {
+                const pid = p.id || idx + 1;
+                result[pid] = {
+                    id: pid,
+                    name: p.name || `${defaultPrefix} Player ${idx + 1}`,
+                    imageUrl: p.imageUrl || p.ImageURL || p.imageuRL || p.image || p.photo || '',
+                    role: p.role || 'All Rounder',
+                    runs: p.runs || 0,
+                    balls: p.balls || 0,
+                    boundaries: { fours: p.fours || 0, sixes: p.sixes || 0, singles: 0, twos: 0 },
+                    strikeRate: '0.00',
+                    dismissal: '',
+                    status: p.status || 'yet to bat',
+                    hand: p.hand || (idx % 3 === 0 ? 'Left Hand' : 'Right Hand'),
+                    type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
+                    shots: {}
+                };
+            });
+        } else {
+            for (let i = 1; i <= 15; i++) {
+                result[i] = {
+                    id: i,
+                    name: `${defaultPrefix} Player ${i}`,
+                    imageUrl: '',
+                    role: 'Player',
+                    runs: 0,
+                    balls: 0,
+                    boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                    strikeRate: '0.00',
+                    dismissal: '',
+                    status: 'yet to bat',
+                    hand: i % 4 === 0 ? 'Left Hand' : 'Right Hand',
+                    type: i <= 11 ? 'Playing XI' : 'Reserve',
+                    shots: {}
+                };
+            }
+        }
+        return result;
     };
 
     // Helper to create a complete default match structure matching CricX/LiveScore schema
@@ -238,46 +384,8 @@ const ScoringConsole = () => {
             bowlerId: chosenBowlerId
         } = tossConfig;
 
-        const t1Obj = teamsData[t1Name] || {};
-        const t2Obj = teamsData[t2Name] || {};
-
-        const buildPlayers = (teamObj, defaultPrefix) => {
-            const result = {};
-            const pList = Object.values(teamObj?.players || {});
-            if (pList.length > 0) {
-                pList.forEach((p, idx) => {
-                    const pid = p.id || idx + 1;
-                    result[pid] = {
-                        id: pid,
-                        name: p.name || `${defaultPrefix} Player ${idx + 1}`,
-                        runs: p.runs || 0,
-                        balls: p.balls || 0,
-                        boundaries: { fours: p.fours || 0, sixes: p.sixes || 0, singles: 0, twos: 0 },
-                        strikeRate: '0.00',
-                        dismissal: '',
-                        hand: p.hand || (idx % 3 === 0 ? 'Left Hand' : 'Right Hand'),
-                        type: p.type || 'Playing XI',
-                        shots: {}
-                    };
-                });
-            } else {
-                for (let i = 1; i <= 15; i++) {
-                    result[i] = {
-                        id: i,
-                        name: `${defaultPrefix} Player ${i}`,
-                        runs: 0,
-                        balls: 0,
-                        boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
-                        strikeRate: '0.00',
-                        dismissal: '',
-                        hand: i % 4 === 0 ? 'Left Hand' : 'Right Hand',
-                        type: i <= 11 ? 'Playing XI' : 'Reserve',
-                        shots: {}
-                    };
-                }
-            }
-            return result;
-        };
+        const t1Obj = findTeamData(t1Name) || {};
+        const t2Obj = findTeamData(t2Name) || {};
 
         const t1Players = buildPlayers(t1Obj, t1Name);
         const t2Players = buildPlayers(t2Obj, t2Name);
@@ -300,6 +408,14 @@ const ScoringConsole = () => {
             // Team 1 Batting First
             t1BallFace = (chosenStrikerId && t1Players[chosenStrikerId]) || p1List[0] || null;
             t1OtherSide = (chosenNonStrikerId && t1Players[chosenNonStrikerId]) || p1List[1] || p1List[0] || null;
+            if (t1BallFace) {
+                t1BallFace.status = 'batting';
+                if (t1Players[t1BallFace.id]) t1Players[t1BallFace.id].status = 'batting';
+            }
+            if (t1OtherSide) {
+                t1OtherSide.status = 'batting';
+                if (t1Players[t1OtherSide.id]) t1Players[t1OtherSide.id].status = 'batting';
+            }
             t2Bowler = (chosenBowlerId && t2Players[chosenBowlerId]) || p2List[0] || null;
             if (t2Bowler) {
                 t2BowlersDict[t2Bowler.id] = {
@@ -315,6 +431,14 @@ const ScoringConsole = () => {
             // Team 2 Batting First
             t2BallFace = (chosenStrikerId && t2Players[chosenStrikerId]) || p2List[0] || null;
             t2OtherSide = (chosenNonStrikerId && t2Players[chosenNonStrikerId]) || p2List[1] || p2List[0] || null;
+            if (t2BallFace) {
+                t2BallFace.status = 'batting';
+                if (t2Players[t2BallFace.id]) t2Players[t2BallFace.id].status = 'batting';
+            }
+            if (t2OtherSide) {
+                t2OtherSide.status = 'batting';
+                if (t2Players[t2OtherSide.id]) t2Players[t2OtherSide.id].status = 'batting';
+            }
             t1Bowler = (chosenBowlerId && t1Players[chosenBowlerId]) || p1List[0] || null;
             if (t1Bowler) {
                 t1BowlersDict[t1Bowler.id] = {
@@ -406,18 +530,31 @@ const ScoringConsole = () => {
         const unsubMatch = subscribeMatch(activeMatchTitle, (data) => {
             if (data) {
                 setMatchData(data);
-                const currentBatting = data.common?.firstBat === 1 ? data.team1 : data.team2;
-                const currentBowling = data.common?.firstBat === 1 ? data.team2 : data.team1;
+                const activeInningsNum = data.common?.activeInnings || 1;
+                const isT1Bat = activeInningsNum === 1 ? (data.common?.firstBat === 1) : (data.common?.firstBat !== 1);
+                const bKey = isT1Bat ? 'team1' : 'team2';
+                const bowlKey = isT1Bat ? 'team2' : 'team1';
+                const currentBatting = data[bKey];
+                const currentBowling = data[bowlKey];
 
                 const bList = Object.values(currentBatting?.players || {});
-                if (bList.length >= 2) {
-                    if (!strikerId) setStrikerId(bList[0].id);
-                    if (!nonStrikerId) setNonStrikerId(bList[1].id);
+                if (currentBatting?.ballFaceBatsman?.id != null) {
+                    setStrikerId(currentBatting.ballFaceBatsman.id);
+                } else if (bList.length >= 1) {
+                    setStrikerId(prev => prev || bList[0].id);
+                }
+
+                if (currentBatting?.otherSideBatsman?.id != null) {
+                    setNonStrikerId(currentBatting.otherSideBatsman.id);
+                } else if (bList.length >= 2) {
+                    setNonStrikerId(prev => prev || bList[1].id);
                 }
 
                 const bowlList = Object.values(currentBowling?.bowlers || currentBowling?.players || {});
-                if (bowlList.length > 0 && !bowlerId) {
-                    setBowlerId(bowlList[0].id);
+                if (currentBowling?.bowler?.id != null) {
+                    setBowlerId(currentBowling.bowler.id);
+                } else if (bowlList.length > 0) {
+                    setBowlerId(prev => prev || bowlList[0].id);
                 }
             } else {
                 setMatchData(null);
@@ -425,7 +562,8 @@ const ScoringConsole = () => {
         }, selectedTournamentId);
 
         return () => unsubMatch();
-    }, [isScoringActive, activeMatchTitle, selectedTournamentId, strikerId, nonStrikerId, bowlerId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isScoringActive, activeMatchTitle, selectedTournamentId]);
 
     // 1. Initiate start or switch match scoring -> Triggers Toss Setup Modal
     const handleInitiateStartScoring = async (overrideTitle) => {
@@ -433,6 +571,22 @@ const ScoringConsole = () => {
         if (!targetTitle) {
             toastRef.current?.showToast('warning', 'Please select a match from the published draw first.');
             return;
+        }
+
+        // Rule: matches can't start when another match is live
+        const currentLive = liveDataRef.current;
+        if (currentLive?.isLive) {
+            const liveMatchName = (currentLive.currentMatchPath
+                ? currentLive.currentMatchPath.split('/').pop()
+                : currentLive.liveScore?.matchTitle || '').trim();
+
+            if (liveMatchName && liveMatchName.toLowerCase() !== targetTitle.toLowerCase()) {
+                toastRef.current?.showToast(
+                    'error',
+                    `Cannot start scoring: Match "${liveMatchName}" is currently LIVE! Only one match can be live at a time.`
+                );
+                return;
+            }
         }
 
         const selectedFixture = publishedMatches.find(m => m.title === targetTitle);
@@ -592,6 +746,8 @@ const ScoringConsole = () => {
                     'common/overLimit': oversNum,
                     'common/status': tossStatusText
                 };
+                if (matchData?.team1?.players) updates['team1/players'] = matchData.team1.players;
+                if (matchData?.team2?.players) updates['team2/players'] = matchData.team2.players;
                 if (newStriker) {
                     updates[`${bKey}/ballFaceBatsman`] = newStriker;
                     setStrikerId(newStriker.id);
@@ -608,11 +764,10 @@ const ScoringConsole = () => {
 
                 await updateMatchData(activeMatchTitle, updates, selectedTournamentId);
 
-                const targetKey = resolveTournamentKey(selectedTournamentId);
-                const cleanTitle = activeMatchTitle.replace(/^\//, '');
+                const cleanTitle = activeMatchTitle.replace(/^\//, '').split('/').pop();
                 await updateLiveData({
                     isLive: 1,
-                    currentMatchPath: `Tournaments/${targetKey}/${cleanTitle}`,
+                    currentMatchPath: cleanTitle,
                     liveScore: {
                         matchTitle: activeMatchTitle,
                         firstBat: firstBat,
@@ -699,6 +854,18 @@ const ScoringConsole = () => {
                 await setRtdbMatchData(targetTitle, newMatch, selectedTournamentId);
                 currentMatch = newMatch;
             } else {
+                // Ensure team1 and team2 have full players squads from teamsData if missing
+                const t1Data = findTeamData(t1);
+                const t2Data = findTeamData(t2);
+                if (!currentMatch.team1?.players || Object.keys(currentMatch.team1.players).length === 0) {
+                    currentMatch.team1 = currentMatch.team1 || { name: t1 };
+                    currentMatch.team1.players = buildPlayers(t1Data);
+                }
+                if (!currentMatch.team2?.players || Object.keys(currentMatch.team2.players).length === 0) {
+                    currentMatch.team2 = currentMatch.team2 || { name: t2 };
+                    currentMatch.team2.players = buildPlayers(t2Data);
+                }
+
                 const bKey = firstBat === 1 ? 'team1' : 'team2';
                 const bowlKey = firstBat === 1 ? 'team2' : 'team1';
                 const bSquad = Object.values(currentMatch[bKey]?.players || {});
@@ -749,6 +916,10 @@ const ScoringConsole = () => {
                     'common/overLimit': overLimit,
                     'common/status': tossStatusText,
                     'common/finished': 0,
+                    'team1/players': currentMatch.team1.players,
+                    'team2/players': currentMatch.team2.players,
+                    'team1/name': currentMatch.team1.name || t1,
+                    'team2/name': currentMatch.team2.name || t2,
                     [`${bKey}/ballFaceBatsman`]: selStriker,
                     [`${bKey}/otherSideBatsman`]: selNonStriker,
                     [`${bKey}/currentPartnership`]: currentMatch[bKey].currentPartnership,
@@ -765,11 +936,10 @@ const ScoringConsole = () => {
             setNonStrikerId(activeNonStrikerObj.id);
             setBowlerId(activeBowlerObj.id);
 
-            const targetKey = resolveTournamentKey(selectedTournamentId);
-            const cleanTitle = targetTitle.replace(/^\//, '');
+            const cleanTitle = targetTitle.replace(/^\//, '').split('/').pop();
             await updateLiveData({
                 isLive: 1,
-                currentMatchPath: `Tournaments/${targetKey}/${cleanTitle}`,
+                currentMatchPath: cleanTitle,
                 liveScore: {
                     matchTitle: targetTitle,
                     firstBat: firstBat,
@@ -1411,68 +1581,207 @@ const ScoringConsole = () => {
     const { common = {}, team1 = {}, team2 = {} } = matchData;
     const [t1Name, t2Name] = (common.teams || 'Team 1 vs Team 2').split(' vs ');
 
-    const isTeam1Batting = common.firstBat === 1;
+    const activeInningsNumber = common.activeInnings || 1;
+    const isTeam1Batting = activeInningsNumber === 1 ? (common.firstBat === 1) : (common.firstBat !== 1);
     const currentBattingTeamKey = isTeam1Batting ? 'team1' : 'team2';
     const currentBowlingTeamKey = isTeam1Batting ? 'team2' : 'team1';
 
-    // Active tab data
-    const isTabTeam1 = activeInningsTab === 'team1';
-    const battingTeamData = isTabTeam1 ? team1 : team2;
-    const bowlingTeamData = isTabTeam1 ? team2 : team1;
-    const battingTeamName = isTabTeam1 ? t1Name : t2Name;
-    const bowlingTeamName = isTabTeam1 ? t2Name : t1Name;
+    // Active Match Batting & Fielding Teams currently in play on the pitch
+    // (ALWAYS strictly bound to the live innings, never hijacked by scorecard review tabs)
+    const battingTeamData = matchData[currentBattingTeamKey] || (isTeam1Batting ? team1 : team2);
+    const bowlingTeamData = matchData[currentBowlingTeamKey] || (isTeam1Batting ? team2 : team1);
+    const bowlingTeamName = currentBowlingTeamKey === 'team1' ? t1Name : t2Name;
 
-    // Parse Batting Players
+    // Parse Batting Players (Batting side currently taking the crease)
     const rawPlayersList = Object.values(battingTeamData.players || {});
-    const playersList = rawPlayersList.map(p => {
-        const teamObj = Object.values(teamsData || {}).find(t => t.name === battingTeamData.name);
-        const squadPlayer = teamObj?.players?.[p.id] || Object.values(teamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+    const battingTeamObj = findTeamData(battingTeamData.name) || findTeamData(currentBattingTeamKey === 'team1' ? t1Name : t2Name) || {};
+    const playersList = rawPlayersList.map((p, idx) => {
+        const squadPlayer = battingTeamObj?.players?.[p.id] || Object.values(battingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
         return {
             ...p,
-            type: squadPlayer?.type || p.type || 'Playing XI',
+            type: resolvePlayerType(p, battingTeamObj, false, idx),
             hand: squadPlayer?.hand || p.hand || 'Right Hand'
         };
     });
-    const playingXI = playersList.filter(p => p.type === 'Playing XI' || !p.type);
+    const playingXI = playersList.filter(p => p.type === 'Playing XI');
     const reserves = playersList.filter(p => p.type === 'Reserve');
 
-    // Parse Bowling Players
+    // Parse Bowling / Fielding Players (Fielding side currently out on the ground)
     const rawBowlingPlayersList = Object.values(bowlingTeamData.players || {});
-    const bowlingPlayersList = rawBowlingPlayersList.map(p => {
-        const teamObj = Object.values(teamsData || {}).find(t => t.name === bowlingTeamData.name);
-        const squadPlayer = teamObj?.players?.[p.id] || Object.values(teamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+    const bowlingTeamObj = findTeamData(bowlingTeamData.name) || findTeamData(currentBowlingTeamKey === 'team1' ? t1Name : t2Name) || {};
+    const bowlingPlayersList = rawBowlingPlayersList.map((p, idx) => {
+        const squadPlayer = bowlingTeamObj?.players?.[p.id] || Object.values(bowlingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
         return {
             ...p,
-            type: squadPlayer?.type || p.type || 'Playing XI',
+            type: resolvePlayerType(p, bowlingTeamObj, false, idx),
             hand: squadPlayer?.hand || p.hand || 'Right Hand'
         };
     });
     const bowlingReserves = bowlingPlayersList.filter(p => p.type === 'Reserve');
 
-    // Parse Bowlers
-    const rawBowlersList = Object.values(bowlingTeamData.bowlers || {});
-    const bowlersList = rawBowlersList.filter(b => {
-        const teamObj = Object.values(teamsData || {}).find(t => t.name === bowlingTeamData.name);
-        const squadPlayer = teamObj?.players?.[b.id] || Object.values(teamObj?.players || {}).find(sp => sp.nic === b.nic || sp.name === b.name);
-        const type = b.type || squadPlayer?.type || 'Playing XI';
+    // Scorecard Tab Selection (For reviewing 1st / 2nd innings scorecard breakdown at bottom of console)
+    // Default active innings tab is always the current batting team tab
+    const tabBattingTeamKey = activeInningsTab || currentBattingTeamKey;
+    const tabBattingTeamData = matchData[tabBattingTeamKey] || (tabBattingTeamKey === 'team1' ? team1 : team2);
+    const tabBowlingTeamKey = tabBattingTeamKey === 'team1' ? 'team2' : 'team1';
+    const tabBowlingTeamData = matchData[tabBowlingTeamKey] || (tabBowlingTeamKey === 'team1' ? team2 : team1);
+    const tabBattingTeamName = tabBattingTeamKey === 'team1' ? t1Name : t2Name;
+    const tabBowlingTeamName = tabBowlingTeamKey === 'team1' ? t2Name : t1Name;
+
+    const rawTabPlayersList = Object.values(tabBattingTeamData.players || {});
+    const tabBattingTeamObj = findTeamData(tabBattingTeamData.name) || findTeamData(tabBattingTeamName) || {};
+    const tabPlayersList = rawTabPlayersList.map((p, idx) => {
+        const squadPlayer = tabBattingTeamObj?.players?.[p.id] || Object.values(tabBattingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+        return {
+            ...p,
+            type: resolvePlayerType(p, tabBattingTeamObj, false, idx),
+            hand: squadPlayer?.hand || p.hand || 'Right Hand'
+        };
+    });
+    const tabPlayingXI = tabPlayersList.filter(p => p.type === 'Playing XI');
+    const tabReserves = tabPlayersList.filter(p => p.type === 'Reserve');
+
+    const rawTabBowlersList = Object.values(tabBowlingTeamData.bowlers || {});
+    const tabBowlingTeamObj = findTeamData(tabBowlingTeamData.name) || findTeamData(tabBowlingTeamName) || {};
+    const tabBowlersList = rawTabBowlersList.filter(b => {
+        const type = resolvePlayerType(b, tabBowlingTeamObj, false, 0);
         return type === 'Playing XI';
     });
 
     // Partnerships
     const cp = battingTeamData.currentPartnership;
 
-    // Active players on the crease for scoring
-    const activeBattingSquad = Object.values(matchData[currentBattingTeamKey]?.players || {});
-    const activeBowlingSquad = Object.values(matchData[currentBowlingTeamKey]?.bowlers || matchData[currentBowlingTeamKey]?.players || {});
+    // Second innings teams & squad resolution (for mandatory 2nd innings switch modal)
+    const firstBatTeamKeyForSwitch = common.firstBat === 1 ? 'team1' : 'team2';
+    const secondBatTeamKeyForSwitch = common.firstBat === 1 ? 'team2' : 'team1';
+    const firstBatTeamNameForSwitch = firstBatTeamKeyForSwitch === 'team1' ? t1Name : t2Name;
+    const secondBatTeamNameForSwitch = secondBatTeamKeyForSwitch === 'team1' ? t1Name : t2Name;
 
-    const striker = activeBattingSquad.find(p => p.id === strikerId) || activeBattingSquad[0] || { name: 'Striker', runs: 0, balls: 0, id: 1 };
-    const nonStriker = activeBattingSquad.find(p => p.id === nonStrikerId) || activeBattingSquad[1] || { name: 'Non-Striker', runs: 0, balls: 0, id: 2 };
-    const bowler = activeBowlingSquad.find(p => p.id === bowlerId) || activeBowlingSquad[0] || { name: 'Bowler', overs: 0, runs: 0, wickets: 0, id: 1 };
+    const secondBatTeamObjForSwitch = findTeamData(matchData[secondBatTeamKeyForSwitch]?.name) || findTeamData(secondBatTeamNameForSwitch) || {};
+    const rawSecondBatList = Object.values(matchData[secondBatTeamKeyForSwitch]?.players || {});
+    const secondBatResolvedList = rawSecondBatList.map((p, idx) => ({
+        ...p,
+        type: resolvePlayerType(p, secondBatTeamObjForSwitch, false, idx)
+    }));
+    const secondBatXI = secondBatResolvedList.filter(p => p.type === 'Playing XI');
+    const secondBatOpeningSquad = secondBatXI.length > 0 ? secondBatXI : (rawSecondBatList.length > 0 ? rawSecondBatList : getTeamPlayerList(secondBatTeamNameForSwitch));
+
+    const firstBatTeamObjForSwitch = findTeamData(matchData[firstBatTeamKeyForSwitch]?.name) || findTeamData(firstBatTeamNameForSwitch) || {};
+    const rawFirstBatList = Object.values(matchData[firstBatTeamKeyForSwitch]?.players || {});
+    const firstBatResolvedList = rawFirstBatList.map((p, idx) => ({
+        ...p,
+        type: resolvePlayerType(p, firstBatTeamObjForSwitch, false, idx)
+    }));
+    const firstBatXI = firstBatResolvedList.filter(p => p.type === 'Playing XI');
+    const firstBatOpeningSquad = firstBatXI.length > 0 ? firstBatXI : (rawFirstBatList.length > 0 ? rawFirstBatList : getTeamPlayerList(firstBatTeamNameForSwitch));
+
+    // Active players on the crease for scoring (Prioritizing Playing XI)
+    const activeBattingSquad = playingXI.length > 0 ? playingXI : Object.values(matchData[currentBattingTeamKey]?.players || {});
+    const activeBowlingSquad = bowlingPlayersList.filter(p => p.type === 'Playing XI').length > 0
+        ? bowlingPlayersList.filter(p => p.type === 'Playing XI')
+        : Object.values(matchData[currentBowlingTeamKey]?.bowlers || matchData[currentBowlingTeamKey]?.players || {});
+
+    const striker = activeBattingSquad.find(p => String(p.id) === String(strikerId)) || (battingTeamData.ballFaceBatsman && activeBattingSquad.find(p => String(p.id) === String(battingTeamData.ballFaceBatsman.id))) || activeBattingSquad.find(p => !p.dismissal && p.status !== 'out') || activeBattingSquad[0] || { name: 'Striker', runs: 0, balls: 0, id: 1 };
+    const nonStriker = activeBattingSquad.find(p => String(p.id) === String(nonStrikerId)) || (battingTeamData.otherSideBatsman && activeBattingSquad.find(p => String(p.id) === String(battingTeamData.otherSideBatsman.id))) || activeBattingSquad.find(p => String(p.id) !== String(striker?.id) && !p.dismissal && p.status !== 'out') || activeBattingSquad[1] || { name: 'Non-Striker', runs: 0, balls: 0, id: 2 };
+    const bowler = activeBowlingSquad.find(p => String(p.id) === String(bowlerId)) || (bowlingTeamData.bowler && activeBowlingSquad.find(p => String(p.id) === String(bowlingTeamData.bowler.id))) || activeBowlingSquad[0] || { name: 'Bowler', overs: 0, runs: 0, wickets: 0, id: 1 };
+
+    // Crease locking conditions:
+    // - Striker/Non-Striker locked once they've faced balls or batted (or partnership deliveries occurred)
+    // - Bowler locked once 1 or more balls bowled in ongoing over
+    const isStrikerLocked = Boolean(
+        striker && (
+            (striker.balls || 0) > 0 ||
+            (striker.runs || 0) > 0 ||
+            (cp && ((battingTeamData.totalBalls || 0) > (cp.startBalls || 0)))
+        )
+    );
+
+    const isNonStrikerLocked = Boolean(
+        nonStriker && (
+            (nonStriker.balls || 0) > 0 ||
+            (nonStriker.runs || 0) > 0 ||
+            (cp && ((battingTeamData.totalBalls || 0) > (cp.startBalls || 0)))
+        )
+    );
+
+    const currentOverBallsCount = Array.isArray(common?.overBallsTypes)
+        ? common.overBallsTypes.length
+        : Object.keys(common?.overBallsTypes || {}).length;
+
+    const isBowlerLocked = currentOverBallsCount > 0;
 
     // Commentary List
     const commentaryList = matchData.commentary
         ? Object.values(matchData.commentary).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
         : [];
+
+    // Helper to extract 1-indexed over number from delivery
+    const getCommDeliveryOverNum = (comm) => {
+        const raw = comm?.over ?? comm?.ball;
+        if (raw === undefined || raw === null || raw === '') return null;
+        const str = String(raw).trim();
+        if (str.includes('.')) {
+            const parts = str.split('.');
+            const overPart = parseInt(parts[0], 10);
+            const ballPart = parseInt(parts[1], 10);
+            if (isNaN(overPart)) return null;
+            if (ballPart === 0 && overPart > 0) return overPart;
+            return overPart + 1;
+        }
+        const num = parseInt(str, 10);
+        return !isNaN(num) ? num : null;
+    };
+
+    // Helper to calculate exact extras breakdown (b, lb, w, nb, pen) from extraTypes
+    const parseExtrasBreakdown = (extraTypes = [], totalExtraAmount = 0) => {
+        let b = 0, lb = 0, w = 0, nb = 0, pen = 0;
+
+        const list = Array.isArray(extraTypes)
+            ? extraTypes
+            : (extraTypes && typeof extraTypes === 'object' ? Object.values(extraTypes) : []);
+
+        list.forEach(item => {
+            if (!item) return;
+            const str = String(item).trim().toUpperCase();
+            const numMatch = str.match(/\d+/);
+            const amt = numMatch ? parseInt(numMatch[0], 10) : 1;
+
+            if (str.includes('P') || str.includes('PEN')) {
+                pen += amt;
+            } else if (str.includes('LB') || str.endsWith('L')) {
+                lb += amt;
+            } else if (str.includes('NB') || str.endsWith('N')) {
+                nb += (amt === 0 ? 1 : amt);
+            } else if (str.includes('WB') || str.includes('WD') || str.endsWith('W')) {
+                w += (amt === 0 ? 1 : amt);
+            } else if (str.includes('B')) {
+                b += amt;
+            } else {
+                w += amt;
+            }
+        });
+
+        const parts = [`b ${b}`, `lb ${lb}`, `w ${w}`, `nb ${nb}`];
+        if (pen > 0) parts.push(`pen ${pen}`);
+
+        return {
+            total: totalExtraAmount || (b + lb + w + nb + pen),
+            breakdownText: parts.join(', '),
+            b, lb, w, nb, pen
+        };
+    };
+
+    const availableCommOvers = Array.from(
+        new Set(
+            commentaryList
+                .map(getCommDeliveryOverNum)
+                .filter((ov) => ov !== null && !isNaN(ov))
+        )
+    ).sort((a, b) => a - b);
+
+    const filteredCommentaryList = (!adminCommOverFilter || adminCommOverFilter === 'all')
+        ? commentaryList
+        : commentaryList.filter((comm) => getCommDeliveryOverNum(comm) === Number(adminCommOverFilter));
 
     // Overs string formatter
     const getOversString = (teamObj) => {
@@ -1556,8 +1865,8 @@ const ScoringConsole = () => {
         const bTeam = updated[currentBattingTeamKey];
         const bowlTeam = updated[currentBowlingTeamKey];
 
-        // 1. Legal ball calculation (Wide & No Ball are NOT legal balls)
-        const legalBall = !(extraType === 'Wide' || extraType === 'No Ball');
+        // 1. Legal ball calculation (Wide, No Ball, and Penalty are NOT legal balls)
+        const legalBall = !(extraType === 'Wide' || extraType === 'No Ball' || extraType === 'Penalty');
         if (legalBall) {
             bTeam.totalBalls = (bTeam.totalBalls || 0) + 1;
             const fullOvers = Math.floor(bTeam.totalBalls / 6);
@@ -1565,28 +1874,45 @@ const ScoringConsole = () => {
             bTeam.overs = Number(`${fullOvers}.${ballInOver}`);
         }
 
-        // 2. Extra & Total Runs Breakdown according to Cricket Laws
+        // 2. Extra & Total Runs Breakdown according to Official Cricket Extras Theory
         let deliveryTotalRuns = 0;
         let extraAmountForTeam = 0;
         let bowlerConcededRuns = 0;
         let strikerRunsScored = 0;
+        const noBallRunsSource = ballEvent.noBallRunsSource || 'bat'; // 'bat' | 'bye' | 'legBye'
 
         if (isExtra) {
             if (extraType === 'Wide') {
-                // Law 22: +1 Automatic Penalty Run + additional runs run by batters
+                // Wide: 1 run mandatory penalty + extra runs run/boundary -> all to Extras (Wides). Bowler charged with all. Striker 0 runs/balls.
                 extraAmountForTeam = 1 + additionalExtraRuns;
                 deliveryTotalRuns = extraAmountForTeam;
                 bowlerConcededRuns = extraAmountForTeam;
                 strikerRunsScored = 0;
             } else if (extraType === 'No Ball') {
-                // Law 21: +1 Automatic Penalty Run to extras + bat runs to striker
-                extraAmountForTeam = 1;
-                strikerRunsScored = additionalExtraRuns;
-                deliveryTotalRuns = 1 + strikerRunsScored;
-                bowlerConcededRuns = deliveryTotalRuns;
+                // No Ball: 1 run mandatory penalty (Extras -> No Ball).
+                // Extra runs beyond penalty:
+                // - Runs off the bat: Credited to Batsman's score. Bowler charged with 1 penalty + bat runs.
+                // - Runs not off the bat (byes/leg byes off no-ball): Credited to Extras (Byes/Leg Byes). Bowler charged 1 run penalty only. Striker gets 0 runs.
+                if (noBallRunsSource === 'bye' || noBallRunsSource === 'legBye') {
+                    extraAmountForTeam = 1 + additionalExtraRuns;
+                    strikerRunsScored = 0;
+                    deliveryTotalRuns = 1 + additionalExtraRuns;
+                    bowlerConcededRuns = 1;
+                } else {
+                    extraAmountForTeam = 1;
+                    strikerRunsScored = additionalExtraRuns;
+                    deliveryTotalRuns = 1 + strikerRunsScored;
+                    bowlerConcededRuns = deliveryTotalRuns;
+                }
             } else if (extraType === 'Bye' || extraType === 'Leg Bye') {
-                // Law 23/24: 0 Penalty Runs. Bye/Leg Bye runs go to team extras. Bowler is NOT charged.
+                // Bye / Leg Bye: Mandatory penalty = None. All runs run/boundary to Extras (Byes / Leg Byes). Bowler is NOT charged. Legal ball.
                 extraAmountForTeam = additionalExtraRuns;
+                deliveryTotalRuns = extraAmountForTeam;
+                bowlerConcededRuns = 0;
+                strikerRunsScored = 0;
+            } else if (extraType === 'Penalty') {
+                // Law 41/42/28: Custom Penalty marks awarded directly to batting team extras. Bowler is NOT charged, no legal delivery.
+                extraAmountForTeam = additionalExtraRuns > 0 ? additionalExtraRuns : 5;
                 deliveryTotalRuns = extraAmountForTeam;
                 bowlerConcededRuns = 0;
                 strikerRunsScored = 0;
@@ -1604,25 +1930,43 @@ const ScoringConsole = () => {
         if (isExtra && extraAmountForTeam > 0) {
             bTeam.totalExtraAmount = (bTeam.totalExtraAmount || 0) + extraAmountForTeam;
             bTeam.extraTypes = bTeam.extraTypes || [];
-            bTeam.extraTypes.push(`${extraAmountForTeam}${extraType[0] || 'E'}`);
+            if (extraType === 'Wide') {
+                bTeam.extraTypes.push(`${extraAmountForTeam}WD`);
+            } else if (extraType === 'No Ball') {
+                bTeam.extraTypes.push('1NB');
+                if ((noBallRunsSource === 'bye' || noBallRunsSource === 'legBye') && additionalExtraRuns > 0) {
+                    bTeam.extraTypes.push(`${additionalExtraRuns}${noBallRunsSource === 'legBye' ? 'LB' : 'B'}`);
+                }
+            } else if (extraType === 'Bye') {
+                bTeam.extraTypes.push(`${additionalExtraRuns}B`);
+            } else if (extraType === 'Leg Bye') {
+                bTeam.extraTypes.push(`${additionalExtraRuns}LB`);
+            } else if (extraType === 'Penalty') {
+                bTeam.extraTypes.push(`${extraAmountForTeam}P`);
+            } else {
+                bTeam.extraTypes.push(`${extraAmountForTeam}E`);
+            }
         }
 
         // Update Striker Stats
-        if (extraType !== 'Wide' && extraType !== 'Bye' && extraType !== 'Leg Bye') {
+        if (extraType !== 'Wide' && extraType !== 'Bye' && extraType !== 'Leg Bye' && extraType !== 'Penalty') {
+            const isNbBatRuns = extraType === 'No Ball' && noBallRunsSource === 'bat';
             const sPlayer = bTeam.players?.[striker.id];
             if (sPlayer) {
                 sPlayer.runs = (sPlayer.runs || 0) + strikerRunsScored;
                 if (legalBall || extraType === 'No Ball') sPlayer.balls = (sPlayer.balls || 0) + 1;
 
-                sPlayer.boundaries = sPlayer.boundaries || { fours: 0, sixes: 0, singles: 0, twos: 0 };
-                if (strikerRunsScored === 4) sPlayer.boundaries.fours = (sPlayer.boundaries.fours || 0) + 1;
-                if (strikerRunsScored === 6) sPlayer.boundaries.sixes = (sPlayer.boundaries.sixes || 0) + 1;
-                if (strikerRunsScored === 1) sPlayer.boundaries.singles = (sPlayer.boundaries.singles || 0) + 1;
-                if (strikerRunsScored === 2) sPlayer.boundaries.twos = (sPlayer.boundaries.twos || 0) + 1;
+                if (isNbBatRuns && strikerRunsScored > 0) {
+                    sPlayer.boundaries = sPlayer.boundaries || { fours: 0, sixes: 0, singles: 0, twos: 0 };
+                    if (strikerRunsScored === 4) sPlayer.boundaries.fours = (sPlayer.boundaries.fours || 0) + 1;
+                    if (strikerRunsScored === 6) sPlayer.boundaries.sixes = (sPlayer.boundaries.sixes || 0) + 1;
+                    if (strikerRunsScored === 1) sPlayer.boundaries.singles = (sPlayer.boundaries.singles || 0) + 1;
+                    if (strikerRunsScored === 2) sPlayer.boundaries.twos = (sPlayer.boundaries.twos || 0) + 1;
+                }
                 sPlayer.strikeRate = Number(((sPlayer.runs / Math.max(1, sPlayer.balls)) * 100).toFixed(2));
 
-                // Save shot zone (ONLY for bat scoring runs > 0; NO dot balls or extras)
-                if (wagonZone && strikerRunsScored > 0 && !isExtra) {
+                // Save shot zone (for normal bat scoring runs > 0 OR No Ball with bat runs > 0)
+                if (wagonZone && strikerRunsScored > 0 && (!isExtra || isNbBatRuns)) {
                     sPlayer.shots = sPlayer.shots || {};
                     sPlayer.shots[wagonZone] = sPlayer.shots[wagonZone] || { runs: 0, count: 0 };
                     sPlayer.shots[wagonZone].runs += strikerRunsScored;
@@ -1673,10 +2017,64 @@ const ScoringConsole = () => {
             startBalls: bTeam.totalBalls - (legalBall ? 1 : 0)
         };
 
-        bTeam.currentPartnership.batsman1Runs = (bTeam.currentPartnership.batsman1Runs || 0) + strikerRunsScored;
-        if (legalBall) {
-            bTeam.currentPartnership.batsman1Balls = (bTeam.currentPartnership.batsman1Balls || 0) + 1;
+        const cp = bTeam.currentPartnership;
+        if (!cp.batsman1) cp.batsman1 = striker;
+        if (!cp.batsman2) cp.batsman2 = nonStriker;
+
+        // Correctly attribute runs and balls to whichever partner is facing the delivery
+        const isB1OnStrike = String(striker.id) === String(cp.batsman1?.id);
+        if (isB1OnStrike) {
+            cp.batsman1Runs = (cp.batsman1Runs || 0) + strikerRunsScored;
+            if (legalBall) {
+                cp.batsman1Balls = (cp.batsman1Balls || 0) + 1;
+            }
+        } else {
+            cp.batsman2Runs = (cp.batsman2Runs || 0) + strikerRunsScored;
+            if (legalBall) {
+                cp.batsman2Balls = (cp.batsman2Balls || 0) + 1;
+            }
         }
+
+        // Helper to check if a player has been dismissed or is already recorded in fall of wickets
+        const isDismissedPlayer = (p) => {
+            if (!p) return false;
+            const pData = bTeam.players?.[p.id] || p;
+            const pIdStr = p.id != null ? String(p.id) : null;
+            const pNameClean = (p.name || '').trim().toLowerCase();
+
+            if (p.dismissal || p.status === 'out' || pData?.dismissal || pData?.status === 'out') {
+                return true;
+            }
+            if (isWicket && outBatterId != null && pIdStr && pIdStr === String(outBatterId)) {
+                return true;
+            }
+
+            const inFow = Object.values(bTeam.fallOfWickets || {}).some(f => {
+                if (!f) return false;
+                const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                const fBatsmanName = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                if (fOutId && pIdStr && fOutId === pIdStr) return true;
+                if (fBatsmanName && pNameClean && fBatsmanName === pNameClean) return true;
+                return false;
+            });
+            if (inFow) return true;
+
+            const inParts = Object.values(bTeam.partnerships || {}).some(part => {
+                if (!part || !part.outBatsman) return false;
+                const partOutId = part.outBatsman.id != null ? String(part.outBatsman.id) : null;
+                const partOutName = (part.outBatsman.name || '').trim().toLowerCase();
+                if (partOutId && pIdStr && partOutId === pIdStr) return true;
+                if (partOutName && pNameClean && partOutName === pNameClean) return true;
+                return false;
+            });
+            if (inParts) return true;
+
+            return false;
+        };
+
+        // Next Batter & Strike Rotation Resolution
+        let nextStrikerId = strikerId;
+        let nextNonStrikerId = nonStrikerId;
 
         // Handle Wicket
         if (isWicket) {
@@ -1696,40 +2094,112 @@ const ScoringConsole = () => {
                     dismissText = `b ${bowler.name} (${ballEvent.dismissalType})`;
                 }
                 outPlayer.dismissal = dismissText;
+                outPlayer.status = 'out';
             }
 
             // Save completed partnership to history
             bTeam.partnerships = bTeam.partnerships || {};
             const pIdx = Object.keys(bTeam.partnerships).length + 1;
+            const partRuns = Math.max(0, bTeam.totalRuns - (bTeam.currentPartnership.startScore || 0));
+            const partBalls = Math.max(0, bTeam.totalBalls - (bTeam.currentPartnership.startBalls || 0));
+            const pB1Runs = bTeam.currentPartnership.batsman1Runs || 0;
+            const pB1Balls = bTeam.currentPartnership.batsman1Balls || 0;
+            const pB2Runs = bTeam.currentPartnership.batsman2Runs || 0;
+            const pB2Balls = bTeam.currentPartnership.batsman2Balls || 0;
+            const pExtras = Math.max(0, partRuns - (pB1Runs + pB2Runs));
+
             bTeam.partnerships[pIdx] = {
+                wicketNumber: bTeam.totalWickets,
+                wicketLabel: `${bTeam.totalWickets}${bTeam.totalWickets === 1 ? 'st' : bTeam.totalWickets === 2 ? 'nd' : bTeam.totalWickets === 3 ? 'rd' : 'th'} Wicket`,
                 batsman1: bTeam.currentPartnership.batsman1,
                 batsman2: bTeam.currentPartnership.batsman2,
-                runs: bTeam.totalRuns - (bTeam.currentPartnership.startScore || 0),
-                balls: bTeam.totalBalls - (bTeam.currentPartnership.startBalls || 0),
+                batsman1Runs: pB1Runs,
+                batsman1Balls: pB1Balls,
+                batsman2Runs: pB2Runs,
+                batsman2Balls: pB2Balls,
+                extras: pExtras,
+                runs: partRuns,
+                balls: partBalls,
+                overs: `${Math.floor(partBalls / 6)}.${partBalls % 6}`,
+                runRate: partBalls > 0 ? ((partRuns / partBalls) * 6).toFixed(2) : '0.00',
+                outBatsman: outPlayer ? { id: outPlayer.id, name: outPlayer.name, dismissal: outPlayer.dismissal } : null,
+                notOutBatsman: isOutStriker ? bTeam.currentPartnership.batsman2 : bTeam.currentPartnership.batsman1,
                 endScore: `${bTeam.totalRuns}/${bTeam.totalWickets}`,
                 timestamp: new Date().toISOString()
             };
 
-            // Select next batter from playing XI
-            const nextBatter = playingXI.find(p => p.id !== striker.id && p.id !== nonStriker.id && !p.dismissal);
-            if (nextBatter) {
-                if (isOutStriker) {
-                    setStrikerId(nextBatter.id);
-                    bTeam.currentPartnership = {
-                        batsman1: nextBatter,
-                        batsman2: nonStriker,
-                        batsman1Runs: 0,
-                        batsman1Balls: 0,
-                        batsman2Runs: 0,
-                        batsman2Balls: 0,
-                        startScore: bTeam.totalRuns,
-                        startBalls: bTeam.totalBalls
-                    };
+            // Save Fall of Wickets
+            bTeam.fallOfWickets = bTeam.fallOfWickets || {};
+            const fowIdx = Object.keys(bTeam.fallOfWickets).length + 1;
+            bTeam.fallOfWickets[fowIdx] = {
+                score: `${bTeam.totalRuns}-${bTeam.totalWickets}`,
+                batsman: outPlayer?.name || 'Batsman',
+                over: getOversString(bTeam)
+            };
+
+            // Check available incoming batsmen from playing XI (strictly excluding out players and current crease batters)
+            const remainingBatter = isOutStriker ? nonStriker : striker;
+            const availableIncomingBatters = playingXI.filter(p => {
+                const isOut = isDismissedPlayer(p);
+                const isCurrentCrease = String(p.id) === String(striker.id) || String(p.id) === String(nonStriker.id);
+                return !isOut && !isCurrentCrease;
+            });
+            const isAllOut = bTeam.totalWickets >= (playingXI.length - 1) || bTeam.totalWickets >= 10 || availableIncomingBatters.length === 0;
+
+            if (isAllOut) {
+                toastRef.current?.showToast('warning', `All Out! ${bTeam.name || 'Batting Team'} innings complete.`);
+                if ((common.activeInnings || 1) === 1) {
+                    setSecondInningsStrikerId('');
+                    setSecondInningsNonStrikerId('');
+                    setSecondInningsBowlerId('');
+                    setShowSwitchInningsModal(true);
+                }
+            } else {
+                // Determine over completion on this ball
+                const overCompleted = legalBall && bTeam.totalBalls % 6 === 0 && bTeam.totalBalls > 0;
+
+                // Intelligently determine default strike role for incoming batsman:
+                // - If over ended on this ball: strike rotates at end of over.
+                //   If striker got out: non-striker moves to striker end to face next over; incoming batter starts at non-striker end ('nonStriker').
+                //   If non-striker got out: striker moves to non-striker end; incoming batter faces next over ('striker').
+                // - If over did NOT end on this ball:
+                //   If striker got out: incoming batter takes strike ('striker').
+                //   If non-striker got out: surviving striker remains on strike ('nonStriker' for incoming batter).
+                let defaultStrikeRole = 'striker';
+                if (overCompleted) {
+                    defaultStrikeRole = isOutStriker ? 'nonStriker' : 'striker';
                 } else {
-                    setNonStrikerId(nextBatter.id);
+                    defaultStrikeRole = isOutStriker ? 'striker' : 'nonStriker';
+                }
+                setNextBatterStrikeRole(defaultStrikeRole);
+
+                // Trigger compulsory Next Batsman Selection Modal (cannot be closed without setting next batsman)
+                setNextBatterModalData({
+                    isOutStriker,
+                    outBatter: outPlayer ? { id: outPlayer.id, name: outPlayer.name, dismissal: outPlayer.dismissal } : { id: outBatterId, name: striker.name, dismissal: 'out' },
+                    wicketNumber: bTeam.totalWickets,
+                    battingTeamKey: currentBattingTeamKey,
+                    remainingBatter,
+                    overCompletedOnThisBall: overCompleted,
+                    completedOverNum: Math.floor(bTeam.totalBalls / 6),
+                    lastBowlerId: bowler.id
+                });
+                setSelectedNextBatterId('');
+                setShowNextBatterModal(true);
+
+                // Set a temporary fallback candidate to keep local state safe until scorer chooses
+                const fallbackBatter = availableIncomingBatters[0];
+                if (fallbackBatter) {
+                    if (defaultStrikeRole === 'striker') {
+                        nextStrikerId = fallbackBatter.id;
+                        nextNonStrikerId = remainingBatter.id;
+                    } else {
+                        nextStrikerId = remainingBatter.id;
+                        nextNonStrikerId = fallbackBatter.id;
+                    }
                     bTeam.currentPartnership = {
-                        batsman1: striker,
-                        batsman2: nextBatter,
+                        batsman1: defaultStrikeRole === 'striker' ? fallbackBatter : remainingBatter,
+                        batsman2: defaultStrikeRole === 'striker' ? remainingBatter : fallbackBatter,
                         batsman1Runs: 0,
                         batsman1Balls: 0,
                         batsman2Runs: 0,
@@ -1739,70 +2209,130 @@ const ScoringConsole = () => {
                     };
                 }
             }
-        }
+        } else {
+            // According to WD, NB, BYE, and LB: strike rotation depends on physical runs run beyond mandatory penalty (or normal bat runs)
+            const physicalRunsRun = isExtra
+                ? (extraType === 'Penalty' ? 0 : additionalExtraRuns)
+                : runs;
 
-        // Strike Rotation
-        if (deliveryTotalRuns % 2 !== 0 && !isWicket) {
-            const temp = strikerId;
-            setStrikerId(nonStrikerId);
-            setNonStrikerId(temp);
+            if (physicalRunsRun % 2 !== 0) {
+                const temp = nextStrikerId;
+                nextStrikerId = nextNonStrikerId;
+                nextNonStrikerId = temp;
+            }
         }
 
         if (legalBall && bTeam.totalBalls % 6 === 0 && bTeam.totalBalls > 0) {
-            const temp = strikerId;
-            setStrikerId(nonStrikerId);
-            setNonStrikerId(temp);
+            if (!isWicket) {
+                const temp = nextStrikerId;
+                nextStrikerId = nextNonStrikerId;
+                nextNonStrikerId = temp;
+            }
             const overNum = Math.floor(bTeam.totalBalls / 6);
             toastRef.current?.showToast('info', `Over ${overNum} complete! Strike rotated.`);
 
-            // Trigger compulsory Next Bowler Selection Modal
-            setLastBowlerId(bowler.id);
-            setCompletedOverNumber(overNum);
-            setSelectedNextBowlerId('');
-            setShowNextBowlerModal(true);
+            const overLimit = Number(common.overLimit || 15);
+            const isFirstInnings = (common.activeInnings || 1) === 1;
+            const is1stInningsOverLimitReached = isFirstInnings && bTeam.totalBalls >= (overLimit * 6);
+
+            if (is1stInningsOverLimitReached) {
+                toastRef.current?.showToast('info', `1st Innings overs completed (${overLimit} overs)!`);
+                setSecondInningsStrikerId('');
+                setSecondInningsNonStrikerId('');
+                setSecondInningsBowlerId('');
+                setShowSwitchInningsModal(true);
+            } else {
+                // Trigger compulsory Next Bowler Selection Modal
+                // If next batter modal is active, defer next bowler modal until incoming batter is confirmed
+                const availableIncomingBatters = playingXI.filter(p => {
+                    const isOut = isDismissedPlayer(p);
+                    const isCurrentCrease = String(p.id) === String(striker.id) || String(p.id) === String(nonStriker.id);
+                    return !isOut && !isCurrentCrease;
+                });
+                const isAllOut = bTeam.totalWickets >= (playingXI.length - 1) || bTeam.totalWickets >= 10 || availableIncomingBatters.length === 0;
+
+                if (!isWicket || isAllOut) {
+                    setLastBowlerId(bowler.id);
+                    setCompletedOverNumber(overNum);
+                    setSelectedNextBowlerId('');
+                    setShowNextBowlerModal(true);
+                }
+            }
         }
 
-        // Commentary Text
+        setStrikerId(nextStrikerId);
+        setNonStrikerId(nextNonStrikerId);
+
+        // Commentary Text (Advanced Professional Wording System with Anti-Repetition)
         const commTimestamp = Date.now();
-        let commText = '';
         const outBatterName = isWicket ? (bTeam.players?.[outBatterId]?.name || striker.name) : striker.name;
 
-        if (isWicket) {
-            if (ballEvent.dismissalType === 'Retired Out') {
-                commText = `RETIRED OUT! ${outBatterName} has retired out. Wicket added to ${bTeam.name}.`;
-            } else if (ballEvent.dismissalType === 'Run Out') {
-                commText = `RUN OUT! ${outBatterName} is run out ${ballEvent.dismissalFielder ? 'by ' + ballEvent.dismissalFielder : ''}!`;
-            } else {
-                commText = `WICKET! ${outBatterName} ${ballEvent.dismissalType} ${ballEvent.dismissalFielder ? 'by ' + ballEvent.dismissalFielder : ''}. Big breakthrough for ${bowler.name}!`;
-            }
-        } else if (isExtra) {
-            commText = `${extraType}! ${deliveryTotalRuns} run(s) total (${extraAmountForTeam} extra run(s) credited to team).`;
-        } else if (runs === 6) {
-            commText = `SIX! Sublimely struck by ${striker.name} soaring high over ${wagonZone}!`;
-        } else if (runs === 4) {
-            commText = `FOUR! Beautifully timed by ${striker.name} racing through ${wagonZone}!`;
-        } else if (runs === 0) {
-            commText = `Dot ball. Good delivery by ${bowler.name} towards ${wagonZone}.`;
-        } else {
-            commText = `${runs} run(s) worked away by ${striker.name} into ${wagonZone}.`;
-        }
+        const commText = generateSmartCommentary({
+            runs,
+            isWicket,
+            dismissalType: ballEvent.dismissalType,
+            dismissalFielder: ballEvent.dismissalFielder,
+            isExtra,
+            extraType,
+            extraRuns: extraAmountForTeam,
+            strikerName: outBatterName,
+            bowlerName: bowler.name,
+            wagonZone,
+            battingTeamName: bTeam.name || 'Batting Team',
+            ballIndex: bTeam.totalBalls || 0
+        });
 
         updated.commentary = updated.commentary || {};
-        updated.commentary[commTimestamp] = {
+        const commEntry = {
             id: commTimestamp,
             over: `${getOversString(bTeam)}`,
             runs: deliveryTotalRuns,
             isWicket,
             isExtra,
+            extraType,
+            extraRuns: additionalExtraRuns,
             text: commText,
             timestamp: commTimestamp,
             batsman: striker.name,
-            bowler: bowler.name,
-            wagonZone
+            bowler: bowler.name
         };
+        const isNbBatRuns = isExtra && extraType === 'No Ball' && additionalExtraRuns > 0;
+        if (wagonZone && (deliveryTotalRuns > 0 && (!isExtra || isNbBatRuns))) {
+            commEntry.wagonZone = wagonZone;
+        }
+        updated.commentary[commTimestamp] = commEntry;
 
-        bTeam.ballFaceBatsman = bTeam.players?.[strikerId] || striker;
-        bTeam.otherSideBatsman = bTeam.players?.[nonStrikerId] || nonStriker;
+        // Maintain overBallsTypes in common for live over timeline (Flutter & Web)
+        let ballToken = String(runs);
+        if (isWicket) {
+            ballToken = 'W';
+        } else if (isExtra) {
+            if (extraType === 'Penalty') ballToken = `${extraAmountForTeam}P`;
+            else if (extraType === 'Wide') ballToken = additionalExtraRuns > 0 ? `${1 + additionalExtraRuns}WD` : 'WD';
+            else if (extraType === 'No Ball') {
+                if (noBallRunsSource === 'bye' && additionalExtraRuns > 0) ballToken = `NB+${additionalExtraRuns}B`;
+                else if (noBallRunsSource === 'legBye' && additionalExtraRuns > 0) ballToken = `NB+${additionalExtraRuns}LB`;
+                else ballToken = additionalExtraRuns > 0 ? `${additionalExtraRuns}NB` : 'NB';
+            }
+            else if (extraType === 'Leg Bye') ballToken = additionalExtraRuns > 0 ? `${additionalExtraRuns}LB` : 'LB';
+            else if (extraType === 'Bye') ballToken = additionalExtraRuns > 0 ? `${additionalExtraRuns}B` : 'B';
+            else ballToken = `${additionalExtraRuns}EX`;
+        }
+
+        updated.common = updated.common || {};
+        const existingOverBalls = Array.isArray(updated.common.overBallsTypes)
+            ? [...updated.common.overBallsTypes]
+            : Object.values(updated.common.overBallsTypes || {});
+
+        if (legalBall && bTeam.totalBalls % 6 === 0 && bTeam.totalBalls > 0) {
+            updated.common.overBallsTypes = [];
+        } else {
+            updated.common.overBallsTypes = [...existingOverBalls, ballToken];
+        }
+
+        const currentBatSquad = Object.values(bTeam.players || {});
+        bTeam.ballFaceBatsman = currentBatSquad.find(p => p.id === nextStrikerId) || bTeam.players?.[nextStrikerId] || striker;
+        bTeam.otherSideBatsman = currentBatSquad.find(p => p.id === nextNonStrikerId) || bTeam.players?.[nextNonStrikerId] || nonStriker;
         bowlTeam.bowler = bowlTeam.bowlers?.[bowlerId] || bowler;
 
         setMatchData(updated);
@@ -1839,7 +2369,7 @@ const ScoringConsole = () => {
     };
 
     const handleScoreClick = (runs) => {
-        const zone = selectedShotZone || 'Cover';
+        const zone = runs > 0 ? (selectedShotZone || 'Cover') : '';
         executeBallDelivery({ runs, isExtra: false, isWicket: false, wagonZone: zone });
         setSelectedShotZone(null);
     };
@@ -1902,8 +2432,8 @@ const ScoringConsole = () => {
             const updated = JSON.parse(JSON.stringify(matchData));
             const bSquad = Object.values(updated[bKey]?.players || {});
 
-            const newStrikerObj = bSquad.find(p => p.id === oldNonStrikerId) || striker;
-            const newNonStrikerObj = bSquad.find(p => p.id === oldStrikerId) || nonStriker;
+            const newStrikerObj = bSquad.find(p => String(p.id) === String(oldNonStrikerId)) || striker;
+            const newNonStrikerObj = bSquad.find(p => String(p.id) === String(oldStrikerId)) || nonStriker;
 
             updated[bKey] = updated[bKey] || {};
             updated[bKey].ballFaceBatsman = newStrikerObj;
@@ -1942,17 +2472,428 @@ const ScoringConsole = () => {
         toastRef.current?.showToast('info', 'Shifted Striker and Non-Striker batters at the crease.');
     };
 
+    // Manual Crease Selection Changes with Partnership Sync & Batter Status Reset
+    const handleManualBatterChange = async (newPlayerId, role) => {
+        if (!matchData || !activeMatchTitle) return;
+        const bKey = isTeam1Batting ? 'team1' : 'team2';
+        const updated = JSON.parse(JSON.stringify(matchData));
+        const bSquad = Object.values(updated[bKey]?.players || {});
+        const newPlayerObj = bSquad.find(p => String(p.id) === String(newPlayerId));
+        if (!newPlayerObj) return;
+        if (role === 'striker' && String(newPlayerId) === String(nonStrikerId)) return;
+        if (role === 'nonStriker' && String(newPlayerId) === String(strikerId)) return;
+        if (newPlayerObj.dismissal || newPlayerObj.status === 'out') return;
+
+        // Current batsman before changing
+        const previousPlayerObj = role === 'striker' ? updated[bKey]?.ballFaceBatsman : updated[bKey]?.otherSideBatsman;
+        const prevId = previousPlayerObj?.id;
+
+        const updates = {};
+
+        // If changing away from previous batsman, and that previous batsman has not been dismissed,
+        // reset their status to 'yet to bat' so 3 batsmen don't show as 'batting'!
+        if (prevId && prevId !== newPlayerId && updated[bKey]?.players?.[prevId]) {
+            if (!updated[bKey].players[prevId].dismissal) {
+                updated[bKey].players[prevId].status = 'yet to bat';
+                updates[`${bKey}/players/${prevId}/status`] = 'yet to bat';
+            }
+        }
+
+        // Set the newly selected batsman to 'batting'
+        if (updated[bKey]?.players?.[newPlayerId]) {
+            updated[bKey].players[newPlayerId].status = 'batting';
+            updates[`${bKey}/players/${newPlayerId}/status`] = 'batting';
+        }
+        newPlayerObj.status = 'batting';
+
+        updated[bKey] = updated[bKey] || {};
+        if (role === 'striker') {
+            updated[bKey].ballFaceBatsman = newPlayerObj;
+            if (updated[bKey].currentPartnership) {
+                updated[bKey].currentPartnership.batsman1 = newPlayerObj;
+            }
+        } else {
+            updated[bKey].otherSideBatsman = newPlayerObj;
+            if (updated[bKey].currentPartnership) {
+                updated[bKey].currentPartnership.batsman2 = newPlayerObj;
+            }
+        }
+
+        updates[`${bKey}/${role === 'striker' ? 'ballFaceBatsman' : 'otherSideBatsman'}`] = newPlayerObj;
+        updates[`${bKey}/currentPartnership`] = updated[bKey].currentPartnership;
+
+        setMatchData(updated);
+        await updateMatchData(activeMatchTitle, updates, selectedTournamentId);
+    };
+
+
+
+    const handleManualBowlerChange = async (newBowlerId) => {
+        if (!matchData || !activeMatchTitle) return;
+        const bowlKey = isTeam1Batting ? 'team2' : 'team1';
+        const updated = JSON.parse(JSON.stringify(matchData));
+        const bowlSquad = Object.values(updated[bowlKey]?.bowlers || updated[bowlKey]?.players || {});
+        const newBowlerObj = bowlSquad.find(p => p.id === newBowlerId);
+        if (!newBowlerObj) return;
+
+        updated[bowlKey] = updated[bowlKey] || {};
+        updated[bowlKey].bowler = newBowlerObj;
+        updated[bowlKey].bowlers = updated[bowlKey].bowlers || {};
+        if (!updated[bowlKey].bowlers[newBowlerId]) {
+            updated[bowlKey].bowlers[newBowlerId] = newBowlerObj;
+        }
+
+        setMatchData(updated);
+        await updateMatchData(activeMatchTitle, {
+            [`${bowlKey}/bowler`]: newBowlerObj,
+            [`${bowlKey}/bowlers/${newBowlerId}`]: updated[bowlKey].bowlers[newBowlerId]
+        }, selectedTournamentId);
+    };
+
+    // Switch Innings: Conclude 1st Innings and Start 2nd Innings
+    const handleSwitchInnings = async () => {
+        if (!matchData || !activeMatchTitle) return;
+        const currentActiveInnings = common.activeInnings || 1;
+        if (currentActiveInnings >= 2) {
+            toastRef.current?.showToast('info', 'Already in 2nd Innings. Use Finish Match to conclude the game.');
+            setShowSwitchInningsModal(false);
+            return;
+        }
+
+        if (!secondInningsStrikerId || !secondInningsNonStrikerId || !secondInningsBowlerId) {
+            toastRef.current?.showToast('warning', 'Please select Striker, Non-Striker and Opening Bowler to start 2nd Innings.');
+            return;
+        }
+
+        if (String(secondInningsStrikerId) === String(secondInningsNonStrikerId)) {
+            toastRef.current?.showToast('warning', 'Striker and Non-Striker must be different players.');
+            return;
+        }
+
+        const updated = JSON.parse(JSON.stringify(matchData));
+        const firstBatTeamKey = common.firstBat === 1 ? 'team1' : 'team2';
+        const secondBatTeamKey = common.firstBat === 1 ? 'team2' : 'team1';
+
+        // 1. Archive active unbroken partnership for 1st innings team
+        const firstTeamObj = updated[firstBatTeamKey];
+        if (firstTeamObj && firstTeamObj.currentPartnership) {
+            const cp = firstTeamObj.currentPartnership;
+            const partRuns = Math.max(0, (firstTeamObj.totalRuns || 0) - (cp.startScore || 0));
+            const partBalls = Math.max(0, (firstTeamObj.totalBalls || 0) - (cp.startBalls || 0));
+            firstTeamObj.partnerships = firstTeamObj.partnerships || {};
+            const existingList = (Array.isArray(firstTeamObj.partnerships)
+                ? firstTeamObj.partnerships
+                : Object.values(firstTeamObj.partnerships)
+            ).filter(Boolean);
+            const alreadySaved = existingList.some(p => p?.isUnbroken && p?.startScore === cp?.startScore);
+            if (!alreadySaved && (partRuns > 0 || partBalls > 0 || (cp.batsman1Runs || 0) > 0 || (cp.batsman2Runs || 0) > 0)) {
+                const nextWicketNum = (firstTeamObj.totalWickets || 0) + 1;
+                const pKey = `p_${Date.now()}_${nextWicketNum}`;
+                firstTeamObj.partnerships[pKey] = {
+                    wicketNumber: nextWicketNum,
+                    wicketLabel: `${nextWicketNum}th Wicket* (Unbroken)`,
+                    batsman1: cp.batsman1 || null,
+                    batsman2: cp.batsman2 || null,
+                    batsman1Runs: cp.batsman1Runs || 0,
+                    batsman1Balls: cp.batsman1Balls || 0,
+                    batsman2Runs: cp.batsman2Runs || 0,
+                    batsman2Balls: cp.batsman2Balls || 0,
+                    extras: Math.max(0, partRuns - ((cp.batsman1Runs || 0) + (cp.batsman2Runs || 0))),
+                    runs: partRuns,
+                    balls: partBalls,
+                    overs: `${Math.floor(partBalls / 6)}.${partBalls % 6}`,
+                    isUnbroken: true,
+                    outBatsman: null,
+                    notOutBatsman: null,
+                    endScore: `${firstTeamObj.totalRuns || 0}/${firstTeamObj.totalWickets || 0}*`,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        }
+
+        // 2. Switch activeInnings to 2 and reset over balls
+        updated.common = updated.common || {};
+        updated.common.activeInnings = 2;
+        updated.common.status = `2nd Innings: ${updated[secondBatTeamKey]?.name || 'Chasing Team'} batting`;
+        updated.common.overBallsTypes = [];
+
+        // 3. Resolve opening batsmen and bowler from admin selections
+        const secondBatSquad = Object.values(updated[secondBatTeamKey]?.players || {});
+        const firstBatSquad = Object.values(updated[firstBatTeamKey]?.players || {});
+
+        let openingBatter1 = secondBatSquad.find(p => String(p.id) === String(secondInningsStrikerId));
+        let openingBatter2 = secondBatSquad.find(p => String(p.id) === String(secondInningsNonStrikerId));
+        let openingNewBowler = updated[firstBatTeamKey]?.bowlers?.[secondInningsBowlerId] ||
+            firstBatSquad.find(p => String(p.id) === String(secondInningsBowlerId));
+
+        if (!openingBatter1) {
+            const fallback = secondBatOpeningSquad.find(p => String(p.id) === String(secondInningsStrikerId)) || { name: 'Striker', id: secondInningsStrikerId };
+            openingBatter1 = { ...fallback, runs: 0, balls: 0, boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 }, strikeRate: '0.00', dismissal: '', status: 'batting' };
+            updated[secondBatTeamKey].players = updated[secondBatTeamKey].players || {};
+            updated[secondBatTeamKey].players[openingBatter1.id] = openingBatter1;
+        }
+        if (!openingBatter2) {
+            const fallback = secondBatOpeningSquad.find(p => String(p.id) === String(secondInningsNonStrikerId)) || { name: 'Non-Striker', id: secondInningsNonStrikerId };
+            openingBatter2 = { ...fallback, runs: 0, balls: 0, boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 }, strikeRate: '0.00', dismissal: '', status: 'batting' };
+            updated[secondBatTeamKey].players = updated[secondBatTeamKey].players || {};
+            updated[secondBatTeamKey].players[openingBatter2.id] = openingBatter2;
+        }
+        if (!openingNewBowler) {
+            const fallback = firstBatOpeningSquad.find(p => String(p.id) === String(secondInningsBowlerId)) || { name: 'Bowler', id: secondInningsBowlerId };
+            openingNewBowler = { id: fallback.id, name: fallback.name, overs: 0, runs: 0, wickets: 0, economy: '0.00' };
+        }
+
+        // Set status 'batting' for openers
+        openingBatter1.status = 'batting';
+        openingBatter2.status = 'batting';
+        if (updated[secondBatTeamKey]?.players?.[openingBatter1.id]) updated[secondBatTeamKey].players[openingBatter1.id].status = 'batting';
+        if (updated[secondBatTeamKey]?.players?.[openingBatter2.id]) updated[secondBatTeamKey].players[openingBatter2.id].status = 'batting';
+
+        // Register bowler in bowlers dictionary
+        updated[firstBatTeamKey].bowlers = updated[firstBatTeamKey].bowlers || {};
+        if (!updated[firstBatTeamKey].bowlers[openingNewBowler.id]) {
+            updated[firstBatTeamKey].bowlers[openingNewBowler.id] = {
+                id: openingNewBowler.id,
+                name: openingNewBowler.name,
+                overs: 0,
+                runs: 0,
+                wickets: 0,
+                economy: '0.00'
+            };
+        }
+
+        updated[secondBatTeamKey].ballFaceBatsman = openingBatter1;
+        updated[secondBatTeamKey].otherSideBatsman = openingBatter2;
+        updated[firstBatTeamKey].bowler = updated[firstBatTeamKey].bowlers[openingNewBowler.id];
+
+        // 4. Initialize 2nd innings currentPartnership
+        updated[secondBatTeamKey].currentPartnership = {
+            batsman1: openingBatter1,
+            batsman2: openingBatter2,
+            batsman1Runs: 0,
+            batsman1Balls: 0,
+            batsman2Runs: 0,
+            batsman2Balls: 0,
+            startScore: 0,
+            startBalls: 0
+        };
+
+        setStrikerId(openingBatter1.id);
+        setNonStrikerId(openingBatter2.id);
+        setBowlerId(openingNewBowler.id);
+        setActiveInningsTab(secondBatTeamKey);
+
+        setMatchData(updated);
+        await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
+
+        await updateLiveData({
+            isLive: 1,
+            currentMatchPath: activeMatchTitle,
+            liveScore: {
+                matchTitle: activeMatchTitle,
+                firstBat: common.firstBat,
+                status: `${openingBatter1.name} & ${openingBatter2.name} open chase for ${updated[secondBatTeamKey]?.name}`,
+                team1: {
+                    name: updated.team1?.name,
+                    overs: updated.team1?.overs ?? 0,
+                    score: updated.team1?.totalRuns ?? 0,
+                    wicket: updated.team1?.totalWickets ?? 0
+                },
+                team2: {
+                    name: updated.team2?.name,
+                    overs: updated.team2?.overs ?? 0,
+                    score: updated.team2?.totalRuns ?? 0,
+                    wicket: updated.team2?.totalWickets ?? 0
+                }
+            }
+        });
+
+        setShowSwitchInningsModal(false);
+        toastRef.current?.showToast('success', `1st Innings concluded! Switched to 2nd Innings (${updated[secondBatTeamKey]?.name} batting).`);
+    };
+
+    // =========================================================================
+    // DLS / RAIN INTERRUPTION HANDLERS
+    // =========================================================================
+
+    const handleOpenDlsModal = () => {
+        if (!matchData) return;
+        const currentCommon = matchData.common || {};
+        const originalOvers = Number(currentCommon.overLimit) || 15;
+        const existingDls = currentCommon.dls;
+
+        if (existingDls && existingDls.isApplied) {
+            setDlsRevisedOvers(existingDls.revisedOvers || originalOvers);
+            setDlsOfficialTarget(existingDls.revisedTarget || '');
+            setDlsCalculationData(existingDls);
+            setDlsIsManual(Boolean(existingDls.isManualOverride));
+        } else {
+            const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
+            const firstInningsScore = matchData[firstBatTeamKey]?.totalRuns || 0;
+            const defaultRevised = originalOvers;
+            setDlsRevisedOvers(defaultRevised);
+            setDlsIsManual(false);
+
+            const initialCalc = calculateDlsTarget({
+                totalOvers: originalOvers,
+                firstInningsScore,
+                secondInningsOvers: defaultRevised
+            });
+            setDlsCalculationData(initialCalc);
+            setDlsOfficialTarget(initialCalc.revisedTarget);
+        }
+        setShowDlsModal(true);
+    };
+
+    const handleAutoCalculateDls = (revOversValue) => {
+        const currentCommon = matchData?.common || {};
+        const originalOvers = Number(currentCommon.overLimit) || 15;
+        const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
+        const firstInningsScore = matchData?.[firstBatTeamKey]?.totalRuns || 0;
+        const revOvers = Number(revOversValue !== undefined ? revOversValue : dlsRevisedOvers) || originalOvers;
+
+        const res = calculateDlsTarget({
+            totalOvers: originalOvers,
+            firstInningsScore,
+            secondInningsOvers: revOvers
+        });
+
+        setDlsCalculationData(res);
+        setDlsOfficialTarget(res.revisedTarget);
+        setDlsIsManual(false);
+    };
+
+    const handleApplyDls = async () => {
+        if (!matchData || !activeMatchTitle) return;
+        const currentCommon = matchData.common || {};
+        const originalOvers = Number(currentCommon.overLimit) || 15;
+        const revOvers = Number(dlsRevisedOvers) || originalOvers;
+        const targetNum = Number(dlsOfficialTarget);
+
+        if (!targetNum || targetNum < 1) {
+            toastRef.current?.showToast('error', 'Please provide a valid target score (minimum 1 run).');
+            return;
+        }
+
+        const isManualOverride = dlsIsManual || (dlsCalculationData && dlsCalculationData.revisedTarget !== targetNum);
+        const dlsPayload = {
+            isApplied: true,
+            originalOvers,
+            revisedOvers: revOvers,
+            revisedTarget: targetNum,
+            isManualOverride,
+            calculatedTarget: dlsCalculationData?.revisedTarget || targetNum,
+            requiredRunRate: revOvers > 0 ? Number((targetNum / revOvers).toFixed(2)) : 0,
+            resource1: dlsCalculationData?.resource1 ?? 100,
+            resource2: dlsCalculationData?.resource2 ?? 100,
+            appliedAt: new Date().toISOString()
+        };
+
+        const updated = JSON.parse(JSON.stringify(matchData));
+        updated.common = updated.common || {};
+        updated.common.dls = dlsPayload;
+
+        setMatchData(updated);
+        await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
+
+        // Update liveData for viewers
+        const secondBatTeamKey = updated.common.firstBat === 1 ? 'team2' : 'team1';
+        const secondBatName = updated[secondBatTeamKey]?.name || 'Chasing team';
+        await updateLiveData({
+            isLive: 1,
+            currentMatchPath: activeMatchTitle,
+            liveScore: {
+                matchTitle: activeMatchTitle,
+                firstBat: updated.common.firstBat,
+                status: `${secondBatName} needs ${targetNum} runs in ${revOvers} ov (DLS Method)`,
+                team1: {
+                    name: updated.team1?.name,
+                    overs: updated.team1?.overs ?? 0,
+                    score: updated.team1?.totalRuns ?? 0,
+                    wicket: updated.team1?.totalWickets ?? 0
+                },
+                team2: {
+                    name: updated.team2?.name,
+                    overs: updated.team2?.overs ?? 0,
+                    score: updated.team2?.totalRuns ?? 0,
+                    wicket: updated.team2?.totalWickets ?? 0
+                },
+                dls: dlsPayload
+            }
+        });
+
+        setShowDlsModal(false);
+        toastRef.current?.showToast('success', `DLS target updated: ${targetNum} runs in ${revOvers} overs!`);
+    };
+
+    const handleResetDls = async () => {
+        if (!matchData || !activeMatchTitle) return;
+        const updated = JSON.parse(JSON.stringify(matchData));
+        if (updated.common) {
+            delete updated.common.dls;
+        }
+
+        setMatchData(updated);
+        await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
+
+        await updateLiveData({
+            isLive: 1,
+            currentMatchPath: activeMatchTitle,
+            liveScore: {
+                matchTitle: activeMatchTitle,
+                firstBat: updated.common?.firstBat,
+                status: updated.common?.status || 'Match in progress',
+                team1: {
+                    name: updated.team1?.name,
+                    overs: updated.team1?.overs ?? 0,
+                    score: updated.team1?.totalRuns ?? 0,
+                    wicket: updated.team1?.totalWickets ?? 0
+                },
+                team2: {
+                    name: updated.team2?.name,
+                    overs: updated.team2?.overs ?? 0,
+                    score: updated.team2?.totalRuns ?? 0,
+                    wicket: updated.team2?.totalWickets ?? 0
+                }
+            }
+        });
+
+        setShowDlsModal(false);
+        toastRef.current?.showToast('info', 'DLS method removed. Normal match target restored.');
+    };
+
     // Finish Match
     const handleFinishMatch = async () => {
         const t1Score = team1.totalRuns || 0;
         const t2Score = team2.totalRuns || 0;
         let resultString = '';
-        if (t1Score > t2Score) {
-            resultString = `${team1.name} won by ${t1Score - t2Score} runs`;
-        } else if (t2Score > t1Score) {
-            resultString = `${team2.name} won by ${10 - (team2.totalWickets || 0)} wickets`;
+
+        const isDls = Boolean(matchData?.common?.dls?.isApplied);
+        const dlsTarget = Number(matchData?.common?.dls?.revisedTarget);
+        const secondBatTeamKey = matchData?.common?.firstBat === 1 ? 'team2' : 'team1';
+        const firstBatTeamKey = matchData?.common?.firstBat === 1 ? 'team1' : 'team2';
+        const chasingTeam = matchData?.[secondBatTeamKey];
+        const defendingTeam = matchData?.[firstBatTeamKey];
+
+        if (isDls && dlsTarget) {
+            const chaseScore = chasingTeam?.totalRuns || 0;
+            const chaseWickets = chasingTeam?.totalWickets || 0;
+            if (chaseScore >= dlsTarget) {
+                resultString = `${chasingTeam?.name || 'Chasing Team'} won by ${10 - chaseWickets} wickets (DLS Method)`;
+            } else if (chaseScore === dlsTarget - 1) {
+                resultString = 'Match Tied (DLS Method)';
+            } else {
+                const runsDiff = Math.max(1, (dlsTarget - 1) - chaseScore);
+                resultString = `${defendingTeam?.name || 'Defending Team'} won by ${runsDiff} runs (DLS Method)`;
+            }
         } else {
-            resultString = 'Match Tied';
+            if (t1Score > t2Score) {
+                resultString = `${team1.name} won by ${t1Score - t2Score} runs`;
+            } else if (t2Score > t1Score) {
+                resultString = `${team2.name} won by ${10 - (team2.totalWickets || 0)} wickets`;
+            } else {
+                resultString = 'Match Tied';
+            }
         }
 
         const finishedMatchPayload = {
@@ -1966,10 +2907,53 @@ const ScoringConsole = () => {
             }
         };
 
+        // Archive active unbroken partnership for batting sides so it is preserved for future records
+        ['team1', 'team2'].forEach(tKey => {
+            const teamObj = finishedMatchPayload[tKey];
+            if (teamObj && teamObj.currentPartnership) {
+                const cp = teamObj.currentPartnership;
+                const partRuns = (teamObj.totalRuns || 0) - (cp.startScore || 0);
+                const partBalls = (teamObj.totalBalls || 0) - (cp.startBalls || 0);
+                if (partRuns > 0 || partBalls > 0 || (cp.batsman1Runs || 0) > 0 || (cp.batsman2Runs || 0) > 0) {
+                    teamObj.partnerships = teamObj.partnerships || {};
+                    const existingList = (Array.isArray(teamObj.partnerships)
+                        ? teamObj.partnerships
+                        : Object.values(teamObj.partnerships)
+                    ).filter(Boolean);
+                    const alreadySaved = existingList.some(p => p?.isUnbroken && p?.startScore === cp?.startScore);
+                    if (!alreadySaved) {
+                        const nextWkt = (teamObj.totalWickets || 0) + 1;
+                        const pKey = `p_${Date.now()}_${nextWkt}`;
+                        teamObj.partnerships[pKey] = {
+                            wicketNumber: nextWkt,
+                            batsman1: cp.batsman1 || null,
+                            batsman2: cp.batsman2 || null,
+                            batsman1Runs: cp.batsman1Runs || 0,
+                            batsman1Balls: cp.batsman1Balls || 0,
+                            batsman2Runs: cp.batsman2Runs || 0,
+                            batsman2Balls: cp.batsman2Balls || 0,
+                            runs: partRuns,
+                            balls: partBalls,
+                            overs: `${Math.floor(partBalls / 6)}.${partBalls % 6}`,
+                            isUnbroken: true,
+                            outBatsman: null,
+                            notOutBatsman: null,
+                            endScore: `${teamObj.totalRuns || 0}/${teamObj.totalWickets || 0}*`,
+                            timestamp: new Date().toISOString()
+                        };
+                    }
+                }
+            }
+        });
+
         setMatchData(finishedMatchPayload);
         await updateMatchData(activeMatchTitle, finishedMatchPayload, selectedTournamentId);
 
-        const fixtureId = Date.now();
+        const existingFixture = publishedMatches.find(m =>
+            String(m.title || '').trim().toLowerCase() === String(activeMatchTitle || '').trim().toLowerCase() ||
+            String(m.id || '') === String(activeMatchTitle || '')
+        );
+        const fixtureId = existingFixture?.id || activeMatchTitle;
         await saveFinishedMatch(fixtureId, {
             id: fixtureId,
             title: activeMatchTitle,
@@ -1977,8 +2961,22 @@ const ScoringConsole = () => {
             score: `${team1.name} ${t1Score}/${team1.totalWickets || 0} (${team1.overs || 0}) • ${team2.name} ${t2Score}/${team2.totalWickets || 0} (${team2.overs || 0})`,
             result: resultString,
             mom: momSelection || '',
-            time: new Date().toISOString().split('T')[0]
+            time: existingFixture?.time || new Date().toISOString().split('T')[0],
+            date: existingFixture?.date || '',
+            venue: existingFixture?.venue || '',
+            umpire1: existingFixture?.umpire1 || '',
+            umpire2: existingFixture?.umpire2 || '',
+            umpire3: existingFixture?.umpire3 || '',
+            finished: 1,
+            isFinished: true
         }, selectedTournamentId);
+
+        // Submit and update tournament rankings (Points Table, Top Batters, Top Bowlers)
+        try {
+            await recordMatchRankings(finishedMatchPayload, selectedTournamentId);
+        } catch (rankingErr) {
+            console.error('Failed to update tournament rankings on match finish:', rankingErr);
+        }
 
         await updateLiveData({
             isLive: 0,
@@ -1990,7 +2988,465 @@ const ScoringConsole = () => {
         setIsScoringActive(false);
         setActiveMatchTitle('');
         setSelectedMatchTitle('');
-        toastRef.current?.showToast('success', `Match finalized! ${resultString}`);
+        toastRef.current?.showToast('success', `Match finalized and rankings updated! ${resultString}`);
+    };
+
+    // Execute atomic 1-to-1 swap between Playing XI and Reserves in Match
+    const handleExecuteMatchSwap = async (teamKey) => {
+        if (!squadSwapTarget || !squadSwapSelectedId || !activeMatchTitle) return;
+        try {
+            const teamData = matchData[teamKey] || {};
+            const teamName = teamData.name || (teamKey === 'team1' ? t1Name : t2Name);
+            const teamObj = findTeamData(teamName) ||
+                findTeamData(teamKey === 'team1' ? t1Name : t2Name) ||
+                findTeamData(teamKey) ||
+                {};
+
+            // Construct all available players map (including any extraPlayers and squad players on teamObj)
+            const allPlayersMap = { ...(teamData.players || {}) };
+            if (teamObj?.extraPlayers) {
+                Object.values(teamObj.extraPlayers).forEach(ep => {
+                    const existingKey = Object.keys(allPlayersMap).find(k =>
+                        String(allPlayersMap[k].id) === String(ep.id) ||
+                        (allPlayersMap[k].name && ep.name && allPlayersMap[k].name.trim().toLowerCase() === ep.name.trim().toLowerCase())
+                    );
+                    if (!existingKey) {
+                        const epId = ep.id || `res_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        allPlayersMap[epId] = {
+                            id: epId,
+                            name: ep.name,
+                            imageUrl: ep.imageUrl || ep.image || ep.photo || '',
+                            role: ep.role || 'All Rounder',
+                            runs: 0,
+                            balls: 0,
+                            boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                            strikeRate: '0.00',
+                            dismissal: '',
+                            status: 'yet to bat',
+                            hand: ep.hand || 'Right Hand',
+                            type: 'Reserve',
+                            shots: {}
+                        };
+                    }
+                });
+            }
+
+            if (teamObj?.players) {
+                Object.values(teamObj.players).forEach((sp, idx) => {
+                    const existingKey = Object.keys(allPlayersMap).find(k =>
+                        String(allPlayersMap[k].id) === String(sp.id) ||
+                        (allPlayersMap[k].name && sp.name && allPlayersMap[k].name.trim().toLowerCase() === sp.name.trim().toLowerCase())
+                    );
+                    if (!existingKey) {
+                        const spId = sp.id || `sq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        allPlayersMap[spId] = {
+                            id: spId,
+                            name: sp.name,
+                            imageUrl: sp.imageUrl || sp.image || sp.photo || '',
+                            role: sp.role || 'All Rounder',
+                            runs: 0,
+                            balls: 0,
+                            boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                            strikeRate: '0.00',
+                            dismissal: '',
+                            status: 'yet to bat',
+                            hand: sp.hand || 'Right Hand',
+                            type: sp.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
+                            shots: {}
+                        };
+                    }
+                });
+            }
+
+            const getPlayerFromMap = (map, id) => {
+                if (!map || id === undefined || id === null) return null;
+                if (map[id]) return map[id];
+                return Object.values(map).find(p => String(p.id) === String(id));
+            };
+
+            let targetPlayer = getPlayerFromMap(allPlayersMap, squadSwapTarget.player.id) || { ...squadSwapTarget.player };
+            let replacementPlayer = getPlayerFromMap(allPlayersMap, squadSwapSelectedId);
+
+            let playerLeavingXI, playerEnteringXI;
+            if (squadSwapTarget.from === 'xi') {
+                playerLeavingXI = { ...targetPlayer };
+                playerEnteringXI = { ...replacementPlayer };
+            } else {
+                playerEnteringXI = { ...targetPlayer };
+                playerLeavingXI = { ...replacementPlayer };
+            }
+
+            if (!playerLeavingXI || !playerEnteringXI) {
+                toastRef.current?.showToast('error', 'Selected player data not found.');
+                return;
+            }
+
+            // Atomic 1-to-1 type swap
+            playerLeavingXI.type = 'Reserve';
+            playerEnteringXI.type = 'Playing XI';
+
+            const updatedMatch = JSON.parse(JSON.stringify(matchData));
+            if (!updatedMatch[teamKey]) updatedMatch[teamKey] = {};
+            if (!updatedMatch[teamKey].players) updatedMatch[teamKey].players = {};
+
+            updatedMatch[teamKey].players[playerLeavingXI.id] = playerLeavingXI;
+            updatedMatch[teamKey].players[playerEnteringXI.id] = playerEnteringXI;
+
+            setMatchData(updatedMatch);
+
+            // Save to Firebase RTDB
+            const updates = {};
+            updates[`${teamKey}/players/${playerLeavingXI.id}`] = playerLeavingXI;
+            updates[`${teamKey}/players/${playerEnteringXI.id}`] = playerEnteringXI;
+
+            await updateMatchData(activeMatchTitle, updates, selectedTournamentId);
+
+            toastRef.current?.showToast('success', `Swapped ${playerLeavingXI.name} with ${playerEnteringXI.name}!`);
+            setSquadSwapTarget(null);
+            setSquadSwapSelectedId('');
+        } catch (error) {
+            console.error('Error executing match player swap:', error);
+            toastRef.current?.showToast('error', 'Failed to swap match players.');
+        }
+    };
+
+    // RENDER: Squad Manager (Playing XI & Reserves) Modal
+    const renderSquadManagerModal = () => {
+        if (!showSquadManagerModal || !matchData) return null;
+
+        const currentTeamKey = squadManagerTeamKey || 'team1';
+        const teamData = matchData[currentTeamKey] || {};
+        const teamName = teamData.name || (currentTeamKey === 'team1' ? t1Name : t2Name);
+        const teamObj = findTeamData(teamName) ||
+            findTeamData(currentTeamKey === 'team1' ? t1Name : t2Name) ||
+            findTeamData(currentTeamKey) ||
+            {};
+
+        // Include any bench reserves defined on teamObj that aren't yet in matchData.players
+        const mergedPlayersMap = { ...(teamData.players || {}) };
+        if (teamObj?.extraPlayers) {
+            Object.values(teamObj.extraPlayers).forEach(ep => {
+                const existingKey = Object.keys(mergedPlayersMap).find(k =>
+                    String(mergedPlayersMap[k].id) === String(ep.id) ||
+                    (mergedPlayersMap[k].name && ep.name && mergedPlayersMap[k].name.trim().toLowerCase() === ep.name.trim().toLowerCase())
+                );
+                if (!existingKey) {
+                    const epId = ep.id || `res_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    mergedPlayersMap[epId] = {
+                        id: epId,
+                        name: ep.name,
+                        imageUrl: ep.imageUrl || ep.image || ep.photo || '',
+                        role: ep.role || 'All Rounder',
+                        runs: 0,
+                        balls: 0,
+                        boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                        strikeRate: '0.00',
+                        dismissal: '',
+                        status: 'yet to bat',
+                        hand: ep.hand || 'Right Hand',
+                        type: 'Reserve',
+                        shots: {}
+                    };
+                }
+            });
+        }
+
+        if (teamObj?.players) {
+            Object.values(teamObj.players).forEach((sp, idx) => {
+                const existingKey = Object.keys(mergedPlayersMap).find(k =>
+                    String(mergedPlayersMap[k].id) === String(sp.id) ||
+                    (mergedPlayersMap[k].name && sp.name && mergedPlayersMap[k].name.trim().toLowerCase() === sp.name.trim().toLowerCase())
+                );
+                if (!existingKey) {
+                    const spId = sp.id || `sq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    mergedPlayersMap[spId] = {
+                        id: spId,
+                        name: sp.name,
+                        imageUrl: sp.imageUrl || sp.image || sp.photo || '',
+                        role: sp.role || 'All Rounder',
+                        runs: 0,
+                        balls: 0,
+                        boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                        strikeRate: '0.00',
+                        dismissal: '',
+                        status: 'yet to bat',
+                        hand: sp.hand || 'Right Hand',
+                        type: sp.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
+                        shots: {}
+                    };
+                }
+            });
+        }
+
+        const isCurrentlyBattingTeam = (currentBattingTeamKey === currentTeamKey);
+        const isCurrentlyBowlingTeam = (currentBowlingTeamKey === currentTeamKey);
+
+        const checkIsLocked = (p) => {
+            const isStriker = isCurrentlyBattingTeam && teamData.ballFaceBatsman && String(teamData.ballFaceBatsman.id) === String(p.id);
+            const isNonStriker = isCurrentlyBattingTeam && teamData.otherSideBatsman && String(teamData.otherSideBatsman.id) === String(p.id);
+            const isCurrentBowler = isCurrentlyBowlingTeam && teamData.bowler && String(teamData.bowler.id) === String(p.id);
+            const hasBatted = (p.balls || 0) > 0 || (p.runs || 0) > 0 || !!p.dismissal;
+            const hasBowled = teamData.bowlers?.[p.id] && ((teamData.bowlers[p.id].overs || 0) > 0 || (teamData.bowlers[p.id].balls || 0) > 0);
+            return {
+                isLocked: isStriker || isNonStriker || isCurrentBowler || hasBatted || hasBowled,
+                reason: isStriker ? 'Striker' : isNonStriker ? 'Non-Striker' : isCurrentBowler ? 'Active Bowler' : hasBatted ? 'Already Batted' : hasBowled ? 'Already Bowled' : ''
+            };
+        };
+
+        const playersWithResolvedType = Object.values(mergedPlayersMap).map((p, idx) => {
+            const lockedInfo = checkIsLocked(p);
+            const squadPlayer = teamObj?.players?.[p.id] ||
+                Object.values(teamObj?.players || {}).find(sp =>
+                    String(sp.id) === String(p.id) ||
+                    (sp.nic && sp.nic === p.nic) ||
+                    (sp.name && p.name && sp.name.trim().toLowerCase() === p.name.trim().toLowerCase())
+                );
+            return {
+                ...p,
+                type: resolvePlayerType(p, teamObj, lockedInfo.isLocked, idx),
+                hand: p.hand || squadPlayer?.hand || 'Right Hand',
+                imageUrl: p.imageUrl || squadPlayer?.imageUrl || squadPlayer?.image || p.photo || ''
+            };
+        });
+
+        const currentXI = playersWithResolvedType.filter(p => p.type === 'Playing XI');
+        const currentReserves = playersWithResolvedType.filter(p => p.type === 'Reserve');
+        const eligibleXI = currentXI.filter(p => !checkIsLocked(p).isLocked);
+
+        return (
+            <div className="sc-modal-overlay" onClick={() => { setShowSquadManagerModal(false); setSquadSwapTarget(null); }}>
+                <div className="sc-modal-card sc-squad-manager-modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="sc-squad-modal-header">
+                        <div className="sc-squad-modal-title">
+                            <span className="sc-squad-modal-pill">MATCH ROSTER</span>
+                            <h3>Manage Playing XI &amp; Reserves</h3>
+                        </div>
+                        <button
+                            type="button"
+                            className="sc-modal-close-btn"
+                            onClick={() => { setShowSquadManagerModal(false); setSquadSwapTarget(null); }}
+                        >
+                            <MdClose />
+                        </button>
+                    </div>
+
+                    {/* Team Selector Tabs */}
+                    <div className="sc-squad-team-tabs">
+                        <button
+                            type="button"
+                            className={`sc-squad-team-tab ${currentTeamKey === 'team1' ? 'active' : ''}`}
+                            onClick={() => {
+                                setSquadManagerTeamKey('team1');
+                                setSquadSwapTarget(null);
+                            }}
+                        >
+                            {t1Name} {isCurrentlyBattingTeam && currentTeamKey === 'team1' ? '(Batting)' : ''}
+                        </button>
+                        <button
+                            type="button"
+                            className={`sc-squad-team-tab ${currentTeamKey === 'team2' ? 'active' : ''}`}
+                            onClick={() => {
+                                setSquadManagerTeamKey('team2');
+                                setSquadSwapTarget(null);
+                            }}
+                        >
+                            {t2Name} {isCurrentlyBattingTeam && currentTeamKey === 'team2' ? '(Batting)' : ''}
+                        </button>
+                    </div>
+
+                    <div className="sc-squad-modal-body">
+                        {/* 1-to-1 Swap Sub-panel */}
+                        {squadSwapTarget && (
+                            <div className="sc-squad-swap-panel">
+                                <div className="sc-squad-swap-header">
+                                    <span className="sc-squad-swap-tag"><MdSwapHoriz /> 1-TO-1 PLAYER SWAP</span>
+                                    <h4>
+                                        {squadSwapTarget.from === 'xi'
+                                            ? `Swap ${squadSwapTarget.player.name} with a Reserve Player`
+                                            : `Promote ${squadSwapTarget.player.name} into Playing XI`}
+                                    </h4>
+                                    <p>
+                                        {squadSwapTarget.from === 'xi'
+                                            ? 'Select a reserve player below to replace this player in Playing XI (maintains exactly 11 players):'
+                                            : 'Select an unplayed Playing XI player below to move to Reserves (maintains exactly 11 players):'}
+                                    </p>
+                                </div>
+
+                                <div className="sc-squad-swap-visual">
+                                    <div className="sc-swap-card leaving">
+                                        <span className="sc-swap-label">{squadSwapTarget.from === 'xi' ? 'Leaving Playing XI' : 'Entering Playing XI'}</span>
+                                        <span className="sc-swap-pname">{squadSwapTarget.player.name}</span>
+                                        <span className="sc-swap-prole">{squadSwapTarget.player.role || 'Player'}</span>
+                                    </div>
+
+                                    <div className="sc-swap-arrow-icon">
+                                        <MdSwapHoriz />
+                                    </div>
+
+                                    <div className="sc-swap-card entering">
+                                        <span className="sc-swap-label">{squadSwapTarget.from === 'xi' ? 'Entering Playing XI (Reserve)' : 'Moving to Reserves (Playing XI)'}</span>
+                                        {squadSwapTarget.from === 'xi' ? (
+                                            currentReserves.length === 0 ? (
+                                                <small style={{ color: '#f87171' }}>No reserves available to swap.</small>
+                                            ) : (
+                                                <select
+                                                    className="sc-swap-select"
+                                                    value={String(squadSwapSelectedId)}
+                                                    onChange={(e) => setSquadSwapSelectedId(e.target.value)}
+                                                >
+                                                    {currentReserves.map(rp => (
+                                                        <option key={rp.id} value={String(rp.id)}>
+                                                            {rp.name} ({rp.role || 'Player'})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )
+                                        ) : (
+                                            eligibleXI.length === 0 ? (
+                                                <small style={{ color: '#f87171' }}>No unplayed XI players available to move.</small>
+                                            ) : (
+                                                <select
+                                                    className="sc-swap-select"
+                                                    value={String(squadSwapSelectedId)}
+                                                    onChange={(e) => setSquadSwapSelectedId(e.target.value)}
+                                                >
+                                                    {eligibleXI.map(xp => (
+                                                        <option key={xp.id} value={String(xp.id)}>
+                                                            {xp.name} ({xp.role || 'Player'})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="sc-squad-swap-actions">
+                                    <button type="button" className="cx-btn-secondary" onClick={() => setSquadSwapTarget(null)}>
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="cx-btn-confirm primary"
+                                        disabled={!squadSwapSelectedId}
+                                        onClick={() => handleExecuteMatchSwap(currentTeamKey)}
+                                    >
+                                        <MdCheck /> Confirm 1-to-1 Swap
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Playing XI Section */}
+                        <div className="sc-squad-section">
+                            <div className="sc-squad-sec-header">
+                                <h4>Playing XI Squad ({currentXI.length})</h4>
+                                <span className="sc-squad-hint">Players eligible to bat, bowl, and field</span>
+                            </div>
+                            <div className="sc-squad-list">
+                                {currentXI.length === 0 ? (
+                                    <p className="sc-squad-empty">No Playing XI players assigned.</p>
+                                ) : (
+                                    currentXI.map((p, idx) => {
+                                        const { isLocked, reason: lockedReason } = checkIsLocked(p);
+
+                                        return (
+                                            <div key={p.id} className="sc-squad-row xi">
+                                                <div className="sc-squad-row-info">
+                                                    <span className="sc-squad-num">#{idx + 1}</span>
+                                                    <div className="sc-squad-pdetails">
+                                                        <strong className="sc-squad-pname">{p.name}</strong>
+                                                        <span className="sc-squad-prole">{p.role || 'Player'} {p.hand ? `• ${p.hand}` : ''}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="sc-squad-row-actions">
+                                                    {isLocked ? (
+                                                        <span className="sc-squad-locked-badge" title="Player has participated in match">
+                                                            {lockedReason}
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="sc-squad-btn to-reserve"
+                                                            onClick={() => {
+                                                                if (currentReserves.length === 0) {
+                                                                    toastRef.current?.showToast('warning', 'No reserves available to swap with for this team.');
+                                                                    return;
+                                                                }
+                                                                setSquadSwapTarget({ player: p, from: 'xi' });
+                                                                setSquadSwapSelectedId(currentReserves[0]?.id || '');
+                                                            }}
+                                                            title="Swap with a reserve player"
+                                                        >
+                                                            <MdSwapHoriz /> Swap with Reserve
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Bench & Reserves Section */}
+                        <div className="sc-squad-section">
+                            <div className="sc-squad-sec-header">
+                                <h4>Bench &amp; Reserves ({currentReserves.length})</h4>
+                                <span className="sc-squad-hint">Substitutes and backup players</span>
+                            </div>
+                            <div className="sc-squad-list">
+                                {currentReserves.length === 0 ? (
+                                    <p className="sc-squad-empty">No reserves available for this team.</p>
+                                ) : (
+                                    currentReserves.map((p, idx) => (
+                                        <div key={p.id} className="sc-squad-row reserve">
+                                            <div className="sc-squad-row-info">
+                                                <span className="sc-squad-num reserve">#{idx + 1}</span>
+                                                <div className="sc-squad-pdetails">
+                                                    <strong className="sc-squad-pname">{p.name}</strong>
+                                                    <span className="sc-squad-prole">{p.role || 'Player'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="sc-squad-row-actions">
+                                                <button
+                                                    type="button"
+                                                    className="sc-squad-btn to-xi"
+                                                    onClick={() => {
+                                                        if (eligibleXI.length === 0) {
+                                                            toastRef.current?.showToast('warning', 'No unplayed Playing XI players available to swap out.');
+                                                            return;
+                                                        }
+                                                        setSquadSwapTarget({ player: p, from: 'reserve' });
+                                                        setSquadSwapSelectedId(eligibleXI[0]?.id || '');
+                                                    }}
+                                                    title="Swap into Playing XI"
+                                                >
+                                                    <MdSwapHoriz /> Swap into XI
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="sc-squad-modal-footer">
+                        <button
+                            type="button"
+                            className="cx-btn-confirm primary"
+                            onClick={() => {
+                                setShowSquadManagerModal(false);
+                                setSquadSwapTarget(null);
+                            }}
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     // =========================================================================
@@ -2015,31 +3471,77 @@ const ScoringConsole = () => {
                                 </span>
                             </div>
 
-                            <div className="cx-score-display">
-                                <div className="cx-team-score active-bat">
-                                    <div className="cx-team-name-row">
-                                        <h2>{isTeam1Batting ? t1Name : t2Name}</h2>
-                                        <span className="cx-batting-badge">🏏 BATTING</span>
-                                    </div>
-                                    <div className="cx-score-number">
-                                        {(isTeam1Batting ? team1.totalRuns : team2.totalRuns) ?? 0}/{(isTeam1Batting ? team1.totalWickets : team2.totalWickets) ?? 0}
-                                        <span>({getOversString(isTeam1Batting ? team1 : team2)} ov)</span>
-                                    </div>
-                                </div>
+                            {(() => {
+                                const firstBatKey = (common.firstBat === 2) ? 'team2' : 'team1';
+                                const secondBatKey = (common.firstBat === 2) ? 'team1' : 'team2';
+                                const firstBatData = firstBatKey === 'team1' ? team1 : team2;
+                                const secondBatData = secondBatKey === 'team1' ? team1 : team2;
+                                const firstBatName = firstBatData.name || (firstBatKey === 'team1' ? t1Name : t2Name);
+                                const secondBatName = secondBatData.name || (secondBatKey === 'team1' ? t1Name : t2Name);
 
-                                <div className="cx-vs-divider">VS</div>
+                                const isFirstBatCurrentlyBatting = (currentBattingTeamKey === firstBatKey);
+                                const isSecondBatCurrentlyBatting = (currentBattingTeamKey === secondBatKey);
 
-                                <div className="cx-team-score cx-align-right">
-                                    <div className="cx-team-name-row cx-justify-end">
-                                        <span className="cx-bowling-badge">🥎 BOWLING</span>
-                                        <h2>{isTeam1Batting ? t2Name : t1Name}</h2>
+                                return (
+                                    <div className="cx-score-display">
+                                        {/* Left Slot: Always First Batting Facing Team */}
+                                        <div className={`cx-team-score ${isFirstBatCurrentlyBatting ? 'active-bat' : ''}`}>
+                                            <div className="cx-team-name-row">
+                                                <h2>{firstBatName}</h2>
+                                                {isFirstBatCurrentlyBatting ? (
+                                                    <span className="cx-batting-badge">
+                                                        <MdSportsCricket className="cx-badge-icon" /> BATTING
+                                                    </span>
+                                                ) : (
+                                                    <span className="cx-bowling-badge">
+                                                        <MdSportsBaseball className="cx-badge-icon" /> {common.activeInnings === 2 ? 'BOWLING' : '1st INN'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="cx-score-number">
+                                                {(firstBatData.totalRuns ?? 0)}/{(firstBatData.totalWickets ?? 0)}
+                                                <span>({getOversString(firstBatData)} ov)</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="cx-vs-divider">VS</div>
+
+                                        {/* Right Slot: Second Batting Team */}
+                                        <div className={`cx-team-score cx-align-right ${isSecondBatCurrentlyBatting ? 'active-bat' : ''}`}>
+                                            <div className="cx-team-name-row cx-justify-end">
+                                                {isSecondBatCurrentlyBatting ? (
+                                                    <span className="cx-batting-badge">
+                                                        <MdSportsCricket className="cx-badge-icon" /> BATTING
+                                                    </span>
+                                                ) : (
+                                                    <span className="cx-bowling-badge">
+                                                        <MdSportsBaseball className="cx-badge-icon" /> BOWLING
+                                                    </span>
+                                                )}
+                                                <h2>{secondBatName}</h2>
+                                            </div>
+                                            <div className="cx-score-number">
+                                                {(secondBatData.totalRuns ?? 0)}/{(secondBatData.totalWickets ?? 0)}
+                                                <span>({getOversString(secondBatData)} ov)</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="cx-score-number">
-                                        {(!isTeam1Batting ? team1.totalRuns : team2.totalRuns) ?? 0}/{(!isTeam1Batting ? team1.totalWickets : team2.totalWickets) ?? 0}
-                                        <span>({getOversString(!isTeam1Batting ? team1 : team2)} ov)</span>
-                                    </div>
+                                );
+                            })()}
+
+                            {common.dls?.isApplied && (
+                                <div className="sc-dls-active-banner">
+                                    <span className="sc-dls-tag">
+                                        <MdCloudQueue /> DLS METHOD
+                                    </span>
+                                    <span className="sc-dls-target-text">
+                                        Revised Target: <strong>{common.dls.revisedTarget}</strong> in <strong>{common.dls.revisedOvers}</strong> ov (Req. RR: {(common.dls.revisedTarget / (common.dls.revisedOvers || 1)).toFixed(2)})
+                                    </span>
+                                    {common.dls.isManualOverride && (
+                                        <span className="sc-dls-manual-pill">Manual Target</span>
+                                    )}
                                 </div>
-                            </div>
+                            )}
 
                             <div className="cx-match-status-text">
                                 {common.result ? common.result : (common.status || `${striker.name} on strike | ${bowler.name} bowling`)}
@@ -2064,14 +3566,41 @@ const ScoringConsole = () => {
                                     </div>
                                     <select
                                         value={striker.id}
-                                        onChange={(e) => setStrikerId(Number(e.target.value))}
-                                        className="sc-crease-select compact"
+                                        disabled={isStrikerLocked}
+                                        onChange={(e) => {
+                                            const newId = Number(e.target.value);
+                                            setStrikerId(newId);
+                                            handleManualBatterChange(newId, 'striker');
+                                        }}
+                                        className={`sc-crease-select compact ${isStrikerLocked ? 'sc-select-locked' : ''}`}
+                                        title={isStrikerLocked ? "Batter has faced deliveries / batted. Selection locked." : "Select or change Striker"}
                                     >
-                                        {activeBattingSquad.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name}
-                                            </option>
-                                        ))}
+                                        {activeBattingSquad
+                                            .filter(p => {
+                                                if (!p) return false;
+                                                const pStats = battingTeamData.players?.[p.id] || p;
+                                                const pIdStr = p.id != null ? String(p.id) : null;
+                                                const pNameClean = (p.name || '').trim().toLowerCase();
+                                                const isOut = Boolean(
+                                                    p.dismissal ||
+                                                    p.status === 'out' ||
+                                                    pStats?.dismissal ||
+                                                    pStats?.status === 'out' ||
+                                                    Object.values(battingTeamData.fallOfWickets || {}).some(f => {
+                                                        if (!f) return false;
+                                                        const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                                                        const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                                                        return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
+                                                    })
+                                                );
+                                                const isOtherCrease = String(p.id) === String(nonStriker?.id);
+                                                return (!isOut && !isOtherCrease) || String(p.id) === String(striker?.id);
+                                            })
+                                            .map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
                                 <div className="sc-crease-stats compact">
@@ -2099,14 +3628,41 @@ const ScoringConsole = () => {
                                     </div>
                                     <select
                                         value={nonStriker.id}
-                                        onChange={(e) => setNonStrikerId(Number(e.target.value))}
-                                        className="sc-crease-select compact"
+                                        disabled={isNonStrikerLocked}
+                                        onChange={(e) => {
+                                            const newId = Number(e.target.value);
+                                            setNonStrikerId(newId);
+                                            handleManualBatterChange(newId, 'nonStriker');
+                                        }}
+                                        className={`sc-crease-select compact ${isNonStrikerLocked ? 'sc-select-locked' : ''}`}
+                                        title={isNonStrikerLocked ? "Batter has faced deliveries / batted. Selection locked." : "Select or change Non-Striker"}
                                     >
-                                        {activeBattingSquad.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name}
-                                            </option>
-                                        ))}
+                                        {activeBattingSquad
+                                            .filter(p => {
+                                                if (!p) return false;
+                                                const pStats = battingTeamData.players?.[p.id] || p;
+                                                const pIdStr = p.id != null ? String(p.id) : null;
+                                                const pNameClean = (p.name || '').trim().toLowerCase();
+                                                const isOut = Boolean(
+                                                    p.dismissal ||
+                                                    p.status === 'out' ||
+                                                    pStats?.dismissal ||
+                                                    pStats?.status === 'out' ||
+                                                    Object.values(battingTeamData.fallOfWickets || {}).some(f => {
+                                                        if (!f) return false;
+                                                        const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                                                        const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                                                        return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
+                                                    })
+                                                );
+                                                const isOtherCrease = String(p.id) === String(striker?.id);
+                                                return (!isOut && !isOtherCrease) || String(p.id) === String(nonStriker?.id);
+                                            })
+                                            .map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
                                 <div className="sc-crease-stats compact">
@@ -2124,8 +3680,14 @@ const ScoringConsole = () => {
                                     <span className="sc-crease-label">BOWLER (🔴)</span>
                                     <select
                                         value={bowler.id}
-                                        onChange={(e) => setBowlerId(Number(e.target.value))}
-                                        className="sc-crease-select compact"
+                                        disabled={isBowlerLocked}
+                                        onChange={(e) => {
+                                            const newId = Number(e.target.value);
+                                            setBowlerId(newId);
+                                            handleManualBowlerChange(newId);
+                                        }}
+                                        className={`sc-crease-select compact ${isBowlerLocked ? 'sc-select-locked' : ''}`}
+                                        title={isBowlerLocked ? "Bowler cannot be changed during an ongoing over." : "Select bowler for this over"}
                                     >
                                         {activeBowlingSquad.map(p => (
                                             <option key={p.id} value={p.id}>
@@ -2159,6 +3721,37 @@ const ScoringConsole = () => {
                                     <button className="sc-action-btn shift" onClick={handleShiftBatters} title="Shift Striker & Non-Striker Batters">
                                         <MdSwapHoriz /> Shift
                                     </button>
+                                    <button
+                                        className="sc-action-btn squad"
+                                        onClick={() => {
+                                            setSquadManagerTeamKey(currentBattingTeamKey);
+                                            setShowSquadManagerModal(true);
+                                        }}
+                                        title="Manage Match Playing XI & Reserves"
+                                    >
+                                        <MdGroups /> Squad XI
+                                    </button>
+                                    <button
+                                        className={`sc-action-btn dls ${common.dls?.isApplied ? 'active-dls' : ''}`}
+                                        onClick={handleOpenDlsModal}
+                                        title="DLS & Rain Delay Target Manager"
+                                    >
+                                        <MdCloudQueue /> DLS {common.dls?.isApplied ? `(${common.dls.revisedTarget})` : ''}
+                                    </button>
+                                    {common.activeInnings !== 2 && (
+                                        <button
+                                            className="sc-action-btn switch"
+                                            onClick={() => {
+                                                setSecondInningsStrikerId('');
+                                                setSecondInningsNonStrikerId('');
+                                                setSecondInningsBowlerId('');
+                                                setShowSwitchInningsModal(true);
+                                            }}
+                                            title="Conclude 1st Innings & Start 2nd Innings Chase"
+                                        >
+                                            <MdSwapHoriz /> Switch Innings
+                                        </button>
+                                    )}
                                     <button className="sc-action-btn finish" onClick={() => setShowFinishModal(true)} title="Finalize Match">
                                         <MdCheckCircle /> Finish
                                     </button>
@@ -2172,7 +3765,9 @@ const ScoringConsole = () => {
                                     {inlinePanelMode === 'wheeler' && (
                                         <>
                                             <div className="sc-embedded-wheeler-header">
-                                                <span className="sc-ew-title">🎯 SHOT PLACEMENT WHEELER</span>
+                                                <span className="sc-ew-title">
+                                                    <MdTrackChanges className="sc-ew-icon" /> SHOT PLACEMENT WHEELER
+                                                </span>
                                                 {selectedShotZone ? (
                                                     <div className="sc-selected-zone-tag">
                                                         <span>Selected: <strong>{selectedShotZone}</strong></span>
@@ -2192,12 +3787,12 @@ const ScoringConsole = () => {
 
                                             <div className="sc-embedded-wheeler-svg-wrap">
                                                 <svg viewBox="0 0 300 300" className="sc-embedded-wheeler-svg">
-                                                    <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(0, 240, 255, 0.4)" strokeWidth="2" strokeDasharray="5 5" className="sc-ew-outer-circle" />
-                                                    <circle cx="150" cy="150" r="75" fill="none" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="1.5" strokeDasharray="3 3" className="sc-ew-inner-circle" />
+                                                    <circle cx="150" cy="150" r="146" fill="none" stroke="rgba(0, 240, 255, 0.4)" strokeWidth="2" strokeDasharray="5 5" className="sc-ew-outer-circle" />
+                                                    <circle cx="150" cy="150" r="78" fill="none" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="1.5" strokeDasharray="3 3" className="sc-ew-inner-circle" />
 
                                                     {getActiveSectors(striker.hand || 'Right Hand').map((s) => {
-                                                        const pathData = describeArc(150, 150, 134, s.startAngle, s.endAngle);
-                                                        const textCoords = getLabelCoords(150, 150, 134, s.startAngle, s.endAngle);
+                                                        const pathData = describeArc(150, 150, 142, s.startAngle, s.endAngle);
+                                                        const textCoords = getLabelCoords(150, 150, 142, s.startAngle, s.endAngle);
                                                         const isSelected = selectedShotZone === s.name;
 
                                                         return (
@@ -2223,7 +3818,7 @@ const ScoringConsole = () => {
                                                         );
                                                     })}
 
-                                                    <rect x="144" y="118" width="12" height="64" fill="#f59e0b" opacity="0.85" rx="3" />
+                                                    <rect x="143" y="114" width="14" height="72" fill="#f59e0b" opacity="0.85" rx="3" />
                                                     <circle cx="150" cy="150" r="4" fill="#00f0ff" />
                                                 </svg>
                                             </div>
@@ -2233,7 +3828,9 @@ const ScoringConsole = () => {
                                     {inlinePanelMode === 'extras' && (
                                         <div className="sc-inline-config-box extras-mode">
                                             <div className="sc-icb-header">
-                                                <span className="sc-icb-title extra">⚡ RECORD EXTRA ({extraType.toUpperCase()})</span>
+                                                <span className={`sc-icb-title extra ${extraType === 'Penalty' ? 'penalty' : ''}`}>
+                                                    ⚡ {extraType === 'Penalty' ? 'CUSTOM PENALTY MARKS' : `RECORD EXTRA (${extraType.toUpperCase()})`}
+                                                </span>
                                                 <button className="sc-btn-close-icb" onClick={() => setInlinePanelMode('wheeler')} title="Back to Wheeler">
                                                     <MdClose />
                                                 </button>
@@ -2243,33 +3840,109 @@ const ScoringConsole = () => {
                                                     <label>Extra Type</label>
                                                     <select
                                                         value={extraType}
-                                                        onChange={(e) => setExtraType(e.target.value)}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setExtraType(val);
+                                                            if (val === 'Penalty') setExtraRuns(5);
+                                                            else if (val === 'Bye' || val === 'Leg Bye') setExtraRuns(1);
+                                                            else setExtraRuns(0);
+                                                        }}
                                                         className="sc-icb-select"
                                                     >
                                                         <option value="Wide">Wide (WD)</option>
                                                         <option value="No Ball">No Ball (NB)</option>
                                                         <option value="Bye">Bye</option>
                                                         <option value="Leg Bye">Leg Bye</option>
+                                                        <option value="Penalty">Penalty Marks (PEN)</option>
                                                     </select>
                                                 </div>
-                                                <div className="sc-icb-field">
-                                                    <label>Extra Runs (beyond mandatory penalty)</label>
-                                                    <div className="sc-icb-runs-grid">
-                                                        {[0, 1, 2, 3, 4, 5].map((r) => (
+
+                                                {extraType === 'No Ball' && (
+                                                    <div className="sc-icb-field" style={{ marginBottom: '10px' }}>
+                                                        <label>Extra Runs Credited To (Beyond +1 Penalty)</label>
+                                                        <div className="sc-icb-source-tabs">
                                                             <button
-                                                                key={r}
                                                                 type="button"
-                                                                className={`sc-icb-run-btn ${extraRuns === r ? 'active' : ''}`}
-                                                                onClick={() => setExtraRuns(r)}
+                                                                className={`sc-icb-source-btn ${noBallRunsSource === 'bat' ? 'active' : ''}`}
+                                                                onClick={() => setNoBallRunsSource('bat')}
                                                             >
-                                                                +{r}
+                                                                🏏 Runs off Bat (Striker)
                                                             </button>
-                                                        ))}
+                                                            <button
+                                                                type="button"
+                                                                className={`sc-icb-source-btn ${noBallRunsSource === 'bye' ? 'active' : ''}`}
+                                                                onClick={() => setNoBallRunsSource('bye')}
+                                                            >
+                                                                🏃 Byes off NB (Extras)
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className={`sc-icb-source-btn ${noBallRunsSource === 'legBye' ? 'active' : ''}`}
+                                                                onClick={() => setNoBallRunsSource('legBye')}
+                                                            >
+                                                                🦵 Leg Byes off NB (Extras)
+                                                            </button>
+                                                        </div>
                                                     </div>
+                                                )}
+
+                                                <div className="sc-icb-field">
+                                                    <label>
+                                                        {extraType === 'Penalty'
+                                                            ? 'Penalty Marks / Runs'
+                                                            : (extraType === 'Bye' || extraType === 'Leg Bye'
+                                                                ? 'Extra Runs (Mandatory penalty: None)'
+                                                                : 'Extra Runs (beyond +1 mandatory penalty)')}
+                                                    </label>
+                                                    {extraType === 'Penalty' ? (
+                                                        <div className="sc-penalty-input-group">
+                                                            <div className="sc-penalty-presets">
+                                                                {[1, 2, 3, 4, 5, 6, 7, 10].map((r) => (
+                                                                    <button
+                                                                        key={r}
+                                                                        type="button"
+                                                                        className={`sc-icb-run-btn ${extraRuns === r ? 'active' : ''}`}
+                                                                        onClick={() => setExtraRuns(r)}
+                                                                    >
+                                                                        +{r}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            <div className="sc-custom-penalty-row">
+                                                                <span className="sc-custom-label">Custom Score:</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="50"
+                                                                    value={extraRuns}
+                                                                    onChange={(e) => setExtraRuns(Math.max(1, parseInt(e.target.value, 10) || 0))}
+                                                                    className="sc-custom-penalty-input"
+                                                                    placeholder="Enter marks"
+                                                                />
+                                                                <span className="sc-penalty-unit-tag">Runs</span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="sc-icb-runs-grid">
+                                                            {(extraType === 'Bye' || extraType === 'Leg Bye' ? [1, 2, 3, 4, 6] : [0, 1, 2, 3, 4, 6]).map((r) => (
+                                                                <button
+                                                                    key={r}
+                                                                    type="button"
+                                                                    className={`sc-icb-run-btn ${extraRuns === r ? 'active' : ''}`}
+                                                                    onClick={() => setExtraRuns(r)}
+                                                                >
+                                                                    +{r}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                     <div className="sc-icb-rule-hint">
-                                                        {extraType === 'Wide' && `⚡ Auto +1 penalty run applied. Additional runs: +${extraRuns} (Total: ${1 + extraRuns} runs)`}
-                                                        {extraType === 'No Ball' && `⚡ Auto +1 penalty run applied. Striker bat runs: +${extraRuns} (Total: ${1 + extraRuns} runs)`}
-                                                        {(extraType === 'Bye' || extraType === 'Leg Bye') && `⚡ 0 penalty. ${extraType} runs: ${extraRuns} (Total: ${extraRuns} runs)`}
+                                                        {extraType === 'Wide' && `⚡ Mandatory: +1 run penalty to Wides. Extra runs beyond penalty: +${extraRuns} (Total: ${1 + extraRuns} runs to Extras → Wides) • Bowler charged: ${1 + extraRuns} • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                                        {extraType === 'No Ball' && noBallRunsSource === 'bat' && `⚡ Mandatory: +1 run penalty to Extras → No Ball. +${extraRuns} run(s) off bat credited to Striker (${striker.name || 'Striker'}) • Bowler charged: ${1 + extraRuns} • Free Hit faced by: ${extraRuns % 2 !== 0 ? 'Non-Striker (Rotated)' : 'Striker (Remains)'}`}
+                                                        {extraType === 'No Ball' && noBallRunsSource === 'bye' && `⚡ Mandatory: +1 run penalty to Extras → No Ball. +${extraRuns} bye(s) off NB credited to Extras → Byes • Bowler charged: 1 run penalty only • Striker: 0 runs, 1 ball • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                                        {extraType === 'No Ball' && noBallRunsSource === 'legBye' && `⚡ Mandatory: +1 run penalty to Extras → No Ball. +${extraRuns} leg bye(s) off NB credited to Extras → Leg Byes • Bowler charged: 1 run penalty only • Striker: 0 runs, 1 ball • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                                        {(extraType === 'Bye' || extraType === 'Leg Bye') && `⚡ Mandatory penalty: None. +${extraRuns} ${extraType}(s) credited to Extras → ${extraType}s • Bowler NOT charged (0 runs) • Striker: 0 runs, 1 ball faced • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                                        {extraType === 'Penalty' && `⚡ +${extraRuns || 5} Penalty marks awarded directly to ${currentBattingTeamKey === 'team1' ? (team1.name || 'Batting Team') : (team2.name || 'Batting Team')} extras. Bowler not charged; strike unchanged.`}
                                                     </div>
                                                 </div>
                                                 <div className="sc-icb-actions">
@@ -2278,18 +3951,36 @@ const ScoringConsole = () => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        className="sc-icb-btn confirm extra"
+                                                        className={`sc-icb-btn confirm extra ${extraType === 'Penalty' ? 'penalty' : ''}`}
                                                         onClick={() => {
-                                                            executeBallDelivery({
-                                                                runs: 0,
-                                                                isExtra: true,
-                                                                extraType,
-                                                                extraRuns
-                                                            });
-                                                            setInlinePanelMode('wheeler');
+                                                            const isNbWithBatRuns = extraType === 'No Ball' && noBallRunsSource === 'bat' && Number(extraRuns) > 0;
+                                                            if (isNbWithBatRuns) {
+                                                                setPendingBallEvent({
+                                                                    runs: 0,
+                                                                    isExtra: true,
+                                                                    extraType: 'No Ball',
+                                                                    extraRuns: Number(extraRuns),
+                                                                    noBallRunsSource: 'bat'
+                                                                });
+                                                                setShowWagonPlacementModal(true);
+                                                                setInlinePanelMode('wheeler');
+                                                            } else {
+                                                                executeBallDelivery({
+                                                                    runs: 0,
+                                                                    isExtra: true,
+                                                                    extraType,
+                                                                    extraRuns: extraType === 'Penalty' ? (extraRuns || 5) : Number(extraRuns),
+                                                                    noBallRunsSource: extraType === 'No Ball' ? noBallRunsSource : undefined
+                                                                });
+                                                                setInlinePanelMode('wheeler');
+                                                            }
                                                         }}
                                                     >
-                                                        Confirm Extra
+                                                        {extraType === 'Penalty'
+                                                            ? `Award +${extraRuns || 5} Penalty Marks`
+                                                            : (extraType === 'No Ball' && noBallRunsSource === 'bat' && Number(extraRuns) > 0
+                                                                ? 'Pick Batted Area & Confirm'
+                                                                : 'Confirm Extra')}
                                                     </button>
                                                 </div>
                                             </div>
@@ -2299,7 +3990,9 @@ const ScoringConsole = () => {
                                     {inlinePanelMode === 'wicket' && (
                                         <div className="sc-inline-config-box wicket-mode">
                                             <div className="sc-icb-header">
-                                                <span className="sc-icb-title wicket">💥 RECORD WICKET ({dismissalType.toUpperCase()})</span>
+                                                <span className="sc-icb-title wicket">
+                                                    <MdWarning className="sc-icb-icon" /> RECORD WICKET ({dismissalType.toUpperCase()})
+                                                </span>
                                                 <button className="sc-btn-close-icb" onClick={() => setInlinePanelMode('wheeler')} title="Back to Wheeler">
                                                     <MdClose />
                                                 </button>
@@ -2352,13 +4045,13 @@ const ScoringConsole = () => {
 
                                                 {(dismissalType === 'Caught' || dismissalType === 'Run Out' || dismissalType === 'Stumped') && (
                                                     <div className="sc-icb-field">
-                                                        <label>Fielder (Optional)</label>
+                                                        <label>Fielder ({bowlingTeamName} - Fielding Side)</label>
                                                         <select
                                                             value={dismissalFielder}
                                                             onChange={(e) => setDismissalFielder(e.target.value)}
                                                             className="sc-icb-select"
                                                         >
-                                                            <option value="">Select Fielder...</option>
+                                                            <option value="">Select Fielder ({bowlingTeamName})...</option>
                                                             {bowlingPlayersList.map(p => (
                                                                 <option key={p.id} value={p.name}>{p.name}</option>
                                                             ))}
@@ -2398,7 +4091,9 @@ const ScoringConsole = () => {
                                     {/* 1. RUN SCORES GROUP */}
                                     <div className="sc-keypad-group">
                                         <div className="sc-kg-header">
-                                            <span className="sc-kg-title score-title">🏏 RUN SCORES</span>
+                                            <span className="sc-kg-title score-title">
+                                                <MdSportsCricket className="sc-kg-icon" /> RUN SCORES
+                                            </span>
                                         </div>
                                         <div className="keypad-grid score-grid">
                                             <button className="kp-btn dot" onClick={() => handleScoreClick(0)}>
@@ -2450,7 +4145,9 @@ const ScoringConsole = () => {
                                     {/* 2. EXTRAS GROUP */}
                                     <div className="sc-keypad-group">
                                         <div className="sc-kg-header">
-                                            <span className="sc-kg-title extra-title">⚡ EXTRAS</span>
+                                            <span className="sc-kg-title extra-title">
+                                                <MdBolt className="sc-kg-icon" /> EXTRAS
+                                            </span>
                                         </div>
                                         <div className="keypad-grid extra-grid">
                                             <button
@@ -2477,13 +4174,22 @@ const ScoringConsole = () => {
                                             >
                                                 LB <small>LEG BYE</small>
                                             </button>
+                                            <button
+                                                className="kp-btn extra penalty-btn"
+                                                onClick={() => handleOpenInlineExtra('Penalty')}
+                                                title="Add Custom Penalty Marks as Extra Runs"
+                                            >
+                                                PEN <small>+PENALTY</small>
+                                            </button>
                                         </div>
                                     </div>
 
                                     {/* 3. WICKET GROUP */}
                                     <div className="sc-keypad-group">
                                         <div className="sc-kg-header">
-                                            <span className="sc-kg-title wicket-title">💥 WICKET DISMISSALS</span>
+                                            <span className="sc-kg-title wicket-title">
+                                                <MdWarning className="sc-kg-icon" /> WICKET DISMISSALS
+                                            </span>
                                         </div>
                                         <div className="keypad-grid wicket-grid">
                                             <button
@@ -2532,30 +4238,52 @@ const ScoringConsole = () => {
 
                 {/* ROW 2: Complete Scorecard Section (Left Batting, Right Bowling, No Scroll Container) */}
                 <div className="sc-admin-row2-full">
-                    {/* Innings Selection Tabs: First Batting Team displayed in the 1st Tab */}
-                    <div className="cx-innings-tabs">
-                        <button
-                            className={`cx-innings-tab-btn ${activeInningsTab === (isTeam1Batting ? 'team1' : 'team2') ? 'active' : ''}`}
-                            onClick={() => setActiveInningsTab(isTeam1Batting ? 'team1' : 'team2')}
-                        >
-                            {isTeam1Batting ? t1Name : t2Name} Innings (1st Bat)
-                        </button>
-                        <button
-                            className={`cx-innings-tab-btn ${activeInningsTab === (isTeam1Batting ? 'team2' : 'team1') ? 'active' : ''}`}
-                            onClick={() => setActiveInningsTab(isTeam1Batting ? 'team2' : 'team1')}
-                        >
-                            {isTeam1Batting ? t2Name : t1Name} Innings (2nd Bat)
-                        </button>
-                    </div>
+                    {/* Innings Selection Tabs: First Batting Team in 1st Tab, Second in 2nd Tab, Default active = Current Batting Team */}
+                    {(() => {
+                        const firstBatKey = (common.firstBat === 1) ? 'team1' : 'team2';
+                        const secondBatKey = (common.firstBat === 1) ? 'team2' : 'team1';
+                        const firstBatName = (common.firstBat === 1) ? t1Name : t2Name;
+                        const secondBatName = (common.firstBat === 1) ? t2Name : t1Name;
+
+                        return (
+                            <div className="cx-innings-tabs">
+                                <button
+                                    className={`cx-innings-tab-btn ${tabBattingTeamKey === firstBatKey ? 'active' : ''}`}
+                                    onClick={() => setActiveInningsTab(firstBatKey)}
+                                >
+                                    {firstBatName} Innings (1st Bat) {currentBattingTeamKey === firstBatKey ? '• LIVE' : ''}
+                                </button>
+                                <button
+                                    className={`cx-innings-tab-btn ${tabBattingTeamKey === secondBatKey ? 'active' : ''}`}
+                                    onClick={() => setActiveInningsTab(secondBatKey)}
+                                >
+                                    {secondBatName} Innings (2nd Bat) {currentBattingTeamKey === secondBatKey ? '• LIVE' : ''}
+                                </button>
+                            </div>
+                        );
+                    })()}
 
                     <div className="sc-scorecard-two-col">
                         {/* Left Sub-Column: Batting Scorecard */}
                         <div className="cx-glass-panel sc-scorecard-panel">
                             <div className="cx-panel-header-with-icon">
-                                <h3>{battingTeamName} Batting Scorecard</h3>
+                                <h3>{tabBattingTeamName} Batting Scorecard</h3>
                             </div>
 
-                            <h4 className="cx-table-subtitle">Playing XI</h4>
+                            <div className="cx-table-subtitle-row">
+                                <h4 className="cx-table-subtitle">Playing XI</h4>
+                                <button
+                                    type="button"
+                                    className="sc-squad-inline-btn"
+                                    onClick={() => {
+                                        setSquadManagerTeamKey(tabBattingTeamKey);
+                                        setShowSquadManagerModal(true);
+                                    }}
+                                    title="Change Playing XI & Reserve players"
+                                >
+                                    <MdGroups /> Edit XI / Reserves
+                                </button>
+                            </div>
                             <table className="cx-scorecard-table">
                                 <thead>
                                     <tr>
@@ -2569,10 +4297,10 @@ const ScoringConsole = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {playingXI.length > 0 ? (
-                                        playingXI.map(p => {
-                                            const isStriker = battingTeamData.ballFaceBatsman && battingTeamData.ballFaceBatsman.id === p.id;
-                                            const isNonStriker = battingTeamData.otherSideBatsman && battingTeamData.otherSideBatsman.id === p.id;
+                                    {tabPlayingXI.length > 0 ? (
+                                        tabPlayingXI.map(p => {
+                                            const isStriker = tabBattingTeamData.ballFaceBatsman && tabBattingTeamData.ballFaceBatsman.id === p.id;
+                                            const isNonStriker = tabBattingTeamData.otherSideBatsman && tabBattingTeamData.otherSideBatsman.id === p.id;
                                             const isCurrentlyBatting = isStriker || isNonStriker;
                                             const isOut = !!(p.dismissal && p.dismissal.trim() !== '' && !isCurrentlyBatting);
                                             return (
@@ -2583,7 +4311,11 @@ const ScoringConsole = () => {
                                                             <span className={`cx-scorecard-player-hand ${p.hand === 'Left Hand' ? 'lhb' : 'rhb'}`}>
                                                                 {p.hand === 'Left Hand' ? 'LHB' : 'RHB'}
                                                             </span>
-                                                            {isStriker && <span className="cx-striker-symbol" title="On Strike">🏏</span>}
+                                                            {isStriker && (
+                                                                <span className="cx-striker-symbol" title="On Strike">
+                                                                    <MdSportsCricket />
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="cx-dismissal-text">
                                                             {p.dismissal || (isCurrentlyBatting ? 'Not out' : (p.runs || p.balls ? 'Not out' : 'Yet to bat'))}
@@ -2610,12 +4342,36 @@ const ScoringConsole = () => {
                                 </tbody>
                             </table>
 
+                            {/* Batting Team Extras & Total Summary */}
+                            {(() => {
+                                const extrasInfo = parseExtrasBreakdown(tabBattingTeamData.extraTypes, tabBattingTeamData.totalExtraAmount);
+                                return (
+                                    <div className="cx-extras-summary-bar">
+                                        <div className="cx-extras-item">
+                                            <span className="cx-es-label">Extras:</span>
+                                            <strong className="cx-es-val">{extrasInfo.total}</strong>
+                                            <span className="cx-es-breakdown">({extrasInfo.breakdownText})</span>
+                                            {extrasInfo.pen > 0 && (
+                                                <span className="cx-es-penalty-chip">
+                                                    ⚡ +{extrasInfo.pen} Penalty
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="cx-extras-item total">
+                                            <span className="cx-es-label">Total:</span>
+                                            <strong className="cx-es-val total">{tabBattingTeamData.totalRuns || 0}/{tabBattingTeamData.totalWickets || 0}</strong>
+                                            <span className="cx-es-overs">({tabBattingTeamData.overs || 0} Ov)</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Reserve Players List */}
-                            {reserves.length > 0 && (
+                            {tabReserves.length > 0 && (
                                 <div className="cx-reserves-section-inline">
                                     <h4 className="cx-table-subtitle">Reserve Players</h4>
                                     <div className="cx-reserves-list-names">
-                                        {reserves.map((p, idx) => (
+                                        {tabReserves.map((p, idx) => (
                                             <span key={p.id} className="cx-reserve-tag">
                                                 {p.name}{idx < reserves.length - 1 ? ',' : ''}
                                             </span>
@@ -2628,7 +4384,7 @@ const ScoringConsole = () => {
                         {/* Right Sub-Column: Bowling Scorecard & Match Details */}
                         <div className="cx-glass-panel sc-scorecard-panel">
                             <div className="cx-panel-header-with-icon">
-                                <h3>{bowlingTeamName} Bowling Overview</h3>
+                                <h3>{tabBowlingTeamName} Bowling Overview</h3>
                             </div>
 
                             <table className="cx-scorecard-table">
@@ -2642,12 +4398,16 @@ const ScoringConsole = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {bowlersList.length > 0 ? (
-                                        bowlersList.map(b => (
+                                    {tabBowlersList.length > 0 ? (
+                                        tabBowlersList.map(b => (
                                             <tr key={b.id} className={matchData[currentBowlingTeamKey]?.bowler?.id === b.id ? 'cx-row-active-bowling' : ''}>
                                                 <td className="cx-player-name-cell">
                                                     <strong>{b.name}</strong>
-                                                    {matchData[currentBowlingTeamKey]?.bowler?.id === b.id && <span className="active-bowler-dot" title="Active Bowler">🔴</span>}
+                                                    {matchData[currentBowlingTeamKey]?.bowler?.id === b.id && (
+                                                        <span className="active-bowler-dot" title="Active Bowler">
+                                                            <span className="bowler-pulse-dot" />
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="text-center">{b.overs || '0.0'}</td>
                                                 <td className="text-center">{b.runs || 0}</td>
@@ -2686,8 +4446,9 @@ const ScoringConsole = () => {
                                     {cp && cp.batsman1 ? (
                                         <div className="cx-partnership-stats-box">
                                             <div className="cx-psb-total">
-                                                <span className="cx-psb-total-runs">{(battingTeamData.totalRuns || 0) - (cp.startScore || 0)} runs</span>
-                                                <span className="cx-psb-total-balls">({(battingTeamData.totalBalls || 0) - (cp.startBalls || 0)} balls)</span>
+                                                <span className="cx-psb-total-runs">{Math.max(0, (battingTeamData.totalRuns || 0) - (cp.startScore || 0))} runs</span>
+                                                <span className="cx-psb-total-balls">({Math.max(0, (battingTeamData.totalBalls || 0) - (cp.startBalls || 0))} balls)</span>
+                                                <span className="cx-psb-rr">CRR: {Math.max(0, (battingTeamData.totalBalls || 0) - (cp.startBalls || 0)) > 0 ? (((Math.max(0, (battingTeamData.totalRuns || 0) - (cp.startScore || 0))) / Math.max(1, (battingTeamData.totalBalls || 0) - (cp.startBalls || 0))) * 6).toFixed(2) : '0.00'}</span>
                                             </div>
                                             <div className="cx-psb-batters">
                                                 <div className="cx-psb-batter">
@@ -2700,9 +4461,35 @@ const ScoringConsole = () => {
                                                     <span className="cx-psb-run">{cp.batsman2Runs || 0} R ({cp.batsman2Balls || 0} B)</span>
                                                 </div>
                                             </div>
+                                            {Math.max(0, ((battingTeamData.totalRuns || 0) - (cp.startScore || 0)) - ((cp.batsman1Runs || 0) + (cp.batsman2Runs || 0))) > 0 && (
+                                                <div className="cx-psb-extras">
+                                                    +{Math.max(0, ((battingTeamData.totalRuns || 0) - (cp.startScore || 0)) - ((cp.batsman1Runs || 0) + (cp.batsman2Runs || 0)))} extras during stand
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="cx-no-partnership">No active partnership.</div>
+                                    )}
+
+                                    {/* Innings Partnerships Breakdown */}
+                                    {battingTeamData.partnerships && Object.keys(battingTeamData.partnerships).length > 0 && (
+                                        <div className="cx-phb-container">
+                                            <div className="cx-phb-header">
+                                                <span>Innings Partnerships Breakdown</span>
+                                            </div>
+                                            <div className="cx-phb-list">
+                                                {Object.values(battingTeamData.partnerships).filter(Boolean).map((p, pIdx) => (
+                                                    <div key={p.id || pIdx} className={`cx-phb-item ${p?.isUnbroken ? 'unbroken' : ''}`}>
+                                                        <span className="cx-phb-wkt">{p.wicketLabel || `${p.wicketNumber || pIdx + 1} Wkt`}</span>
+                                                        <span className="cx-phb-runs"><strong>{p.runs}</strong> runs ({p.balls}b)</span>
+                                                        <span className="cx-phb-batters">
+                                                            {p.batsman1?.name?.split(' ')[0]}: {p.batsman1Runs || 0} • {p.batsman2?.name?.split(' ')[0]}: {p.batsman2Runs || 0}
+                                                        </span>
+                                                        {p.endScore && <span className="cx-phb-end-score">[{p.endScore}]</span>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
 
@@ -2748,12 +4535,69 @@ const ScoringConsole = () => {
                                 <MdTimeline className="comm-icon" />
                                 <h3>Live Commentary</h3>
                             </div>
-                            <span className="comm-counter">{commentaryList.length} deliveries</span>
+                            <div className="cx-comm-header-actions">
+                                <div className="cx-comm-over-filter-bar">
+                                    <button
+                                        type="button"
+                                        className={`cx-comm-over-pill ${(!adminCommOverFilter || adminCommOverFilter === 'all') ? 'active' : ''}`}
+                                        onClick={() => setAdminCommOverFilter('all')}
+                                    >
+                                        All Overs
+                                    </button>
+
+                                    <div className="cx-comm-custom-over-box">
+                                        <span className="cx-comm-custom-label">Custom Over:</span>
+                                        <div className="cx-comm-custom-input-wrap">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="50"
+                                                placeholder="Over #"
+                                                className="cx-comm-custom-over-input"
+                                                value={adminCommOverFilter === 'all' ? '' : adminCommOverFilter}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.trim();
+                                                    setAdminCommOverFilter(val === '' ? 'all' : val);
+                                                }}
+                                            />
+                                            {adminCommOverFilter && adminCommOverFilter !== 'all' && (
+                                                <button
+                                                    type="button"
+                                                    className="cx-comm-clear-btn"
+                                                    onClick={() => setAdminCommOverFilter('all')}
+                                                    title="Clear filter (Show All Overs)"
+                                                >
+                                                    <MdClose />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {availableCommOvers.length > 0 && (
+                                        <div className="cx-comm-over-pills">
+                                            {availableCommOvers.map((ov) => (
+                                                <button
+                                                    key={ov}
+                                                    type="button"
+                                                    className={`cx-comm-over-pill ${adminCommOverFilter === String(ov) ? 'active' : ''}`}
+                                                    onClick={() => setAdminCommOverFilter(String(ov))}
+                                                >
+                                                    Over {ov}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <span className="comm-counter">
+                                    {filteredCommentaryList.length} deliveries
+                                    {adminCommOverFilter && adminCommOverFilter !== 'all' ? ` (Over ${adminCommOverFilter})` : ''}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="cx-commentary-list-wrapper sc-full-comm-list">
-                            {commentaryList.length > 0 ? (
-                                commentaryList.map((comm) => (
+                            {filteredCommentaryList.length > 0 ? (
+                                filteredCommentaryList.map((comm) => (
                                     <div key={comm.id || comm.timestamp} className={`cx-comm-row ${comm.isWicket ? 'cx-comm-wicket' : ''} ${comm.runs >= 4 ? 'cx-comm-boundary' : ''}`}>
                                         <div className="cx-comm-over-badge">
                                             {comm.over}
@@ -2761,9 +4605,14 @@ const ScoringConsole = () => {
                                         <div className="cx-comm-text-side">
                                             <div className="cx-comm-indicators">
                                                 {comm.isWicket && <span className="cx-badge-wicket">WICKET</span>}
-                                                {comm.runs === 4 && <span className="cx-badge-four">FOUR (4)</span>}
-                                                {comm.runs === 6 && <span className="cx-badge-six">SIX (6)</span>}
-                                                {comm.isExtra && <span className="cx-badge-extra">EXTRA</span>}
+                                                {(comm.extraType === 'Penalty' || (comm.text && comm.text.toLowerCase().includes('penalty'))) && (
+                                                    <span className="cx-badge-penalty">PENALTY (+{comm.runs})</span>
+                                                )}
+                                                {comm.runs === 4 && !comm.isExtra && <span className="cx-badge-four">FOUR (4)</span>}
+                                                {comm.runs === 6 && !comm.isExtra && <span className="cx-badge-six">SIX (6)</span>}
+                                                {comm.isExtra && comm.extraType !== 'Penalty' && !comm.text?.toLowerCase().includes('penalty') && (
+                                                    <span className="cx-badge-extra">{comm.extraType ? comm.extraType.toUpperCase() : 'EXTRA'}</span>
+                                                )}
                                                 {comm.wagonZone && <span className="cx-badge-zone">{comm.wagonZone}</span>}
                                             </div>
                                             <p className="cx-comm-desc">{comm.text || comm.commentary}</p>
@@ -2771,7 +4620,11 @@ const ScoringConsole = () => {
                                     </div>
                                 ))
                             ) : (
-                                <div className="cx-no-commentary">Deliveries scored above will appear here in real-time.</div>
+                                <div className="cx-no-commentary">
+                                    {adminCommOverFilter !== 'all'
+                                        ? `No deliveries recorded in Over ${adminCommOverFilter}.`
+                                        : 'Deliveries scored above will appear here in real-time.'}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -2834,10 +4687,12 @@ const ScoringConsole = () => {
                             <div className="sc-modal-card sc-wagon-wheeler-card" onClick={(e) => e.stopPropagation()}>
                                 <div className="sc-ww-card-header">
                                     <div>
-                                        <div className="sc-ww-badge">🎯 SHOT PLACEMENT WHEELER</div>
+                                        <div className="sc-ww-badge">
+                                            <MdTrackChanges className="sc-ww-icon" /> SHOT PLACEMENT WHEELER
+                                        </div>
                                         <h3>Select Batted Area</h3>
                                         <p className="sc-modal-sub">
-                                            {striker.name} ({striker.hand || 'Right Hand'} Batsman) • <strong>{pendingBallEvent.runs} Run(s)</strong>
+                                            {striker.name} ({striker.hand || 'Right Hand'} Batsman) • <strong>{pendingBallEvent.extraType === 'No Ball' ? `+${pendingBallEvent.extraRuns} Bat Run(s) off No Ball` : `${pendingBallEvent.runs} Run(s)`}</strong>
                                         </p>
                                     </div>
                                     <button className="cx-btn-close-ww" onClick={() => setShowWagonPlacementModal(false)} title="Close">
@@ -2848,14 +4703,14 @@ const ScoringConsole = () => {
                                 <div className="sc-wheeler-visual-container">
                                     <svg viewBox="0 0 300 300" className="sc-wheeler-svg">
                                         {/* Outer boundary circle */}
-                                        <circle cx="150" cy="150" r="140" fill="#07111e" stroke="rgba(0, 240, 255, 0.4)" strokeWidth="2" strokeDasharray="5 5" />
+                                        <circle cx="150" cy="150" r="146" fill="#07111e" stroke="rgba(0, 240, 255, 0.4)" strokeWidth="2" strokeDasharray="5 5" />
                                         {/* 30-yard circle */}
-                                        <circle cx="150" cy="150" r="75" fill="none" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="1.5" strokeDasharray="3 3" />
+                                        <circle cx="150" cy="150" r="78" fill="none" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="1.5" strokeDasharray="3 3" />
 
                                         {/* 8 Clickable Wheeler Sectors */}
                                         {activeSectors.map((s) => {
-                                            const pathData = describeArc(150, 150, 134, s.startAngle, s.endAngle);
-                                            const textCoords = getLabelCoords(150, 150, 134, s.startAngle, s.endAngle);
+                                            const pathData = describeArc(150, 150, 142, s.startAngle, s.endAngle);
+                                            const textCoords = getLabelCoords(150, 150, 142, s.startAngle, s.endAngle);
                                             return (
                                                 <g
                                                     key={s.key}
@@ -2880,7 +4735,7 @@ const ScoringConsole = () => {
                                         })}
 
                                         {/* Central Pitch */}
-                                        <rect x="144" y="118" width="12" height="64" fill="#f59e0b" opacity="0.85" rx="3" />
+                                        <rect x="143" y="114" width="14" height="72" fill="#f59e0b" opacity="0.85" rx="3" />
                                         {/* Batsman Marker */}
                                         <circle cx="150" cy="150" r="4" fill="#00f0ff" />
                                     </svg>
@@ -2926,15 +4781,15 @@ const ScoringConsole = () => {
                                 </select>
                             </div>
 
-                            {dismissalType === 'Caught' && (
+                            {(dismissalType === 'Caught' || dismissalType === 'Run Out' || dismissalType === 'Stumped') && (
                                 <div className="sc-form-group">
-                                    <label>Fielder</label>
+                                    <label>Fielder ({bowlingTeamName} - Fielding Side)</label>
                                     <select
                                         value={dismissalFielder}
                                         onChange={(e) => setDismissalFielder(e.target.value)}
                                         className="sc-modal-select"
                                     >
-                                        <option value="">Select Fielder...</option>
+                                        <option value="">Select Fielder ({bowlingTeamName})...</option>
                                         {bowlingPlayersList.map(p => (
                                             <option key={p.id} value={p.name}>{p.name}</option>
                                         ))}
@@ -2971,32 +4826,124 @@ const ScoringConsole = () => {
                 {showExtrasModal && (
                     <div className="sc-modal-overlay" onClick={() => setShowExtrasModal(false)}>
                         <div className="sc-modal-card" onClick={(e) => e.stopPropagation()}>
-                            <h3>Record Extra Delivery</h3>
+                            <div className="sc-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <h3 style={{ margin: 0, color: '#f8fafc' }}>
+                                    ⚡ {extraType === 'Penalty' ? 'Custom Penalty Marks' : `Record Extra Delivery (${extraType.toUpperCase()})`}
+                                </h3>
+                                <button className="sc-btn-close-modal" onClick={() => setShowExtrasModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.4rem' }}>
+                                    <MdClose />
+                                </button>
+                            </div>
 
                             <div className="sc-form-group">
                                 <label>Extra Type</label>
                                 <select
                                     value={extraType}
-                                    onChange={(e) => setExtraType(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setExtraType(val);
+                                        if (val === 'Penalty') setExtraRuns(5);
+                                        else if (val === 'Bye' || val === 'Leg Bye') setExtraRuns(1);
+                                        else setExtraRuns(0);
+                                    }}
                                     className="sc-modal-select"
                                 >
-                                    <option value="Wide">Wide</option>
-                                    <option value="No Ball">No Ball</option>
+                                    <option value="Wide">Wide (WD)</option>
+                                    <option value="No Ball">No Ball (NB)</option>
                                     <option value="Bye">Bye</option>
                                     <option value="Leg Bye">Leg Bye</option>
+                                    <option value="Penalty">Penalty Marks (PEN)</option>
                                 </select>
                             </div>
 
+                            {extraType === 'No Ball' && (
+                                <div className="sc-form-group">
+                                    <label>Extra Runs Credited To (Beyond +1 Penalty)</label>
+                                    <div className="sc-icb-source-tabs">
+                                        <button
+                                            type="button"
+                                            className={`sc-icb-source-btn ${noBallRunsSource === 'bat' ? 'active' : ''}`}
+                                            onClick={() => setNoBallRunsSource('bat')}
+                                        >
+                                            🏏 Runs off Bat (Striker)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`sc-icb-source-btn ${noBallRunsSource === 'bye' ? 'active' : ''}`}
+                                            onClick={() => setNoBallRunsSource('bye')}
+                                        >
+                                            🏃 Byes off NB (Extras)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`sc-icb-source-btn ${noBallRunsSource === 'legBye' ? 'active' : ''}`}
+                                            onClick={() => setNoBallRunsSource('legBye')}
+                                        >
+                                            🦵 Leg Byes off NB (Extras)
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="sc-form-group">
-                                <label>Total Extra Runs</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="7"
-                                    value={extraRuns}
-                                    onChange={(e) => setExtraRuns(Number(e.target.value))}
-                                    className="sc-modal-input"
-                                />
+                                <label>
+                                    {extraType === 'Penalty'
+                                        ? 'Penalty Marks / Runs'
+                                        : (extraType === 'Bye' || extraType === 'Leg Bye'
+                                            ? 'Extra Runs (Mandatory penalty: None)'
+                                            : 'Extra Runs (beyond +1 mandatory penalty)')}
+                                </label>
+                                {extraType === 'Penalty' ? (
+                                    <div className="sc-penalty-input-group">
+                                        <div className="sc-penalty-presets">
+                                            {[1, 2, 3, 4, 5, 6, 7, 10].map((r) => (
+                                                <button
+                                                    key={r}
+                                                    type="button"
+                                                    className={`sc-icb-run-btn ${extraRuns === r ? 'active' : ''}`}
+                                                    onClick={() => setExtraRuns(r)}
+                                                >
+                                                    +{r}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="sc-custom-penalty-row">
+                                            <span className="sc-custom-label">Custom Score:</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="50"
+                                                value={extraRuns}
+                                                onChange={(e) => setExtraRuns(Math.max(1, parseInt(e.target.value, 10) || 0))}
+                                                className="sc-custom-penalty-input"
+                                                placeholder="Enter marks"
+                                            />
+                                            <span className="sc-penalty-unit-tag">Runs</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="sc-icb-runs-grid" style={{ marginTop: '6px', marginBottom: '8px' }}>
+                                        {(extraType === 'Bye' || extraType === 'Leg Bye' ? [1, 2, 3, 4, 6] : [0, 1, 2, 3, 4, 6]).map((r) => (
+                                            <button
+                                                key={r}
+                                                type="button"
+                                                className={`sc-icb-run-btn ${extraRuns === r ? 'active' : ''}`}
+                                                onClick={() => setExtraRuns(r)}
+                                            >
+                                                +{r}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="sc-icb-rule-hint" style={{ marginBottom: '16px' }}>
+                                {extraType === 'Wide' && `⚡ Mandatory: +1 run penalty to Wides. Extra runs beyond penalty: +${extraRuns} (Total: ${1 + extraRuns} runs to Extras → Wides) • Bowler charged: ${1 + extraRuns} • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                {extraType === 'No Ball' && noBallRunsSource === 'bat' && `⚡ Mandatory: +1 run penalty to Extras → No Ball. +${extraRuns} run(s) off bat credited to Striker (${striker.name || 'Striker'}) • Bowler charged: ${1 + extraRuns} • Free Hit faced by: ${extraRuns % 2 !== 0 ? 'Non-Striker (Rotated)' : 'Striker (Remains)'}`}
+                                {extraType === 'No Ball' && noBallRunsSource === 'bye' && `⚡ Mandatory: +1 run penalty to Extras → No Ball. +${extraRuns} bye(s) off NB credited to Extras → Byes • Bowler charged: 1 run penalty only • Striker: 0 runs, 1 ball • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                {extraType === 'No Ball' && noBallRunsSource === 'legBye' && `⚡ Mandatory: +1 run penalty to Extras → No Ball. +${extraRuns} leg bye(s) off NB credited to Extras → Leg Byes • Bowler charged: 1 run penalty only • Striker: 0 runs, 1 ball • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                {(extraType === 'Bye' || extraType === 'Leg Bye') && `⚡ Mandatory penalty: None. +${extraRuns} ${extraType}(s) credited to Extras → ${extraType}s • Bowler NOT charged (0 runs) • Striker: 0 runs, 1 ball faced • Strike: ${extraRuns % 2 !== 0 ? 'Rotates (Swaps)' : 'Remains with Striker'}`}
+                                {extraType === 'Penalty' && `⚡ +${extraRuns || 5} Penalty marks awarded directly to ${currentBattingTeamKey === 'team1' ? (team1.name || 'Batting Team') : (team2.name || 'Batting Team')} extras. Bowler not charged; strike unchanged.`}
                             </div>
 
                             <div className="sc-modal-actions">
@@ -3007,15 +4954,131 @@ const ScoringConsole = () => {
                                     className="cx-btn-confirm primary"
                                     onClick={() => {
                                         setShowExtrasModal(false);
-                                        executeBallDelivery({
-                                            runs: 0,
-                                            isExtra: true,
-                                            extraType,
-                                            extraRuns
-                                        });
+                                        const isNbWithBatRuns = extraType === 'No Ball' && noBallRunsSource === 'bat' && Number(extraRuns) > 0;
+                                        if (isNbWithBatRuns) {
+                                            setPendingBallEvent({
+                                                runs: 0,
+                                                isExtra: true,
+                                                extraType: 'No Ball',
+                                                extraRuns: Number(extraRuns),
+                                                noBallRunsSource: 'bat'
+                                            });
+                                            setShowWagonPlacementModal(true);
+                                        } else {
+                                            executeBallDelivery({
+                                                runs: 0,
+                                                isExtra: true,
+                                                extraType,
+                                                extraRuns: extraType === 'Penalty' ? (extraRuns || 5) : Number(extraRuns),
+                                                noBallRunsSource: extraType === 'No Ball' ? noBallRunsSource : undefined
+                                            });
+                                        }
                                     }}
                                 >
-                                    Confirm Extra
+                                    {extraType === 'Penalty'
+                                        ? `Confirm Penalty (+${extraRuns || 5} Runs)`
+                                        : (extraType === 'No Ball' && noBallRunsSource === 'bat' && Number(extraRuns) > 0
+                                            ? 'Pick Batted Area & Confirm'
+                                            : 'Confirm Extra')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* SWITCH INNINGS MODAL (MANDATORY - CANNOT BE CLOSED UNTIL SET) */}
+                {showSwitchInningsModal && (
+                    <div className="sc-modal-overlay mandatory-modal">
+                        <div className="sc-modal-card sc-switch-innings-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="sc-nb-header" style={{ marginBottom: '16px' }}>
+                                <div className="sc-nb-title-group">
+                                    <span className="sc-nb-badge" style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', color: '#fff' }}>
+                                        INNINGS BREAK • 2ND INNINGS SETUP
+                                    </span>
+                                    <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa' }}>
+                                        <MdSwapHoriz style={{ fontSize: '1.6rem' }} /> Start 2nd Innings: Select Opening Players
+                                    </h3>
+                                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.86rem' }}>
+                                        1st innings for <strong>{firstBatTeamNameForSwitch}</strong> concluded. Please select the opening striker &amp; non-striker for <strong>{secondBatTeamNameForSwitch}</strong> and the opening bowler for <strong>{firstBatTeamNameForSwitch}</strong> to begin the chase.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="sc-form-group" style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#e2e8f0', marginBottom: '6px', fontSize: '0.88rem' }}>
+                                    <MdSportsCricket style={{ color: '#00f0ff' }} /> Striker (Facing 1st Ball - {secondBatTeamNameForSwitch}) *
+                                </label>
+                                <select
+                                    className="sc-modal-select"
+                                    value={secondInningsStrikerId}
+                                    onChange={(e) => setSecondInningsStrikerId(e.target.value)}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px' }}
+                                >
+                                    <option value="" disabled>-- Select Striker --</option>
+                                    {secondBatOpeningSquad.map((p) => (
+                                        <option key={p.id} value={p.id} disabled={String(p.id) === String(secondInningsNonStrikerId)}>
+                                            {p.name} {p.role ? `(${p.role})` : ''} {String(p.id) === String(secondInningsNonStrikerId) ? '— [Selected as Non-Striker]' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="sc-form-group" style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#e2e8f0', marginBottom: '6px', fontSize: '0.88rem' }}>
+                                    <MdSportsCricket style={{ color: '#38bdf8' }} /> Non-Striker (Runner's End - {secondBatTeamNameForSwitch}) *
+                                </label>
+                                <select
+                                    className="sc-modal-select"
+                                    value={secondInningsNonStrikerId}
+                                    onChange={(e) => setSecondInningsNonStrikerId(e.target.value)}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px' }}
+                                >
+                                    <option value="" disabled>-- Select Non-Striker --</option>
+                                    {secondBatOpeningSquad.map((p) => (
+                                        <option key={p.id} value={p.id} disabled={String(p.id) === String(secondInningsStrikerId)}>
+                                            {p.name} {p.role ? `(${p.role})` : ''} {String(p.id) === String(secondInningsStrikerId) ? '— [Selected as Striker]' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="sc-form-group" style={{ marginBottom: '18px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#e2e8f0', marginBottom: '6px', fontSize: '0.88rem' }}>
+                                    <MdSportsBaseball style={{ color: '#f59e0b' }} /> Opening Bowler (1st Over - {firstBatTeamNameForSwitch}) *
+                                </label>
+                                <select
+                                    className="sc-modal-select"
+                                    value={secondInningsBowlerId}
+                                    onChange={(e) => setSecondInningsBowlerId(e.target.value)}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px' }}
+                                >
+                                    <option value="" disabled>-- Select Opening Bowler --</option>
+                                    {firstBatOpeningSquad.map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.name} {p.role ? `(${p.role})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {String(secondInningsStrikerId) === String(secondInningsNonStrikerId) && secondInningsStrikerId && (
+                                <div style={{ color: '#ef4444', fontSize: '0.82rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <MdWarning /> Striker and Non-Striker cannot be the same player.
+                                </div>
+                            )}
+
+                            <div className="sc-modal-actions" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    className="cx-btn-confirm primary"
+                                    disabled={!secondInningsStrikerId || !secondInningsNonStrikerId || !secondInningsBowlerId || String(secondInningsStrikerId) === String(secondInningsNonStrikerId)}
+                                    onClick={handleSwitchInnings}
+                                    style={{ width: '100%', padding: '12px', fontSize: '0.95rem', fontWeight: 700 }}
+                                >
+                                    {!secondInningsStrikerId || !secondInningsNonStrikerId || !secondInningsBowlerId
+                                        ? 'Select Striker, Non-Striker & Bowler to Begin'
+                                        : String(secondInningsStrikerId) === String(secondInningsNonStrikerId)
+                                            ? 'Select Different Batters'
+                                            : 'Confirm Players & Start 2nd Innings'}
                                 </button>
                             </div>
                         </div>
@@ -3087,6 +5150,226 @@ const ScoringConsole = () => {
                     </div>
                 )}
 
+                {/* COMPULSORY NEXT BATSMAN SELECTION MODAL (WICKET FALLEN - CANNOT BE CLOSED UNTIL SET) */}
+                {showNextBatterModal && nextBatterModalData && (
+                    <div className="sc-modal-overlay mandatory-modal">
+                        <div className="sc-modal-card sc-next-batter-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="sc-nb-header sc-next-batter-header">
+                                <div className="sc-nb-title-group">
+                                    <span className="sc-nb-badge sc-nb-wkt-badge">
+                                        WICKET #{nextBatterModalData.wicketNumber} FALLEN
+                                    </span>
+                                    <h3>
+                                        <MdSportsCricket className="sc-nb-swap-icon" /> Select Next Batsman
+                                    </h3>
+                                    <p>
+                                        <strong>{nextBatterModalData.outBatter?.name}</strong> is out ({nextBatterModalData.outBatter?.dismissal || 'Wicket'}). Select the incoming batsman to take the crease.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="sc-nb-body">
+                                <div className="sc-nb-field">
+                                    <label>
+                                        Available Batsmen from {matchData[nextBatterModalData.battingTeamKey]?.name || 'Batting Team'} (Playing XI)
+                                    </label>
+                                    <div className="sc-nb-batters-grid">
+                                        {(() => {
+                                            const bTeamData = matchData[nextBatterModalData.battingTeamKey] || {};
+                                            const eligibleBatters = playingXI.filter(p => {
+                                                if (!p) return false;
+                                                const pStats = bTeamData.players?.[p.id] || p;
+                                                const pIdStr = p.id != null ? String(p.id) : null;
+                                                const pNameClean = (p.name || '').trim().toLowerCase();
+                                                const isOut = Boolean(
+                                                    p.dismissal ||
+                                                    p.status === 'out' ||
+                                                    pStats?.dismissal ||
+                                                    pStats?.status === 'out' ||
+                                                    (nextBatterModalData.outBatter?.id != null && pIdStr === String(nextBatterModalData.outBatter.id)) ||
+                                                    Object.values(bTeamData.fallOfWickets || {}).some(f => {
+                                                        if (!f) return false;
+                                                        const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                                                        const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                                                        return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
+                                                    })
+                                                );
+                                                const isCurrentCrease = (nextBatterModalData.remainingBatter?.id != null && pIdStr === String(nextBatterModalData.remainingBatter.id)) ||
+                                                    (striker?.id != null && pIdStr === String(striker.id) && pIdStr !== String(nextBatterModalData.outBatter?.id)) ||
+                                                    (nonStriker?.id != null && pIdStr === String(nonStriker.id) && pIdStr !== String(nextBatterModalData.outBatter?.id));
+                                                return !isOut && !isCurrentCrease;
+                                            });
+
+                                            if (eligibleBatters.length === 0) {
+                                                return (
+                                                    <div style={{ padding: '20px', textAlign: 'center', color: '#f87171', gridColumn: '1 / -1', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px' }}>
+                                                        ⚠️ No eligible incoming batsmen remaining. All remaining players are already out or at the crease.
+                                                    </div>
+                                                );
+                                            }
+
+                                            return eligibleBatters.map(p => {
+                                                const isSelected = String(p.id) === String(selectedNextBatterId);
+                                                const pStats = bTeamData.players?.[p.id] || p;
+                                                const role = p.role || p.playerRole || 'Batsman';
+                                                const batStyle = p.battingStyle || p.batStyle || p.hand || '';
+
+                                                return (
+                                                    <button
+                                                        key={p.id}
+                                                        type="button"
+                                                        className={`sc-nb-batter-card ${isSelected ? 'active' : ''}`}
+                                                        onClick={() => setSelectedNextBatterId(p.id)}
+                                                    >
+                                                        <div className="sc-nb-bname">
+                                                            <strong>{p.name}</strong>
+                                                            {batStyle && <span className="sc-nb-style-tag">{batStyle}</span>}
+                                                        </div>
+                                                        <div className="sc-nb-bstats">
+                                                            <span>{role}</span>
+                                                            {pStats.runs !== undefined && (
+                                                                <span> • {pStats.runs}r ({pStats.balls || 0}b)</span>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+
+                                    {/* Crease Strike Assignment Selector */}
+                                    <div className="sc-nb-strike-role-selection">
+                                        <span className="sc-nb-role-label">INCOMING BATSMAN CREASE ROLE:</span>
+                                        <div className="sc-nb-role-btn-group">
+                                            <button
+                                                type="button"
+                                                className={`sc-nb-role-btn ${nextBatterStrikeRole === 'striker' ? 'active striker-role' : ''}`}
+                                                onClick={() => setNextBatterStrikeRole('striker')}
+                                            >
+                                                🏏 On Strike (Faces Next Ball)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`sc-nb-role-btn ${nextBatterStrikeRole === 'nonStriker' ? 'active nonstriker-role' : ''}`}
+                                                onClick={() => setNextBatterStrikeRole('nonStriker')}
+                                            >
+                                                🏃 Non-Striker (Other End)
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="sc-nb-footer">
+                                    <button
+                                        type="button"
+                                        disabled={!selectedNextBatterId}
+                                        className="sc-nb-confirm-btn sc-nb-batter-confirm-btn"
+                                        onClick={async () => {
+                                            if (!selectedNextBatterId) return;
+                                            const newBatterObj = playingXI.find(p => String(p.id) === String(selectedNextBatterId)) || { id: selectedNextBatterId, name: 'Incoming Batsman' };
+                                            const bTeamKey = nextBatterModalData.battingTeamKey;
+                                            const incomingBatterId = selectedNextBatterId;
+                                            const remainingBatterId = nextBatterModalData.remainingBatter?.id || (nextBatterModalData.isOutStriker ? nonStriker.id : striker.id);
+
+                                            let finalStrikerId, finalNonStrikerId;
+                                            if (nextBatterStrikeRole === 'striker') {
+                                                finalStrikerId = incomingBatterId;
+                                                finalNonStrikerId = remainingBatterId;
+                                            } else {
+                                                finalStrikerId = remainingBatterId;
+                                                finalNonStrikerId = incomingBatterId;
+                                            }
+
+                                            const updated = JSON.parse(JSON.stringify(matchData));
+                                            const bTeam = updated[bTeamKey];
+
+                                            if (bTeam) {
+                                                bTeam.players = bTeam.players || {};
+                                                if (!bTeam.players[incomingBatterId]) {
+                                                    bTeam.players[incomingBatterId] = {
+                                                        ...newBatterObj,
+                                                        runs: 0,
+                                                        balls: 0,
+                                                        fours: 0,
+                                                        sixes: 0,
+                                                        strikeRate: '0.00',
+                                                        dismissal: ''
+                                                    };
+                                                }
+                                                bTeam.players[incomingBatterId].status = 'batting';
+
+                                                if (bTeam.players[remainingBatterId]) {
+                                                    bTeam.players[remainingBatterId].status = 'batting';
+                                                }
+                                                if (nextBatterModalData.outBatter?.id && bTeam.players[nextBatterModalData.outBatter.id]) {
+                                                    bTeam.players[nextBatterModalData.outBatter.id].status = 'out';
+                                                }
+
+                                                setStrikerId(finalStrikerId);
+                                                setNonStrikerId(finalNonStrikerId);
+
+                                                bTeam.ballFaceBatsman = bTeam.players[finalStrikerId] || playingXI.find(p => String(p.id) === String(finalStrikerId)) || { id: finalStrikerId, name: 'Striker' };
+                                                bTeam.otherSideBatsman = bTeam.players[finalNonStrikerId] || playingXI.find(p => String(p.id) === String(finalNonStrikerId)) || { id: finalNonStrikerId, name: 'Non-Striker' };
+
+                                                bTeam.currentPartnership = {
+                                                    batsman1: bTeam.ballFaceBatsman,
+                                                    batsman2: bTeam.otherSideBatsman,
+                                                    batsman1Runs: 0,
+                                                    batsman1Balls: 0,
+                                                    batsman2Runs: 0,
+                                                    batsman2Balls: 0,
+                                                    startScore: bTeam.totalRuns || 0,
+                                                    startBalls: bTeam.totalBalls || 0
+                                                };
+                                            }
+
+                                            setMatchData(updated);
+                                            await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
+
+                                            // Sync LiveData
+                                            await updateLiveData({
+                                                isLive: 1,
+                                                currentMatchPath: activeMatchTitle,
+                                                liveScore: {
+                                                    matchTitle: activeMatchTitle,
+                                                    firstBat: common.firstBat,
+                                                    status: `${(bTeam?.ballFaceBatsman?.name || 'Batsman')} | ${bowler.name} bowling`,
+                                                    team1: {
+                                                        name: updated.team1?.name,
+                                                        overs: updated.team1?.overs ?? 0,
+                                                        score: updated.team1?.totalRuns ?? 0,
+                                                        wicket: updated.team1?.totalWickets ?? 0
+                                                    },
+                                                    team2: {
+                                                        name: updated.team2?.name,
+                                                        overs: updated.team2?.overs ?? 0,
+                                                        score: updated.team2?.totalRuns ?? 0,
+                                                        wicket: updated.team2?.totalWickets ?? 0
+                                                    }
+                                                }
+                                            });
+
+                                            toastRef.current?.showToast('success', `${newBatterObj.name} is the new batsman!`);
+                                            setShowNextBatterModal(false);
+
+                                            // If over completed on the same ball, trigger next bowler modal now
+                                            if (nextBatterModalData.overCompletedOnThisBall) {
+                                                setLastBowlerId(nextBatterModalData.lastBowlerId);
+                                                setCompletedOverNumber(nextBatterModalData.completedOverNum);
+                                                setSelectedNextBowlerId('');
+                                                setShowNextBowlerModal(true);
+                                            }
+                                            setNextBatterModalData(null);
+                                        }}
+                                    >
+                                        Confirm Next Batsman
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* COMPULSORY NEXT BOWLER SELECTION MODAL (OVER COMPLETE) */}
                 {showNextBowlerModal && (
                     <div className="sc-modal-overlay mandatory-modal">
@@ -3094,7 +5377,9 @@ const ScoringConsole = () => {
                             <div className="sc-nb-header">
                                 <div className="sc-nb-title-group">
                                     <span className="sc-nb-badge">OVER {completedOverNumber} COMPLETE</span>
-                                    <h3>🔄 Select Next Bowler</h3>
+                                    <h3>
+                                        <MdAutorenew className="sc-nb-swap-icon" /> Select Next Bowler
+                                    </h3>
                                     <p>Over {completedOverNumber} finished! Choose the bowler for Over {completedOverNumber + 1}.</p>
                                 </div>
                             </div>
@@ -3172,6 +5457,207 @@ const ScoringConsole = () => {
                         </div>
                     </div>
                 )}
+
+                {/* DLS / RAIN DELAY TARGET MANAGER MODAL */}
+                {(() => {
+                    if (!showDlsModal || !matchData) return null;
+
+                    const currentCommon = matchData.common || {};
+                    const originalOvers = Number(currentCommon.overLimit) || 15;
+                    const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
+                    const secondBatTeamKey = currentCommon.firstBat === 1 ? 'team2' : 'team1';
+                    const t1TeamName = matchData[firstBatTeamKey]?.name || '1st Batting Team';
+                    const t2TeamName = matchData[secondBatTeamKey]?.name || '2nd Batting Team';
+                    const t1Runs = matchData[firstBatTeamKey]?.totalRuns || 0;
+                    const t1Wickets = matchData[firstBatTeamKey]?.totalWickets || 0;
+                    const t1Overs = matchData[firstBatTeamKey]?.overs || 0;
+                    const quickOversList = [5, 6, 8, 10, 12, 14, 15, 20].filter(o => o <= originalOvers);
+
+                    return (
+                        <div className="sc-modal-overlay" onClick={() => setShowDlsModal(false)}>
+                            <div className="sc-modal-card sc-dls-modal" onClick={(e) => e.stopPropagation()}>
+                                <div className="sc-dls-modal-header">
+                                    <div className="sc-dls-title-group">
+                                        <span className="sc-dls-pill-tag">RAIN DELAY &amp; REVISED TARGET</span>
+                                        <h3>
+                                            <MdCloudQueue className="sc-dls-cloud-icon" /> DLS Target Manager
+                                        </h3>
+                                        <p>Calculate Duckworth-Lewis-Stern targets automatically or enter agreed official numbers from match umpires.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="sc-dls-close-btn"
+                                        onClick={() => setShowDlsModal(false)}
+                                        aria-label="Close DLS Modal"
+                                    >
+                                        <MdClose />
+                                    </button>
+                                </div>
+
+                                <div className="sc-dls-modal-body">
+                                    {/* Match Context Strip */}
+                                    <div className="sc-dls-context-strip">
+                                        <div className="sc-dls-ctx-item">
+                                            <span className="ctx-label">Match Format</span>
+                                            <strong className="ctx-val">{originalOvers} Overs / side</strong>
+                                        </div>
+                                        <div className="sc-dls-ctx-item">
+                                            <span className="ctx-label">1st Innings Total</span>
+                                            <strong className="ctx-val">{t1TeamName}: {t1Runs}/{t1Wickets} ({t1Overs} ov)</strong>
+                                        </div>
+                                        <div className="sc-dls-ctx-item">
+                                            <span className="ctx-label">Chasing Team</span>
+                                            <strong className="ctx-val">{t2TeamName}</strong>
+                                        </div>
+                                    </div>
+
+                                    {/* Revised Overs Input */}
+                                    <div className="sc-dls-field-group">
+                                        <label className="sc-dls-field-label">
+                                            Revised Overs for 2nd Innings:
+                                            <span className="sc-dls-field-hint">How many overs will {t2TeamName} get?</span>
+                                        </label>
+                                        <div className="sc-dls-overs-row">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={originalOvers}
+                                                value={dlsRevisedOvers}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setDlsRevisedOvers(val);
+                                                    if (val && Number(val) > 0) {
+                                                        handleAutoCalculateDls(val);
+                                                    }
+                                                }}
+                                                className="sc-dls-input-number"
+                                                placeholder={String(originalOvers)}
+                                            />
+                                            <span className="sc-dls-overs-unit">Overs</span>
+
+                                            <button
+                                                type="button"
+                                                className="sc-dls-btn-recalc"
+                                                onClick={() => handleAutoCalculateDls()}
+                                                title="Compute mathematical DLS target"
+                                            >
+                                                <MdBolt /> Auto Calculate
+                                            </button>
+                                        </div>
+
+                                        {/* Quick Overs Selection Chips */}
+                                        <div className="sc-dls-quick-chips">
+                                            <span className="sc-dls-chips-title">Quick presets:</span>
+                                            {quickOversList.map(ov => (
+                                                <button
+                                                    key={ov}
+                                                    type="button"
+                                                    className={`sc-dls-chip ${Number(dlsRevisedOvers) === ov ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        setDlsRevisedOvers(ov);
+                                                        handleAutoCalculateDls(ov);
+                                                    }}
+                                                >
+                                                    {ov} Ov
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Calculation Insight Card */}
+                                    {dlsCalculationData && (
+                                        <div className="sc-dls-calc-card">
+                                            <div className="sc-dls-calc-header">
+                                                <span>ICC Standard DLS Resource Calculation</span>
+                                                {dlsCalculationData.isDls ? (
+                                                    <span className="sc-dls-scaled-tag">Target Scaled Down</span>
+                                                ) : (
+                                                    <span className="sc-dls-standard-tag">Full Resources</span>
+                                                )}
+                                            </div>
+                                            <div className="sc-dls-calc-grid">
+                                                <div className="sc-dls-stat-col">
+                                                    <span className="stat-label">Calculated Target</span>
+                                                    <strong className="stat-val highlight">{dlsCalculationData.revisedTarget} Runs</strong>
+                                                </div>
+                                                <div className="sc-dls-stat-col">
+                                                    <span className="stat-label">Required Run Rate</span>
+                                                    <strong className="stat-val">{dlsCalculationData.requiredRunRate} RPO</strong>
+                                                </div>
+                                                <div className="sc-dls-stat-col">
+                                                    <span className="stat-label">Team 1 Resource</span>
+                                                    <strong className="stat-val">{dlsCalculationData.resource1}%</strong>
+                                                </div>
+                                                <div className="sc-dls-stat-col">
+                                                    <span className="stat-label">Team 2 Resource</span>
+                                                    <strong className="stat-val">{dlsCalculationData.resource2}%</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Official Target Override Input */}
+                                    <div className="sc-dls-field-group target-override">
+                                        <div className="sc-dls-field-header-row">
+                                            <label className="sc-dls-field-label">
+                                                Official Target to Apply:
+                                                <span className="sc-dls-field-hint">Auto-filled from calculation. Edit manually if umpires specify an agreed target.</span>
+                                            </label>
+                                            {dlsIsManual && (
+                                                <span className="sc-dls-manual-badge">Custom Override</span>
+                                            )}
+                                        </div>
+                                        <div className="sc-dls-target-input-row">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={dlsOfficialTarget}
+                                                onChange={(e) => {
+                                                    setDlsOfficialTarget(e.target.value);
+                                                    setDlsIsManual(true);
+                                                }}
+                                                className="sc-dls-input-target"
+                                                placeholder="Enter target"
+                                            />
+                                            <span className="sc-dls-target-subtext">
+                                                {t2TeamName} needs <strong>{dlsOfficialTarget || 0}</strong> runs to win in {dlsRevisedOvers || originalOvers} overs.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="sc-dls-modal-footer">
+                                    {currentCommon.dls?.isApplied ? (
+                                        <button
+                                            type="button"
+                                            className="sc-dls-btn-reset"
+                                            onClick={handleResetDls}
+                                        >
+                                            Remove DLS
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="cx-btn-secondary"
+                                            onClick={() => setShowDlsModal(false)}
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className="cx-btn-confirm primary"
+                                        onClick={handleApplyDls}
+                                    >
+                                        Apply DLS Target ({dlsOfficialTarget || 0})
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {renderSquadManagerModal()}
                 {renderTossModal()}
             </div>
             <Footer />

@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
 import {
-    subscribeDownloadCount,
-    incrementDownloadCount,
-    subscribeActiveTournament
+    subscribeActiveTournament,
+    incrementDownloadCount
 } from '../../services/rtdbService';
 import {
     MdDownload,
     MdAndroid,
-    MdCheckCircle,
     MdSecurity,
     MdPhoneAndroid,
     MdLiveTv,
@@ -24,58 +23,57 @@ import {
     MdLock,
     MdShield,
     MdPrivacyTip,
-    MdCheckCircleOutline
+    MdCheckCircleOutline,
+    MdSupportAgent,
+    MdShoppingBag,
+    MdLocalShipping,
+    MdChevronRight,
+    MdClose,
+    MdNotificationsActive,
+    MdTimeline
 } from 'react-icons/md';
-import { FaGooglePlay } from 'react-icons/fa';
+import { FaGooglePlay, FaLinkedin } from 'react-icons/fa';
 import { RiFacebookFill, RiShareLine } from 'react-icons/ri';
+import { SiAppgallery } from 'react-icons/si';
+import PageLoader from '../../components/common/PageLoader/PageLoader';
 import './PublishingPage.css';
 
 import logoWhite from '../../Images/e22_logo_transparent.png';
 import sponsorLogo from '../../Images/Support1.jpeg';
-import apkFile from '../../apk/E Legends Trophy 2025.apk';
-import videoBg from '../../video/videoBg.mp4';
+import invictoLogo from '../../Images/Invicto Technologies Logo.png';
+import developer from '../../Images/developer.png';
+import stadiumBg from '../../Images/cricket_stadium_bg.jpg';
 
 const PublishingPage = () => {
-    const [downloadCount, setDownloadCount] = useState(254);
-    const [isDownloading, setIsDownloading] = useState(false);
-    const [downloadStarted, setDownloadStarted] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [activeTournament, setActiveTournament] = useState(null);
+    const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+    const [comingSoonPlatform, setComingSoonPlatform] = useState('Android APK');
 
     useEffect(() => {
-        const unsubCount = subscribeDownloadCount((count) => {
-            setDownloadCount(count);
-        });
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') setShowComingSoonModal(false);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    const handleOpenComingSoon = (platform) => {
+        setComingSoonPlatform(platform);
+        setShowComingSoonModal(true);
+    };
+
+    useEffect(() => {
         const unsubTourney = subscribeActiveTournament((tourney) => {
             setActiveTournament(tourney);
+            setIsLoading(false);
         });
+        const timer = setTimeout(() => setIsLoading(false), 900);
         return () => {
-            unsubCount();
+            clearTimeout(timer);
             unsubTourney();
         };
     }, []);
-
-    const handleDownloadClick = async () => {
-        setIsDownloading(true);
-        try {
-            await incrementDownloadCount();
-            setDownloadStarted(true);
-
-            // Programmatically trigger download
-            const link = document.createElement('a');
-            link.href = apkFile;
-            link.download = 'E_Legends_Trophy_2025.apk';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            setTimeout(() => {
-                setIsDownloading(false);
-            }, 1800);
-        } catch (error) {
-            console.error('Download trigger error:', error);
-            setIsDownloading(false);
-        }
-    };
 
     const handleShare = () => {
         if (navigator.share) {
@@ -90,14 +88,30 @@ const PublishingPage = () => {
         }
     };
 
+    if (isLoading && !activeTournament) {
+        return (
+            <PageLoader
+                message="Loading App Download Portal..."
+                subtitle="Fetching verified build signatures & package assets"
+                tournamentName="Mobile Hub"
+            />
+        );
+    }
+
     return (
         <div className="publishing-3d-page">
+            {/* Single fixed background image layer across the entire page matching Home page */}
+            <div
+                className="pub-fixed-bg-layer"
+                style={{ backgroundImage: `url(${stadiumBg})` }}
+                aria-hidden="true"
+            >
+                <div className="pub-fixed-bg-overlay" />
+            </div>
+
             {/* Ambient Hero with Video Background */}
             <section className="pub-hero-section">
                 <div className="pub-video-wrapper">
-                    <video autoPlay loop muted playsInline className="pub-bg-video">
-                        <source src={videoBg} type="video/mp4" />
-                    </video>
                     <div className="pub-video-overlay" />
                     <div className="pub-gradient-mesh" />
                 </div>
@@ -130,45 +144,49 @@ const PublishingPage = () => {
                                 <MdSecurity className="meta-icon" />
                                 <span>Verified & Safe</span>
                             </div>
-                            <div className="meta-pill">
-                                <MdBolt className="meta-icon" />
-                                <span>~74 MB APK</span>
-                            </div>
-                            <div className="meta-pill">
-                                <span className="download-number-highlight">{downloadCount}+</span>
-                                <span>Downloads</span>
-                            </div>
                         </div>
 
                         <div className="pub-actions-group">
+                            <a
+                                href="https://appgallery.cloud.huawei.com/ag/n/app/C118946767?locale=en_GB&source=appshare&subsource=C118946767&shareTo=com.whatsapp&shareFrom=appmarket&shareIds=a98c1c348a614c3c8df18d69f6b2c745_com.whatsapp&callType=SHARE"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="pub-appgallery-btn"
+                                id="download-appgallery-btn"
+                                onClick={() => incrementDownloadCount()}
+                            >
+                                <SiAppgallery className="btn-appgallery-icon" />
+                                <div className="btn-play-texts">
+                                    <span className="btn-play-eyebrow">EXPLORE IT ON</span>
+                                    <span className="btn-play-main">AppGallery</span>
+                                </div>
+                            </a>
+
                             <button
-                                className={`pub-download-btn ${isDownloading ? 'downloading' : ''}`}
-                                onClick={handleDownloadClick}
-                                disabled={isDownloading}
+                                className="pub-download-btn"
+                                onClick={() => handleOpenComingSoon('Android APK')}
                                 id="download-apk-btn"
+                                type="button"
                             >
                                 <MdDownload className="btn-dl-icon" />
                                 <div className="btn-dl-texts">
-                                    <span className="btn-main-text">
-                                        {isDownloading ? 'PREPARING APK...' : 'ANDROID APK'}
-                                    </span>
-                                    <span className="btn-sub-text">Direct download (v2.5.0)</span>
+                                    <span className="btn-main-text">ANDROID APK</span>
+                                    <span className="btn-sub-text">Direct install (Releasing soon)</span>
                                 </div>
                             </button>
 
-                            <a
-                                href="https://play.google.com/store/apps"
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <button
+                                type="button"
                                 className="pub-playstore-btn"
                                 id="download-playstore-btn"
+                                onClick={() => handleOpenComingSoon('Google Play Store')}
                             >
                                 <FaGooglePlay className="btn-play-icon" />
                                 <div className="btn-play-texts">
                                     <span className="btn-play-eyebrow">GET IT ON</span>
                                     <span className="btn-play-main">Google Play</span>
                                 </div>
-                            </a>
+                            </button>
 
                             <button className="pub-share-btn" onClick={handleShare} data-tooltip="Share App Link">
                                 <RiShareLine />
@@ -180,15 +198,6 @@ const PublishingPage = () => {
                                 <span>Privacy Policy</span>
                             </a>
                         </div>
-
-                        {downloadStarted && (
-                            <div className="pub-download-toast">
-                                <MdCheckCircle className="toast-icon" />
-                                <div>
-                                    <strong>Download initiated!</strong> Check your device downloads folder to open the APK.
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* Right: 3D Floating Mockup Device */}
@@ -272,7 +281,7 @@ const PublishingPage = () => {
 
                     <div className="features-tilt-grid">
                         <TiltCard className="feature-tilt-card">
-                            <div className="feat-icon-box live-accent">
+                            <div className="feat-icon-box">
                                 <MdLiveTv />
                             </div>
                             <h3>Live Ball-by-Ball Radar</h3>
@@ -282,7 +291,7 @@ const PublishingPage = () => {
                         </TiltCard>
 
                         <TiltCard className="feature-tilt-card">
-                            <div className="feat-icon-box gold-accent">
+                            <div className="feat-icon-box">
                                 <MdEmojiEvents />
                             </div>
                             <h3>Batch Points & Net Run Rate</h3>
@@ -292,7 +301,7 @@ const PublishingPage = () => {
                         </TiltCard>
 
                         <TiltCard className="feature-tilt-card">
-                            <div className="feat-icon-box emerald-accent">
+                            <div className="feat-icon-box">
                                 <MdSportsCricket />
                             </div>
                             <h3>Leaderboards & Records</h3>
@@ -302,7 +311,7 @@ const PublishingPage = () => {
                         </TiltCard>
 
                         <TiltCard className="feature-tilt-card">
-                            <div className="feat-icon-box cyan-accent">
+                            <div className="feat-icon-box">
                                 <MdPhoneAndroid />
                             </div>
                             <h3>Adaptive Dark & Light Themes</h3>
@@ -365,11 +374,11 @@ const PublishingPage = () => {
                     <div className="privacy-cards-grid">
                         <div className="privacy-card">
                             <div className="privacy-card-header">
-                                <div className="p-icon-box cyan-accent">
+                                <div className="p-icon-box">
                                     <MdPolicy />
                                 </div>
                                 <div>
-                                    <h3>1. Information Collection & Use</h3>
+                                    <h3>Information Collection & Use</h3>
                                     <span className="p-card-tag">Strictly Minimal & Anonymous</span>
                                 </div>
                             </div>
@@ -386,11 +395,11 @@ const PublishingPage = () => {
 
                         <div className="privacy-card">
                             <div className="privacy-card-header">
-                                <div className="p-icon-box gold-accent">
+                                <div className="p-icon-box">
                                     <MdSecurity />
                                 </div>
                                 <div>
-                                    <h3>2. Device Permissions Explained</h3>
+                                    <h3>Device Permissions Explained</h3>
                                     <span className="p-card-tag">Essential Access Only</span>
                                 </div>
                             </div>
@@ -409,11 +418,11 @@ const PublishingPage = () => {
 
                         <div className="privacy-card">
                             <div className="privacy-card-header">
-                                <div className="p-icon-box live-accent">
+                                <div className="p-icon-box">
                                     <MdLock />
                                 </div>
                                 <div>
-                                    <h3>3. Third-Party Services & Cloud Security</h3>
+                                    <h3>Third Party Services & Cloud Security</h3>
                                     <span className="p-card-tag">Google Infrastructure</span>
                                 </div>
                             </div>
@@ -431,11 +440,11 @@ const PublishingPage = () => {
 
                         <div className="privacy-card">
                             <div className="privacy-card-header">
-                                <div className="p-icon-box purple-accent">
+                                <div className="p-icon-box">
                                     <MdShield />
                                 </div>
                                 <div>
-                                    <h3>4. Children's Privacy & Data Retention</h3>
+                                    <h3>Children's Privacy & Data Retention</h3>
                                     <span className="p-card-tag">Family Safe (All Ages)</span>
                                 </div>
                             </div>
@@ -446,7 +455,7 @@ const PublishingPage = () => {
                                 <ul>
                                     <li>We do not knowingly collect or solicit personal information from children under 13 years of age.</li>
                                     <li>Because no user accounts or persistent profiles exist, we retain zero personal records on our servers.</li>
-                                    <li>Users can clear temporary offline cached match cards anytime via Android Settings &gt; Apps &gt; E-Legends Trophy &gt; Storage &gt; Clear Cache.</li>
+                                    <li>Users can clear temporary offline cached match cards anytime via Android Settings <MdChevronRight className="path-arrow" /> Apps <MdChevronRight className="path-arrow" /> E-Legends Trophy <MdChevronRight className="path-arrow" /> Storage <MdChevronRight className="path-arrow" /> Clear Cache.</li>
                                 </ul>
                             </div>
                         </div>
@@ -470,8 +479,8 @@ const PublishingPage = () => {
                         </div>
                         <div className="privacy-contact-action">
                             <span>Inquiries regarding our privacy policy?</span>
-                            <a href="mailto:elegendstrophy@gmail.com" className="p-contact-btn">
-                                Contact Committee
+                            <a href="mailto:pramudakulathunga@gmail.com" className="p-contact-btn">
+                                Contact Developer
                             </a>
                         </div>
                     </div>
@@ -579,23 +588,34 @@ const PublishingPage = () => {
 
                     <div className="contact-cards-grid">
                         <div className="contact-card">
-                            <div className="contact-avatar">SK</div>
+                            <div className="contact-avatar"><MdSupportAgent /></div>
                             <div className="contact-details">
                                 <span className="contact-role">Tournament Coordinator</span>
-                                <h4>Supun Krishantha</h4>
-                                <a href="tel:+94769934453" className="contact-tel">
-                                    <MdCall /> +94 76 993 4453
+                                <h4>Ravindu Shavishka Pussekumbura</h4>
+                                <a href="tel:+94760164090" className="contact-tel">
+                                    <MdCall /> +94 76 016 4090
                                 </a>
                             </div>
                         </div>
 
                         <div className="contact-card">
-                            <div className="contact-avatar">VK</div>
+                            <div className="contact-avatar"><MdLocalShipping /></div>
                             <div className="contact-details">
-                                <span className="contact-role">Operations & Ground Logistics</span>
-                                <h4>Vishwa Karunaratne</h4>
-                                <a href="tel:+94707247148" className="contact-tel">
-                                    <MdCall /> +94 70 724 7148
+                                <span className="contact-role">Operations and ground logistics</span>
+                                <h4>Gaurawa Mihiranga</h4>
+                                <a href="tel:+94778189165" className="contact-tel">
+                                    <MdCall /> +94 77 818 9165
+                                </a>
+                            </div>
+                        </div>
+
+                        <div className="contact-card">
+                            <div className="contact-avatar"><MdShoppingBag /></div>
+                            <div className="contact-details">
+                                <span className="contact-role">Merchandise coordinator</span>
+                                <h4>Sithum Sathmina</h4>
+                                <a href="tel:+94716665173" className="contact-tel">
+                                    <MdCall /> +94 71 666 5173
                                 </a>
                             </div>
                         </div>
@@ -618,6 +638,178 @@ const PublishingPage = () => {
                     </div>
                 </div>
             </section>
+
+            {/* Developer & Engineering Details Section */}
+            <section className="pub-developer-section" id="developer-details">
+                <div className="pub-container">
+                    <div className="section-title-wrap">
+                        <span className="section-eyebrow">ENGINEERING & TECHNOLOGY</span>
+                        <h2 className="section-heading">
+                            DEVELOPED BY <span className="gradient-text">INVICTO TECHNOLOGIES</span>
+                        </h2>
+                        <p className="section-subtext">
+                            Architected, engineered, and powered with high-performance real-time score streaming, mobile synchronicity, and cloud infrastructure.
+                        </p>
+                    </div>
+
+                    <div className="developer-cards-grid">
+                        {/* Company Card */}
+                        <div className="developer-card company-card">
+                            <div className="dev-card-top">
+                                <div className="dev-logo-container">
+                                    <img
+                                        src={invictoLogo}
+                                        alt="Invicto Technologies"
+                                        className="invicto-brand-logo"
+                                    />
+                                </div>
+                                <span className="dev-badge-tag">
+                                    <MdVerified className="dev-badge-icon" /> Official Technology Partner
+                                </span>
+                            </div>
+
+                            <div className="dev-card-body">
+                                <span className="dev-role-label">Software Architecture & Cloud Systems</span>
+                                <h3 className="dev-name-title">Invicto Technologies</h3>
+                                <p className="dev-desc-text">
+                                    Pioneering intelligent software solutions, cloud services, and interactive mobile applications for collegiate, enterprise, and sporting ecosystems.
+                                </p>
+                            </div>
+
+                            <div className="dev-card-footer">
+                                <a
+                                    href="https://play.google.com/store/apps/dev?id=7196369130676240359"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="dev-link-button playstore-link"
+                                    title="Android Apps by Invicto Technologies on Google Play"
+                                >
+                                    <div className="dev-btn-content">
+                                        <FaGooglePlay className="dev-platform-icon play-icon" />
+                                        <div className="dev-btn-titles">
+                                            <span className="dev-btn-subtitle">Google Play Store</span>
+                                            <span className="dev-btn-title">Android Apps by Invicto Technologies</span>
+                                        </div>
+                                    </div>
+                                    <MdOpenInNew className="dev-arrow-icon" />
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Developer Card */}
+                        <div className="developer-card engineer-card">
+                            <div className="dev-card-top">
+                                <div className="dev-logo-container">
+                                    <img
+                                        src={developer}
+                                        alt="Invicto Technologies"
+                                        className="invicto-brand-logo"
+                                    />
+                                </div>
+                                <span className="dev-badge-tag engineer-tag">
+                                    <MdVerified className="dev-badge-icon" /> Lead Software Engineer
+                                </span>
+                            </div>
+
+                            <div className="dev-card-body">
+                                <span className="dev-role-label">BSc. (Hons) in Computer Engineering | Full Stack & Mobile App Developer</span>
+                                <h3 className="dev-name-title">Pramuda Kulathunga</h3>
+                                <p className="dev-desc-text">
+                                    Architected the E-Legends Trophy Android mobile application, realtime ball by ball scoring pipeline, and web portal for the Faculty of Engineering.
+                                </p>
+                            </div>
+
+                            <div className="dev-card-footer">
+                                <a
+                                    href="https://www.linkedin.com/in/pramuda-kulathunga/"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="dev-link-button linkedin-link"
+                                    title="Pramuda Kulathunga | LinkedIn"
+                                >
+                                    <div className="dev-btn-content">
+                                        <FaLinkedin className="dev-platform-icon linkedin-icon" />
+                                        <div className="dev-btn-titles">
+                                            <span className="dev-btn-subtitle">Professional Profile</span>
+                                            <span className="dev-btn-title">Pramuda Kulathunga | LinkedIn</span>
+                                        </div>
+                                    </div>
+                                    <MdOpenInNew className="dev-arrow-icon" />
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Custom Coming Soon Modal for Android APK & Google Play */}
+            {showComingSoonModal && createPortal(
+                <div className="pub-modal-overlay" onClick={() => setShowComingSoonModal(false)}>
+                    <div className="pub-modal-card" onClick={(e) => e.stopPropagation()}>
+                        <button
+                            type="button"
+                            className="pub-modal-close-btn"
+                            onClick={() => setShowComingSoonModal(false)}
+                            aria-label="Close"
+                        >
+                            <MdClose />
+                        </button>
+
+                        <div className="pub-modal-hero">
+                            <div className="pub-modal-icon-glow">
+                                {comingSoonPlatform === 'Google Play Store' ? (
+                                    <FaGooglePlay className="pub-modal-platform-icon" />
+                                ) : (
+                                    <MdAndroid className="pub-modal-platform-icon" />
+                                )}
+                            </div>
+                            <span className="pub-modal-tag">OFFICIAL RELEASE IN PROGRESS</span>
+                            <h2 className="pub-modal-title">E-Legends Mobile App Releasing Soon!</h2>
+                            <p className="pub-modal-subtitle">
+                                The official tournament mobile app for <strong>{comingSoonPlatform}</strong> is currently undergoing final staging and compliance testing. Direct download &amp; Play Store installation will unlock on Matchday 1!
+                            </p>
+                        </div>
+
+                        <div className="pub-modal-features-grid">
+                            <div className="pub-modal-feat-item">
+                                <div className="feat-icon-box"><MdBolt /></div>
+                                <div className="feat-texts">
+                                    <strong>Ultra-Fast Live Scores</strong>
+                                    <span>Real-time ball-by-ball synchronization</span>
+                                </div>
+                            </div>
+                            <div className="pub-modal-feat-item">
+                                <div className="feat-icon-box"><MdTimeline /></div>
+                                <div className="feat-texts">
+                                    <strong>Interactive Wagon Wheels</strong>
+                                    <span>3D shot placement charts &amp; boundary replays</span>
+                                </div>
+                            </div>
+                            <div className="pub-modal-feat-item">
+                                <div className="feat-icon-box"><MdNotificationsActive /></div>
+                                <div className="feat-texts">
+                                    <strong>Instant Match Alerts</strong>
+                                    <span>Wickets, sixes, milestones &amp; DLS alerts</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pub-modal-footer">
+                            <div className="pub-modal-badge-info">
+                                <span className="pub-live-dot" /> Tournament Ready
+                            </div>
+                            <button
+                                type="button"
+                                className="pub-modal-btn-confirm"
+                                onClick={() => setShowComingSoonModal(false)}
+                            >
+                                Got It, Keep Me Posted!
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             <Footer />
         </div>

@@ -2,7 +2,6 @@
     background: #060911;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding: 60px 0 30px;
-    margin-top: 80px;
     position: relative;
     z-index: 10;
 }
@@ -84,7 +83,32 @@
     }
 }
 
-/* Light Theme Overrides */
-[data-theme="light"] .footer-logo {
-    filter: brightness(0);
+/* Maintain identical sleek dark appearance in light mode */
+[data-theme='light'] .cx-footer {
+    background: #060911;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='light'] .cx-footer-top {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='light'] .footer-tagline {
+    color: #94a3b8;
+}
+
+[data-theme='light'] .cx-footer-links-group h5 {
+    color: #f8fafc;
+}
+
+[data-theme='light'] .cx-footer-links-group a {
+    color: #94a3b8;
+}
+
+[data-theme='light'] .cx-footer-links-group a:hover {
+    color: #00f0ff;
+}
+
+[data-theme='light'] .cx-footer-bottom p {
+    color: #64748b;
 }

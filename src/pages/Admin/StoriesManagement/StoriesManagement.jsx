@@ -3,6 +3,10 @@ import TiltCard from '../../../components/3D/TiltCard';
 import ConfirmationModal from '../../../components/common/ConfirmationModal';
 import ToastNotification from '../../../components/common/ToastNotification';
 import Footer from '../../../components/common/Footer/Footer';
+import AdminSubNav from '../../../components/Navigation/AdminSubNav';
+import ImageCropModal from '../../../components/common/ImageCropModal/ImageCropModal';
+import { uploadToCloudinary } from '../../../services/cloudinaryService';
+import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
 import {
     subscribeStories,
     saveStory,
@@ -17,38 +21,54 @@ import {
     MdNewspaper,
     MdImage,
     MdCheckCircle,
-    MdAutoAwesome
+    MdCloudUpload,
+    MdSync,
+    MdEmojiEvents,
+    MdSportsCricket,
+    MdBolt,
+    MdFlashOn,
+    MdGroups,
+    MdStadium,
+    MdAdsClick,
+    MdHandshake,
+    MdCloudQueue,
+    MdWhatshot,
+    MdAdd,
+    MdCrop
 } from 'react-icons/md';
-import AdminSubNav from '../../../components/Navigation/AdminSubNav';
-import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
 import './StoriesManagement.css';
 
 const MATCH_SITUATION_PRESETS = [
-    { label: '🏆 Trophy & Champions', url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&auto=format&fit=crop', hint: 'Final win & celebration' },
-    { label: '🏏 Match Action', url: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&auto=format&fit=crop', hint: 'Live play & batting/bowling' },
-    { label: '💥 Boundary Blitz', url: 'https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?w=800&auto=format&fit=crop', hint: 'Sixes & power hitting' },
-    { label: '⚡ Wicket Strike', url: 'https://images.unsplash.com/photo-1589487391730-58f20eb2c308?w=800&auto=format&fit=crop', hint: 'Dismissal & stumps flying' },
-    { label: '🙌 Team Huddle', url: 'https://images.unsplash.com/photo-1569517282132-25d22f4573e6?w=800&auto=format&fit=crop', hint: 'Team spirit & victory roar' },
-    { label: '🏟️ Stadium Night', url: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop', hint: 'Floodlights & ground atmosphere' },
-    { label: '🎯 Thrilling Finish', url: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&auto=format&fit=crop', hint: 'Super over & nail-biter' },
-    { label: '🤝 Toss & Matchday', url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop', hint: 'Captains handshake & toss' },
-    { label: '🌧️ Weather & Delay', url: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=800&auto=format&fit=crop', hint: 'Rain delay & pitch inspection' },
-    { label: '🔥 High Derby Clash', url: 'https://images.unsplash.com/photo-1516796181074-bf453fbfa3e6?w=800&auto=format&fit=crop', hint: 'Intense batch rivalry clash' }
+    { title: 'Trophy & Champions', icon: MdEmojiEvents, url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&auto=format&fit=crop', hint: 'Final win & celebration' },
+    { title: 'Match Action', icon: MdSportsCricket, url: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&auto=format&fit=crop', hint: 'Live play & batting/bowling' },
+    { title: 'Boundary Blitz', icon: MdBolt, url: 'https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?w=800&auto=format&fit=crop', hint: 'Sixes & power hitting' },
+    { title: 'Wicket Strike', icon: MdFlashOn, url: 'https://images.unsplash.com/photo-1589487391730-58f20eb2c308?w=800&auto=format&fit=crop', hint: 'Dismissal & stumps flying' },
+    { title: 'Team Huddle', icon: MdGroups, url: 'https://images.unsplash.com/photo-1569517282132-25d22f4573e6?w=800&auto=format&fit=crop', hint: 'Team spirit & victory roar' },
+    { title: 'Stadium Night', icon: MdStadium, url: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop', hint: 'Floodlights & ground atmosphere' },
+    { title: 'Thrilling Finish', icon: MdAdsClick, url: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&auto=format&fit=crop', hint: 'Super over & nail-biter' },
+    { title: 'Toss & Matchday', icon: MdHandshake, url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop', hint: 'Captains handshake & toss' },
+    { title: 'Weather & Delay', icon: MdCloudQueue, url: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=800&auto=format&fit=crop', hint: 'Rain delay & pitch inspection' },
+    { title: 'High Derby Clash', icon: MdWhatshot, url: 'https://images.unsplash.com/photo-1516796181074-bf453fbfa3e6?w=800&auto=format&fit=crop', hint: 'Intense batch rivalry clash' }
 ];
 
 const StoriesManagement = () => {
-    const toastRef = useRef();
+    const toastRef = useRef(null);
     const { selectedTournamentId } = useAdminTournament();
+
     const [stories, setStories] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingStory, setEditingStory] = useState(null);
     const [deleteTargetId, setDeleteTargetId] = useState(null);
 
-    // Form inputs
     const [topic, setTopic] = useState('');
     const [description, setDescription] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const [timeStr, setTimeStr] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const [cropModalOpen, setCropModalOpen] = useState(false);
+    const [cropImageSrc, setCropImageSrc] = useState('');
 
     useEffect(() => {
         const unsub = subscribeStories((data) => {
@@ -59,19 +79,18 @@ const StoriesManagement = () => {
                 setStories([]);
             }
         }, selectedTournamentId);
+
         return () => unsub();
     }, [selectedTournamentId]);
 
     const formatCurrentTime = () => {
         const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = now.getHours();
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const formattedHours = String(hours % 12 || 12).padStart(2, '0');
-        return `${year}.${month}.${day} ${formattedHours}.${minutes}${period}`;
+        const date = now.toISOString().split('T')[0];
+        let hours = now.getHours();
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${date} ${hours}:${minutes} ${ampm}`;
     };
 
     const handleOpenCreate = () => {
@@ -87,34 +106,78 @@ const StoriesManagement = () => {
         setEditingStory(story);
         setTopic(story.topic || '');
         setDescription(story.description || '');
-        setImageUrl(story.ImageURL || story.imageUrl || story.image || story.coverImage || '');
+        setImageUrl(story.ImageURL || '');
         setTimeStr(story.time || formatCurrentTime());
         setModalOpen(true);
     };
 
+    const handleFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toastRef.current?.showToast('error', 'Please select a valid image file (JPG, PNG, WebP).');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            setCropImageSrc(event.target.result);
+            setCropModalOpen(true);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBase64) => {
+        setCropModalOpen(false);
+        setIsUploading(true);
+        try {
+            const uploadedUrl = await uploadToCloudinary(croppedBase64);
+            setImageUrl(uploadedUrl);
+            toastRef.current?.showToast('success', 'Image cropped and uploaded successfully!');
+        } catch (error) {
+            console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
+            setImageUrl(croppedBase64);
+            toastRef.current?.showToast('info', 'Cropped image applied successfully.');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleOpenCropForCurrent = () => {
+        if (!imageUrl) return;
+        setCropImageSrc(imageUrl);
+        setCropModalOpen(true);
+    };
+
     const handleSaveStory = async (e) => {
         e.preventDefault();
-        if (!topic.trim() || !description.trim()) {
-            toastRef.current.showToast('error', 'Please fill in both title and description.');
+        if (!topic.trim()) {
+            toastRef.current?.showToast('error', 'Please enter a story topic or headline.');
+            return;
+        }
+        if (!description.trim()) {
+            toastRef.current?.showToast('error', 'Please enter a story description or content.');
             return;
         }
 
         try {
-            const storyPayload = {
-                id: editingStory ? editingStory.id : Date.now().toString(),
+            const storyData = {
+                id: editingStory ? editingStory.id : `story_${Date.now()}`,
                 topic: topic.trim(),
                 description: description.trim(),
-                time: timeStr || formatCurrentTime(),
-                ImageURL: imageUrl.trim() || '',
-                imageUrl: imageUrl.trim() || ''
+                ImageURL: imageUrl.trim(),
+                time: timeStr.trim() || formatCurrentTime()
             };
 
-            await saveStory(storyPayload, selectedTournamentId);
+            await saveStory(storyData, selectedTournamentId);
             setModalOpen(false);
-            toastRef.current.showToast('success', `Story ${editingStory ? 'updated' : 'published'} successfully!`);
+            setEditingStory(null);
+            toastRef.current?.showToast('success', `Story ${editingStory ? 'updated' : 'published'} successfully!`);
         } catch (error) {
             console.error('Error saving story:', error);
-            toastRef.current.showToast('error', 'Failed to save story.');
+            toastRef.current?.showToast('error', 'Failed to save story.');
         }
     };
 
@@ -123,10 +186,10 @@ const StoriesManagement = () => {
         try {
             await deleteStory(deleteTargetId, selectedTournamentId);
             setDeleteTargetId(null);
-            toastRef.current.showToast('success', 'Story deleted successfully.');
+            toastRef.current?.showToast('success', 'Story bulletin removed successfully.');
         } catch (error) {
             console.error('Error deleting story:', error);
-            toastRef.current.showToast('error', 'Failed to delete story.');
+            toastRef.current?.showToast('error', 'Failed to delete story.');
         }
     };
 
@@ -140,18 +203,20 @@ const StoriesManagement = () => {
                 <div className="sm-header">
                     <div>
                         <span className="sm-tag">TOURNAMENT BROADCASTS & NEWS</span>
-                        <h1 className="sm-title">Stories Management</h1>
+                        <h1 className="sm-title">Stories & Bulletins Management</h1>
                         <p className="sm-subtitle">
-                            Publish news, milestones, alert banners, and match highlights to the audience view.
+                            Publish announcements, match highlights, milestone alerts, and tournament news to the public homepage and stories feed.
                         </p>
                     </div>
 
-                    <button className="cx-btn-primary" onClick={handleOpenCreate}>
-                        Create New Story
-                    </button>
+                    <div className="sm-header-actions">
+                        <button className="cx-btn-primary" onClick={handleOpenCreate} id="create-story-btn">
+                            <MdAdd /> Create New Story
+                        </button>
+                    </div>
                 </div>
 
-                {/* Stories Grid */}
+                {/* Stories List */}
                 {stories.length === 0 ? (
                     <div className="sm-compact-empty-banner">
                         <div className="sm-empty-banner-left">
@@ -163,6 +228,9 @@ const StoriesManagement = () => {
                                 <p>Publish news bulletins, player spotlights, and tournament highlights to the audience view.</p>
                             </div>
                         </div>
+                        <button className="sm-empty-action-btn" onClick={handleOpenCreate}>
+                            <MdAdd /> Publish First Story
+                        </button>
                     </div>
                 ) : (
                     <div className="sm-stories-grid">
@@ -173,10 +241,18 @@ const StoriesManagement = () => {
                                         <MdAccessTime /> {story.time}
                                     </span>
                                     <div className="smc-actions">
-                                        <button className="smc-action-btn edit" onClick={() => handleOpenEdit(story)} data-tooltip="Edit Story">
+                                        <button
+                                            className="smc-action-btn edit"
+                                            onClick={() => handleOpenEdit(story)}
+                                            data-tooltip="Edit Story"
+                                        >
                                             <MdEdit />
                                         </button>
-                                        <button className="smc-action-btn delete" onClick={() => setDeleteTargetId(story.id)} data-tooltip="Delete Story">
+                                        <button
+                                            className="smc-action-btn delete"
+                                            onClick={() => setDeleteTargetId(story.id)}
+                                            data-tooltip="Delete Story"
+                                        >
                                             <MdDelete />
                                         </button>
                                     </div>
@@ -194,7 +270,7 @@ const StoriesManagement = () => {
                 )}
             </div>
 
-            {/* Publish & Edit Story Modal */}
+            {/* CREATE / EDIT MODAL */}
             {modalOpen && (
                 <div className="sm-modal-overlay" onClick={() => setModalOpen(false)}>
                     <div className="sm-modal-card pro-story-modal" onClick={(e) => e.stopPropagation()}>
@@ -207,8 +283,8 @@ const StoriesManagement = () => {
                                     <span className="sm-modal-badge">{editingStory ? 'EDIT STORY' : 'NEW BROADCAST'}</span>
                                     <h3>{editingStory ? 'Edit Story Bulletin' : 'Publish New Story'}</h3>
                                     <p className="sm-modal-sub">
-                                        {editingStory 
-                                            ? 'Update announcement details, match recaps, or hero imagery.' 
+                                        {editingStory
+                                            ? 'Update announcement details, match recaps, or hero imagery.'
                                             : 'Publish news, live match recaps, or tournament notices to the public feed.'}
                                     </p>
                                 </div>
@@ -254,60 +330,82 @@ const StoriesManagement = () => {
                                     />
                                     <span className="sm-field-hint">Supports multiline paragraphs for detailed match reports and scorecard summaries.</span>
                                 </div>
+
+                                <div className="sm-form-group">
+                                    <label>Timestamp / Broadcast Schedule</label>
+                                    <input
+                                        type="text"
+                                        className="sm-input"
+                                        placeholder="e.g. 2026-03-14 02:45 PM"
+                                        value={timeStr}
+                                        onChange={(e) => setTimeStr(e.target.value)}
+                                    />
+                                </div>
                             </div>
 
-                            {/* SECTION 2: MEDIA & TIMING */}
+                            {/* SECTION 2: HERO COVER IMAGE */}
                             <div className="sm-section-box">
                                 <div className="sm-section-header">
                                     <span className="sm-section-step">2</span>
                                     <div>
-                                        <h4>Cover Media & Publication Timing</h4>
-                                        <p className="sm-section-desc">Attach a banner image and set the broadcast timestamp shown to users.</p>
+                                        <h4>Story Hero Cover Image (Optional)</h4>
+                                        <p className="sm-section-desc">Add visual flair with a custom upload, crop adjustment, or match preset banner.</p>
                                     </div>
                                 </div>
 
                                 <div className="sm-form-group">
                                     <div className="sm-label-row">
-                                        <label><MdAccessTime /> Broadcast Timestamp</label>
-                                        <button
-                                            type="button"
-                                            className="sm-time-now-btn"
-                                            onClick={() => setTimeStr(formatCurrentTime())}
-                                            title="Set to current local time"
-                                        >
-                                            <MdAutoAwesome /> Set to Now
-                                        </button>
+                                        <label><MdImage /> Cover Image Source</label>
+                                        <div className="sm-image-action-btns">
+                                            {imageUrl && (
+                                                <button
+                                                    type="button"
+                                                    className="sm-crop-header-btn"
+                                                    onClick={handleOpenCropForCurrent}
+                                                    title="Crop or reframe visible image area"
+                                                >
+                                                    <MdCrop /> Crop Image
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                className="sm-upload-btn"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                disabled={isUploading}
+                                            >
+                                                {isUploading ? (
+                                                    <><MdSync className="spin-icon" /> Uploading...</>
+                                                ) : (
+                                                    <><MdCloudUpload /> Upload & Crop</>
+                                                )}
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            style={{ display: 'none' }}
+                                            accept="image/*"
+                                            onChange={handleFileSelect}
+                                        />
                                     </div>
-                                    <input
-                                        type="text"
-                                        className="sm-input"
-                                        placeholder="YYYY.MM.DD HH.MMAM/PM"
-                                        value={timeStr}
-                                        onChange={(e) => setTimeStr(e.target.value)}
-                                    />
-                                    <span className="sm-field-hint">Timestamp shown to viewers on the news card (e.g. {formatCurrentTime()})</span>
-                                </div>
-
-                                <div className="sm-form-group">
-                                    <label><MdImage /> Cover Image URL (Optional)</label>
                                     <input
                                         type="url"
                                         className="sm-input"
-                                        placeholder="https://images.unsplash.com/..."
+                                        placeholder="Cloudinary image URL or https://..."
                                         value={imageUrl}
                                         onChange={(e) => setImageUrl(e.target.value)}
                                     />
                                     <div className="sm-preset-chips">
-                                        <span className="sm-presets-label">Match Situation Presets:</span>
-                                        {MATCH_SITUATION_PRESETS.map((preset, pIdx) => (
+                                        <span className="sm-presets-label">Matchday Presets:</span>
+                                        {MATCH_SITUATION_PRESETS.map((preset, idx) => (
                                             <button
-                                                key={pIdx}
+                                                key={idx}
                                                 type="button"
                                                 className={`sm-preset-btn ${imageUrl === preset.url ? 'active' : ''}`}
                                                 onClick={() => setImageUrl(preset.url)}
                                                 title={preset.hint}
                                             >
-                                                {preset.label}
+                                                <span>{preset.title}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -315,8 +413,16 @@ const StoriesManagement = () => {
 
                                 {imageUrl && (
                                     <div className="sm-image-preview-box">
-                                        <span className="sm-preview-badge">Live Image Preview</span>
-                                        <img src={imageUrl} alt="Cover Preview" onError={(e) => { e.target.style.display = 'none'; }} />
+                                        <span className="sm-preview-badge">Live Cover Preview</span>
+                                        <button
+                                            type="button"
+                                            className="sm-crop-floating-btn"
+                                            onClick={handleOpenCropForCurrent}
+                                            title="Frame and crop image"
+                                        >
+                                            <MdCrop /> Crop & Frame
+                                        </button>
+                                        <img src={imageUrl} alt="Story Preview" onError={(e) => { e.target.style.display = 'none'; }} />
                                     </div>
                                 )}
                             </div>
@@ -326,7 +432,7 @@ const StoriesManagement = () => {
                                     Cancel
                                 </button>
                                 <button type="submit" className="sm-btn-submit">
-                                    <MdCheckCircle /> {editingStory ? 'Save Changes' : 'Publish Story to Feed'}
+                                    <MdCheckCircle /> {editingStory ? 'Save Changes' : 'Publish Story'}
                                 </button>
                             </div>
                         </form>
@@ -334,15 +440,27 @@ const StoriesManagement = () => {
                 </div>
             )}
 
-            {/* Delete Confirmation Modal */}
+            {/* Delete Story Confirmation Modal */}
             <ConfirmationModal
                 isOpen={Boolean(deleteTargetId)}
                 title="Delete Story"
-                message="Are you sure you want to permanently delete this story from AllStories? This action cannot be undone."
+                message="Are you sure you want to permanently delete this story bulletin? This action cannot be undone."
                 confirmText="Delete Story"
+                cancelText="Cancel"
                 type="danger"
                 onConfirm={handleConfirmDelete}
                 onCancel={() => setDeleteTargetId(null)}
+            />
+
+            {/* Image Crop Modal */}
+            <ImageCropModal
+                isOpen={cropModalOpen}
+                imageSrc={cropImageSrc}
+                title="Crop Story Cover Image"
+                cropShape="rect"
+                aspectRatio={16 / 9}
+                onCropComplete={handleCropComplete}
+                onCancel={() => setCropModalOpen(false)}
             />
 
             <Footer />

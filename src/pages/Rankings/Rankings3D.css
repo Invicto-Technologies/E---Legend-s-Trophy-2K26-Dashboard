@@ -2,7 +2,6 @@
     min-height: 100vh;
     background: var(--bg-space);
     color: var(--text-main);
-    padding-bottom: 60px;
     transition: background-color 0.45s ease, color 0.45s ease;
 }
 
@@ -97,9 +96,40 @@
     box-shadow: 0 4px 14px rgba(0, 240, 255, 0.35);
 }
 
+/* Unified Background Wrapper for Podium & Table Sections */
+.rankings-stage-table-wrapper {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+}
+
+.rankings-stage-table-wrapper::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url('../../Images/cricket_stadium_bg.jpg');
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+}
+
+[data-theme='light'] .rankings-stage-table-wrapper::before {
+    opacity: 0.30;
+}
+
+.rankings-stage-table-wrapper > * {
+    position: relative;
+    z-index: 1;
+}
+
 /* 3D Holographic Podium Stage */
 .podium-stage-section {
-    padding: 40px 0 60px;
+    position: relative;
+    padding: 40px 0 30px;
+    background: transparent;
 }
 
 .podium-stage-grid {
@@ -146,8 +176,15 @@
 }
 
 @keyframes crownFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
 }
 
 .podium-pedestal-rank {
@@ -278,7 +315,9 @@
 
 /* Detailed Table Section */
 .rankings-table-section {
-    padding-bottom: 60px;
+    position: relative;
+    padding-bottom: 140px;
+    background: transparent;
 }
 
 .table-controls-bar {
@@ -357,7 +396,8 @@
     color: #94a3b8;
 }
 
-.team-cell strong, .player-cell strong {
+.team-cell strong,
+.player-cell strong {
     color: #f8fafc;
 }
 
@@ -377,10 +417,52 @@
     color: #00f0ff;
 }
 
-.rating-cell {
+.rating-cell,
+.score-cell {
     font-size: 1.1rem;
     font-weight: 800;
     color: #38bdf8;
+}
+
+.score-bold {
+    font-weight: 800;
+    color: #38bdf8;
+}
+
+.overs-cell {
+    font-weight: 600;
+    color: #94a3b8;
+}
+
+.rate-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.sr-pill {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+}
+
+.eco-pill {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+}
+
+.podium-sub-stat {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-top: 4px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .team-badge-pill {
@@ -560,7 +642,7 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    .rankings-table th, 
+    .rankings-table th,
     .rankings-table td {
         padding: 10px 12px;
         font-size: 0.82rem;
@@ -601,17 +683,138 @@
 }
 
 [data-theme="light"] .podium-card {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(148, 163, 184, 0.3);
-    box-shadow: 0 15px 35px rgba(15, 23, 42, 0.08);
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
 }
 
-[data-theme="light"] .podium-entity-name {
-    color: #0f172a;
+[data-theme="light"] .podium-card.gold {
+    border-color: #0284c7;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(240, 249, 255, 0.95) 100%);
+    box-shadow: 0 18px 42px rgba(2, 132, 199, 0.22);
 }
 
-[data-theme="light"] .podium-stat-val {
+[data-theme="light"] .podium-card.silver {
+    border-color: #94a3b8;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(248, 250, 252, 0.95) 100%);
+    box-shadow: 0 14px 34px rgba(100, 116, 139, 0.14);
+}
+
+[data-theme="light"] .podium-card.bronze {
+    border-color: #10b981;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(240, 253, 244, 0.95) 100%);
+    box-shadow: 0 14px 34px rgba(16, 185, 129, 0.15);
+}
+
+[data-theme="light"] .podium-crown-icon {
+    color: #d97706;
+    filter: drop-shadow(0 2px 8px rgba(217, 119, 6, 0.45));
+}
+
+[data-theme="light"] .gold-tag {
+    background: rgba(2, 132, 199, 0.12);
+    color: #0284c7;
+    border: 1px solid rgba(2, 132, 199, 0.35);
+    font-weight: 800;
+}
+
+[data-theme="light"] .silver-tag {
+    background: rgba(71, 85, 105, 0.1);
+    color: #334155;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-weight: 800;
+}
+
+[data-theme="light"] .bronze-tag {
+    background: rgba(16, 185, 129, 0.12);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    font-weight: 800;
+}
+
+[data-theme="light"] .gold-border {
+    border: 3px solid #0284c7;
+    background: radial-gradient(circle, rgba(2, 132, 199, 0.18), transparent);
+}
+
+[data-theme="light"] .silver-border {
+    border: 3px solid #64748b;
+    background: radial-gradient(circle, rgba(148, 163, 184, 0.22), transparent);
+}
+
+[data-theme="light"] .bronze-border {
+    border: 3px solid #10b981;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.18), transparent);
+}
+
+[data-theme="light"] .podium-rank-num {
+    color: #1e293b;
+    font-weight: 900;
+}
+
+[data-theme="light"] .gold-text {
+    color: #0284c7;
+}
+
+[data-theme="light"] .podium-name {
     color: #0f172a;
+    font-weight: 800;
+}
+
+[data-theme="light"] .gold-name {
+    color: #0f172a;
+    text-shadow: none;
+}
+
+[data-theme="light"] .podium-team-sub {
+    color: #475569;
+    font-weight: 600;
+}
+
+[data-theme="light"] .podium-score-pill {
+    background: rgba(15, 23, 42, 0.06);
+    color: #1e293b;
+    font-weight: 800;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+[data-theme="light"] .gold-pill {
+    background: rgba(2, 132, 199, 0.14);
+    color: #0369a1;
+    border: 1px solid rgba(2, 132, 199, 0.35);
+}
+
+[data-theme="light"] .silver-pill {
+    background: rgba(71, 85, 105, 0.1);
+    color: #334155;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+[data-theme="light"] .bronze-pill {
+    background: rgba(16, 185, 129, 0.14);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="light"] .gold-base {
+    background: linear-gradient(180deg, rgba(2, 132, 199, 0.22), rgba(2, 132, 199, 0.08));
+    color: #0284c7;
+    border-top: 2px solid #0284c7;
+    font-weight: 900;
+}
+
+[data-theme="light"] .silver-base {
+    background: linear-gradient(180deg, rgba(148, 163, 184, 0.26), rgba(148, 163, 184, 0.08));
+    color: #334155;
+    border-top: 2px solid #64748b;
+    font-weight: 900;
+}
+
+[data-theme="light"] .bronze-base {
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.22), rgba(16, 185, 129, 0.08));
+    color: #047857;
+    border-top: 2px solid #10b981;
+    font-weight: 900;
 }
 
 [data-theme="light"] .search-box {
@@ -671,8 +874,30 @@
     background: rgba(16, 185, 129, 0.06);
 }
 
-[data-theme="light"] .rating-cell {
+[data-theme="light"] .rating-cell,
+[data-theme="light"] .score-cell,
+[data-theme="light"] .score-bold {
     color: #0284c7;
+}
+
+[data-theme="light"] .overs-cell {
+    color: #64748b;
+}
+
+[data-theme="light"] .sr-pill {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    color: #059669;
+}
+
+[data-theme="light"] .eco-pill {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+    color: #0284c7;
+}
+
+[data-theme="light"] .podium-sub-stat {
+    color: #64748b;
 }
 
 [data-theme="light"] .r-empty-info p {
@@ -727,6 +952,12 @@
     .rankings-no-data-page .rankings-subtitle {
         font-size: 0.95rem;
         margin: 0 0 16px 0;
+    }
+
+    .rankings-no-data-page .rankings-stage-table-wrapper {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
     .rankings-no-data-page .rankings-table-section {
@@ -834,4 +1065,3 @@
 [data-theme="light"] .rankings-bottom-links a:hover {
     color: #0284c7;
 }
-

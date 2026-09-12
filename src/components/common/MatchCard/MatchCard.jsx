@@ -5,8 +5,10 @@ import {
     MdCalendarToday,
     MdLocationOn,
     MdSportsCricket,
-    MdArrowForward,
-    MdCheckCircle
+    MdCheckCircle,
+    MdSchedule,
+    MdEmojiEvents,
+    MdStar
 } from 'react-icons/md';
 import './MatchCard.css';
 
@@ -24,6 +26,43 @@ export const isMatchFinished = (m) => {
     if (score && score !== 'scheduled' && score !== 'match scheduled' && score !== 'match concluded' && score !== 'tbd') {
         if (/\d+\s*\/\s*\d+/.test(score)) {
             return true;
+        }
+    }
+    return false;
+};
+
+/**
+ * Check if a match is currently live in progress
+ */
+export const isMatchCurrentlyLive = (m, liveData) => {
+    if (!m) return false;
+    if (m.isLive === 1 || m.isLive === true || String(m.status || '').toLowerCase() === 'live') return true;
+
+    if (liveData?.isLive) {
+        const livePath = String(liveData.currentMatchPath || '').split('/').pop().trim().toLowerCase();
+        const liveTitle = String(liveData.liveScore?.matchTitle || '').split('/').pop().trim().toLowerCase();
+        const mTitle = String(m.title || m.name || '').trim().toLowerCase();
+        const mId = String(m.id || '').trim().toLowerCase();
+
+        // Exact match comparison on title or ID to prevent "semi-final 1" matching "final"
+        if (mTitle) {
+            const normMTitle = mTitle.replace(/\s+match$/, '');
+            const normLiveTitle = liveTitle.replace(/\s+match$/, '');
+            const normLivePath = livePath.replace(/\s+match$/, '');
+            if (normLiveTitle && normMTitle === normLiveTitle) return true;
+            if (normLivePath && normMTitle === normLivePath) return true;
+        }
+        if (mId && (mId === liveTitle || mId === livePath)) {
+            return true;
+        }
+
+        // Teams comparison ONLY if teams are defined and contain ' vs '
+        const mTeams = String(m.teams || '').trim().toLowerCase();
+        const liveTeams = String(liveData.liveScore?.status || '').trim().toLowerCase();
+        if (mTeams && mTeams.includes(' vs ') && !mTeams.includes('tbd')) {
+            if (liveTeams.includes(mTeams)) {
+                return true;
+            }
         }
     }
     return false;
@@ -50,7 +89,13 @@ export const parseMatchDateTime = (m) => {
         const parsed = Date.parse(timeStr.replace(/\./g, '-'));
         if (!isNaN(parsed)) return parsed;
     }
-    return Number(m.id) || 0;
+
+    // For unscheduled/TBD finals (no date/time), ensure they sort to the end of fixtures rather than epoch 0
+    const titleLower = String(m.title || '').toLowerCase();
+    if (titleLower.includes('final') || titleLower.includes('qualifier')) {
+        return 9999999999999;
+    }
+    return Number(m.id) || 9999999999990;
 };
 
 const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => {
@@ -59,14 +104,22 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
     const finished = isMatchFinished(match);
     const teams = teamsMap && Object.keys(teamsMap).length > 0 ? teamsMap : (teamsData || {});
 
-    // Extract team names
+    // Extract team names with support for undefined/TBD finals
     let t1Name = match.team1;
     let t2Name = match.team2;
     if (!t1Name || !t2Name) {
-        const parts = (match.teams || '').split(' vs ');
-        t1Name = t1Name || parts[0] || 'Team 1';
-        t2Name = t2Name || parts[1] || 'Team 2';
+        const rawTeams = (match.teams || '').trim();
+        if (rawTeams.includes(' vs ')) {
+            const parts = rawTeams.split(' vs ');
+            t1Name = t1Name || parts[0]?.trim();
+            t2Name = t2Name || parts[1]?.trim();
+        } else if (rawTeams && rawTeams.toLowerCase() !== 'scheduled') {
+            t1Name = t1Name || rawTeams;
+            t2Name = t2Name || 'TBD';
+        }
     }
+    t1Name = (t1Name || '').trim() || 'TBD';
+    t2Name = (t2Name || '').trim() || 'TBD';
 
     // Extract team crests/logos
     const t1Obj = teams[t1Name] || {};
@@ -89,8 +142,8 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
 
     // Determine winner highlights
     const res = (match.result || '').toLowerCase();
-    const t1Won = finished && res.includes(t1Name.toLowerCase()) && res.includes('won');
-    const t2Won = finished && res.includes(t2Name.toLowerCase()) && res.includes('won');
+    const t1Won = finished && t1Name !== 'TBD' && res.includes(t1Name.toLowerCase()) && res.includes('won');
+    const t2Won = finished && t2Name !== 'TBD' && res.includes(t2Name.toLowerCase()) && res.includes('won');
 
     return (
         <TiltCard className={`pro-match-card ${finished ? 'is-completed' : 'is-scheduled space-saving'} ${className}`} maxTilt={6}>
@@ -98,7 +151,17 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
             <div className="pmc-top-bar">
                 <span className="pmc-stage-badge">{match.title ? `${match.title} Match` : 'Match'}</span>
                 <span className={`pmc-status-pill ${finished ? 'completed' : 'scheduled'}`}>
-                    {finished ? '✓ Completed' : '🕒 Upcoming'}
+                    {finished ? (
+                        <>
+                            <MdCheckCircle className="pmc-pill-icon" />
+                            <span>Completed {res.includes('dls') ? '• DLS' : ''}</span>
+                        </>
+                    ) : (
+                        <>
+                            <MdSchedule className="pmc-pill-icon" />
+                            <span>Upcoming</span>
+                        </>
+                    )}
                 </span>
                 <div className="pmc-schedule-snippet">
                     <MdCalendarToday className="pmc-cal-icon" />
@@ -120,7 +183,7 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
                                     <div className="pmc-team-avatar-fallback">{t1Name.substring(0, 3)}</div>
                                 )}
                                 <span className="pmc-team-name">{t1Name}</span>
-                                {t1Won && <span className="pmc-winner-star" title="Winner">🏆</span>}
+                                {t1Won && <MdEmojiEvents className="pmc-winner-trophy" title="Winner" />}
                             </div>
                             <div className="pmc-team-score-block">
                                 {t1Score ? (
@@ -146,7 +209,7 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
                                     <div className="pmc-team-avatar-fallback">{t2Name.substring(0, 3)}</div>
                                 )}
                                 <span className="pmc-team-name">{t2Name}</span>
-                                {t2Won && <span className="pmc-winner-star" title="Winner">🏆</span>}
+                                {t2Won && <MdEmojiEvents className="pmc-winner-trophy" title="Winner" />}
                             </div>
                             <div className="pmc-team-score-block">
                                 {t2Score ? (
@@ -170,16 +233,17 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
                     <div className="pmc-footer">
                         {match.mom ? (
                             <div className="pmc-potm-pill">
-                                <span className="potm-label">⭐ PoTM:</span>
+                                <MdStar className="potm-star-icon" />
+                                <span className="potm-label">PoTM:</span>
                                 <strong className="potm-name">{match.mom}</strong>
                             </div>
                         ) : (
                             <div className="pmc-venue-tag">
-                                <MdSportsCricket /> 15 Overs • T20 Format
+                                <MdSportsCricket /> {match.overs}
                             </div>
                         )}
                         <Link to={`/match/${match.title || match.id}`} className="pmc-action-link">
-                            Scorecard <MdArrowForward />
+                            Scorecard
                         </Link>
                     </div>
                 </>
@@ -191,7 +255,9 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
                             {t1Logo ? (
                                 <img src={t1Logo} alt={t1Name} className="pmc-single-crest" onError={(e) => { e.target.style.display = 'none'; }} />
                             ) : (
-                                <div className="pmc-single-avatar">{t1Name.substring(0, 3)}</div>
+                                <div className={`pmc-single-avatar ${t1Name === 'TBD' ? 'is-tbd' : ''}`}>
+                                    {t1Name === 'TBD' ? 'TBD' : t1Name.substring(0, 3)}
+                                </div>
                             )}
                             <span className="pmc-single-name" title={t1Name}>{t1Name}</span>
                         </div>
@@ -205,7 +271,9 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
                             {t2Logo ? (
                                 <img src={t2Logo} alt={t2Name} className="pmc-single-crest" onError={(e) => { e.target.style.display = 'none'; }} />
                             ) : (
-                                <div className="pmc-single-avatar">{t2Name.substring(0, 3)}</div>
+                                <div className={`pmc-single-avatar ${t2Name === 'TBD' ? 'is-tbd' : ''}`}>
+                                    {t2Name === 'TBD' ? 'TBD' : t2Name.substring(0, 3)}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -217,7 +285,7 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
                             <span>{match.venue || 'Faculty Cricket Grounds'}</span>
                         </span>
                         <span className="pmc-upcoming-format">
-                            <MdSportsCricket className="pmc-cricket-icon" /> 15 Overs • T20
+                            <MdSportsCricket className="pmc-cricket-icon" /> T20 Format
                         </span>
                     </div>
                 </>

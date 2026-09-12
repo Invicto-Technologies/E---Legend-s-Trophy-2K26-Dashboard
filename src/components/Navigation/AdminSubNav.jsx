@@ -6,6 +6,7 @@ import {
     MdFormatListNumbered,
     MdSportsCricket,
     MdNewspaper,
+    MdPhotoLibrary,
     MdPeople
 } from 'react-icons/md';
 import './AdminSubNav.css';
@@ -63,6 +64,14 @@ const AdminSubNav = () => {
                     >
                         <MdNewspaper className="tab-icon" />
                         <span>Stories</span>
+                    </Link>
+
+                    <Link
+                        to="/admin/gallery"
+                        className={`admin-subnav-tab ${isActive('/admin/gallery') ? 'active' : ''}`}
+                    >
+                        <MdPhotoLibrary className="tab-icon" />
+                        <span>Gallery</span>
                     </Link>
 
                     <Link

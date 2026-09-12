@@ -9587,448 +9587,934 @@
           "1": {
             "id": 1,
             "name": "Krishantha Supun",
-            "rating": 145,
-            "team": "E21"
+            "team": "E21",
+            "scores": 145,
+            "runs": 145,
+            "balls": 157,
+            "overs": "26.1",
+            "oversPlayed": "26.1",
+            "strikeRate": 92.36
           },
           "2": {
             "id": 2,
             "name": "Dinusha Deshan",
-            "rating": 29,
-            "team": "E21"
+            "team": "E21",
+            "scores": 29,
+            "runs": 29,
+            "balls": 33,
+            "overs": "5.3",
+            "oversPlayed": "5.3",
+            "strikeRate": 87.88
           },
           "3": {
             "id": 3,
             "name": "Awishka Dilshan",
-            "rating": 1,
-            "team": "E21"
+            "team": "E21",
+            "scores": 1,
+            "runs": 1,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 100
           },
           "4": {
             "id": 4,
             "name": "Kanishka Dulmith",
-            "rating": 49,
-            "team": "E21"
+            "team": "E21",
+            "scores": 49,
+            "runs": 49,
+            "balls": 43,
+            "overs": "7.1",
+            "oversPlayed": "7.1",
+            "strikeRate": 113.95
           },
           "5": {
             "id": 5,
             "name": "S. Pratheesh",
-            "rating": 57,
-            "team": "E21"
+            "team": "E21",
+            "scores": 57,
+            "runs": 57,
+            "balls": 72,
+            "overs": "12.0",
+            "oversPlayed": "12.0",
+            "strikeRate": 79.17
           },
           "6": {
             "id": 6,
             "name": "Merujan Sivanandan",
-            "rating": 4,
-            "team": "E21"
+            "team": "E21",
+            "scores": 4,
+            "runs": 4,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 100
           },
           "7": {
             "id": 7,
             "name": "Ishan Dilaksha",
-            "rating": 5,
-            "team": "E21"
+            "team": "E21",
+            "scores": 5,
+            "runs": 5,
+            "balls": 7,
+            "overs": "1.1",
+            "oversPlayed": "1.1",
+            "strikeRate": 71.43
+          },
+          "8": {
+            "id": 8,
+            "name": "Mohamad Farhan",
+            "team": "E21",
+            "scores": 0,
+            "runs": 0,
+            "balls": 2,
+            "overs": "0.2",
+            "oversPlayed": "0.2",
+            "strikeRate": 0
+          },
+          "10": {
+            "id": 10,
+            "name": "Wishwa Shrimal",
+            "team": "E21",
+            "scores": 0,
+            "runs": 0,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 0
+          },
+          "12": {
+            "id": 12,
+            "name": "Charith Nuwantha",
+            "team": "E21",
+            "scores": 0,
+            "runs": 0,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 0
           },
           "14": {
             "id": 14,
-            "name": "Rikesh",
-            "rating": 9,
-            "team": "E21"
+            "name": "Rickesh",
+            "team": "E21",
+            "scores": 4,
+            "runs": 4,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 100
           },
           "21": {
             "id": 21,
             "name": "Ravindu Pussekumbura",
-            "rating": 12,
-            "team": "E22"
+            "team": "E22",
+            "scores": 12,
+            "runs": 12,
+            "balls": 29,
+            "overs": "4.5",
+            "oversPlayed": "4.5",
+            "strikeRate": 41.38
           },
           "22": {
             "id": 22,
             "name": "Nishan Pramodha",
-            "rating": 3,
-            "team": "E22"
+            "team": "E22",
+            "scores": 3,
+            "runs": 3,
+            "balls": 5,
+            "overs": "0.5",
+            "oversPlayed": "0.5",
+            "strikeRate": 60
           },
           "23": {
             "id": 23,
             "name": "Gaurawa Mihiranga",
-            "rating": 113,
-            "team": "E22"
+            "team": "E22",
+            "scores": 113,
+            "runs": 113,
+            "balls": 104,
+            "overs": "17.2",
+            "oversPlayed": "17.2",
+            "strikeRate": 108.65
           },
           "24": {
             "id": 24,
             "name": "Kavindu Rathnayake",
-            "rating": 21,
-            "team": "E22"
+            "team": "E22",
+            "scores": 21,
+            "runs": 21,
+            "balls": 23,
+            "overs": "3.5",
+            "oversPlayed": "3.5",
+            "strikeRate": 91.3
+          },
+          "25": {
+            "id": 25,
+            "name": "Ashan Madhusanka",
+            "team": "E22",
+            "scores": 0,
+            "runs": 0,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 0
           },
           "26": {
             "id": 26,
             "name": "Malan Premarathna",
-            "rating": 10,
-            "team": "E22"
+            "team": "E22",
+            "scores": 10,
+            "runs": 10,
+            "balls": 10,
+            "overs": "1.4",
+            "oversPlayed": "1.4",
+            "strikeRate": 100
+          },
+          "27": {
+            "id": 27,
+            "name": "Chirath Amayuru",
+            "team": "E22",
+            "scores": 0,
+            "runs": 0,
+            "balls": 2,
+            "overs": "0.2",
+            "oversPlayed": "0.2",
+            "strikeRate": 0
+          },
+          "29": {
+            "id": 29,
+            "name": "Hirusha Fernando",
+            "team": "E22",
+            "scores": 0,
+            "runs": 0,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 0
           },
           "30": {
             "id": 30,
             "name": "Abhisek Tharlas",
-            "rating": 7,
-            "team": "E22"
+            "team": "E22",
+            "scores": 7,
+            "runs": 7,
+            "balls": 6,
+            "overs": "1.0",
+            "oversPlayed": "1.0",
+            "strikeRate": 116.67
           },
           "31": {
             "id": 31,
             "name": "Mehethuran Kujilan",
-            "rating": 83,
-            "team": "E22"
+            "team": "E22",
+            "scores": 83,
+            "runs": 83,
+            "balls": 85,
+            "overs": "14.1",
+            "oversPlayed": "14.1",
+            "strikeRate": 97.65
           },
           "32": {
             "id": 32,
             "name": "Yashikumar ",
-            "rating": 56,
-            "team": "E22"
+            "team": "E22",
+            "scores": 56,
+            "runs": 56,
+            "balls": 71,
+            "overs": "11.5",
+            "oversPlayed": "11.5",
+            "strikeRate": 78.87
           },
           "33": {
             "id": 33,
             "name": "Sithum Sathmina",
-            "rating": 2,
-            "team": "E22"
+            "team": "E22",
+            "scores": 2,
+            "runs": 2,
+            "balls": 6,
+            "overs": "1.0",
+            "oversPlayed": "1.0",
+            "strikeRate": 33.33
           },
           "34": {
             "id": 34,
             "name": "Wishwa Mahagamage",
-            "rating": 5,
-            "team": "E22"
+            "team": "E22",
+            "scores": 5,
+            "runs": 5,
+            "balls": 10,
+            "overs": "1.4",
+            "oversPlayed": "1.4",
+            "strikeRate": 50
           },
           "41": {
             "id": 41,
             "name": "Jalitha Tharuka",
-            "rating": 12,
-            "team": "E23"
+            "team": "E23",
+            "scores": 12,
+            "runs": 12,
+            "balls": 21,
+            "overs": "3.3",
+            "oversPlayed": "3.3",
+            "strikeRate": 57.14
           },
           "42": {
             "id": 42,
             "name": "Kalindu Geeganage",
-            "rating": 49,
-            "team": "E23"
+            "team": "E23",
+            "scores": 49,
+            "runs": 49,
+            "balls": 35,
+            "overs": "5.5",
+            "oversPlayed": "5.5",
+            "strikeRate": 140
           },
           "43": {
             "id": 43,
             "name": "Tharusha Dilhara",
-            "rating": 1,
-            "team": "E23"
+            "team": "E23",
+            "scores": 1,
+            "runs": 1,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 25
           },
           "44": {
             "id": 44,
             "name": "Yatheesha Perera",
-            "rating": 20,
-            "team": "E23"
+            "team": "E23",
+            "scores": 20,
+            "runs": 20,
+            "balls": 23,
+            "overs": "3.5",
+            "oversPlayed": "3.5",
+            "strikeRate": 86.96
           },
           "45": {
             "id": 45,
             "name": "J. Robinson",
-            "rating": 38,
-            "team": "E23"
+            "team": "E23",
+            "scores": 38,
+            "runs": 38,
+            "balls": 46,
+            "overs": "7.4",
+            "oversPlayed": "7.4",
+            "strikeRate": 82.61
           },
           "46": {
             "id": 46,
             "name": "Janithra Chandima",
-            "rating": 3,
-            "team": "E23"
+            "team": "E23",
+            "scores": 3,
+            "runs": 3,
+            "balls": 16,
+            "overs": "2.4",
+            "oversPlayed": "2.4",
+            "strikeRate": 18.75
           },
           "47": {
             "id": 47,
             "name": "Naveen Esanka",
-            "rating": 20,
-            "team": "E23"
+            "team": "E23",
+            "scores": 20,
+            "runs": 20,
+            "balls": 26,
+            "overs": "4.2",
+            "oversPlayed": "4.2",
+            "strikeRate": 76.92
           },
           "48": {
             "id": 48,
             "name": "Rochana Muthukumarana",
-            "rating": 23,
-            "team": "E23"
+            "team": "E23",
+            "scores": 23,
+            "runs": 23,
+            "balls": 22,
+            "overs": "3.4",
+            "oversPlayed": "3.4",
+            "strikeRate": 104.55
           },
           "49": {
             "id": 49,
             "name": "Chamindu Gunasinghe",
-            "rating": 27,
-            "team": "E23"
+            "team": "E23",
+            "scores": 27,
+            "runs": 27,
+            "balls": 34,
+            "overs": "5.4",
+            "oversPlayed": "5.4",
+            "strikeRate": 79.41
           },
           "50": {
             "id": 50,
             "name": "Nirod Shanil",
-            "rating": 5,
-            "team": "E23"
+            "team": "E23",
+            "scores": 5,
+            "runs": 5,
+            "balls": 16,
+            "overs": "2.4",
+            "oversPlayed": "2.4",
+            "strikeRate": 31.25
           },
           "51": {
             "id": 51,
             "name": "Dehan Rajanayaka",
-            "rating": 26,
-            "team": "E23"
+            "team": "E23",
+            "scores": 26,
+            "runs": 26,
+            "balls": 21,
+            "overs": "3.3",
+            "oversPlayed": "3.3",
+            "strikeRate": 123.81
           },
           "54": {
             "id": 54,
             "name": "Udara Lakruwan",
-            "rating": 6,
-            "team": "E23"
+            "team": "E23",
+            "scores": 6,
+            "runs": 6,
+            "balls": 9,
+            "overs": "1.3",
+            "oversPlayed": "1.3",
+            "strikeRate": 66.67
           },
           "61": {
             "id": 61,
             "name": "Kaveesh Shaluka",
-            "rating": 1,
-            "team": "E24"
+            "team": "E24",
+            "scores": 1,
+            "runs": 1,
+            "balls": 2,
+            "overs": "0.2",
+            "oversPlayed": "0.2",
+            "strikeRate": 50
           },
           "62": {
             "id": 62,
             "name": "Tharusha Ranpriya",
-            "rating": 22,
-            "team": "E24"
+            "team": "E24",
+            "scores": 22,
+            "runs": 22,
+            "balls": 26,
+            "overs": "4.2",
+            "oversPlayed": "4.2",
+            "strikeRate": 84.62
           },
           "63": {
             "id": 63,
             "name": "Aflal Ahamed",
-            "rating": 25,
-            "team": "E24"
+            "team": "E24",
+            "scores": 25,
+            "runs": 25,
+            "balls": 38,
+            "overs": "6.2",
+            "oversPlayed": "6.2",
+            "strikeRate": 65.79
           },
           "64": {
             "id": 64,
             "name": "Rumesh Karunathilaka",
-            "rating": 34,
-            "team": "E24"
+            "team": "E24",
+            "scores": 34,
+            "runs": 34,
+            "balls": 44,
+            "overs": "7.2",
+            "oversPlayed": "7.2",
+            "strikeRate": 77.27
           },
           "65": {
             "id": 65,
             "name": "Kaveeja Sandeepa",
-            "rating": 22,
-            "team": "E24"
+            "team": "E24",
+            "scores": 22,
+            "runs": 22,
+            "balls": 34,
+            "overs": "5.4",
+            "oversPlayed": "5.4",
+            "strikeRate": 64.71
           },
           "66": {
             "id": 66,
             "name": "Dilshan Madhuranga",
-            "rating": 7,
-            "team": "E24"
+            "team": "E24",
+            "scores": 7,
+            "runs": 7,
+            "balls": 11,
+            "overs": "1.5",
+            "oversPlayed": "1.5",
+            "strikeRate": 63.64
           },
           "67": {
             "id": 67,
             "name": "Nadarajan Hariloshan",
-            "rating": 21,
-            "team": "E24"
+            "team": "E24",
+            "scores": 21,
+            "runs": 21,
+            "balls": 27,
+            "overs": "4.3",
+            "oversPlayed": "4.3",
+            "strikeRate": 77.78
           },
           "68": {
             "id": 68,
             "name": "Chandupa Nipun",
-            "rating": 42,
-            "team": "E24"
+            "team": "E24",
+            "scores": 42,
+            "runs": 42,
+            "balls": 37,
+            "overs": "6.1",
+            "oversPlayed": "6.1",
+            "strikeRate": 113.51
           },
           "69": {
             "id": 69,
             "name": "Subodha Prabhashwara",
-            "rating": 2,
-            "team": "E24"
+            "team": "E24",
+            "scores": 2,
+            "runs": 2,
+            "balls": 6,
+            "overs": "1.0",
+            "oversPlayed": "1.0",
+            "strikeRate": 33.33
           },
           "70": {
             "id": 70,
             "name": "Ravindu Lakmal",
-            "rating": 37,
-            "team": "E24"
+            "team": "E24",
+            "scores": 37,
+            "runs": 37,
+            "balls": 18,
+            "overs": "3.0",
+            "oversPlayed": "3.0",
+            "strikeRate": 205.56
           },
           "72": {
             "id": 72,
             "name": "Hadhil",
-            "rating": 6,
-            "team": "E24"
+            "team": "E24",
+            "scores": 6,
+            "runs": 6,
+            "balls": 15,
+            "overs": "2.3",
+            "oversPlayed": "2.3",
+            "strikeRate": 40
           },
           "1748287864665": {
             "id": 1748287864665,
-            "name": "Shamil Shahood",
-            "rating": 11,
-            "team": "E21"
+            "name": "Shamil Suhood",
+            "team": "E21",
+            "scores": 11,
+            "runs": 11,
+            "balls": 14,
+            "overs": "2.2",
+            "oversPlayed": "2.2",
+            "strikeRate": 78.57
           }
         },
         "bowlers": {
           "1": {
             "id": 1,
-            "name": "Ravindu Pussekumbura",
-            "rating": 7,
-            "team": "E22"
+            "name": "Krishantha Supun",
+            "team": "E21",
+            "wickets": 7,
+            "takenWickets": 7,
+            "balls": 52,
+            "overs": "8.4",
+            "oversBowled": "8.4",
+            "runsConceded": 35,
+            "runs": 35,
+            "economy": 4.04
           },
           "2": {
             "id": 2,
-            "name": "Krishantha Supun",
-            "rating": 7,
-            "team": "E21"
+            "name": "Dinush Deshan",
+            "team": "E21",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 25,
+            "runs": 25,
+            "economy": 3.57
           },
           "3": {
             "id": 3,
             "name": "Awishka Dilshan",
-            "rating": 5,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 5,
+            "takenWickets": 5,
+            "balls": 24,
+            "overs": "4.0",
+            "oversBowled": "4.0",
+            "runsConceded": 19,
+            "runs": 19,
+            "economy": 4.75
           },
           "5": {
             "id": 5,
             "name": "S. Pratheesh",
-            "rating": 4,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 4,
+            "takenWickets": 4,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 42,
+            "runs": 42,
+            "economy": 6
           },
           "6": {
             "id": 6,
             "name": "Merujan Sivanandan",
-            "rating": 2,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 31,
+            "runs": 31,
+            "economy": 4.43
           },
           "8": {
             "id": 8,
             "name": "Mohamad Farhan",
-            "rating": 4,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 4,
+            "takenWickets": 4,
+            "balls": 54,
+            "overs": "9.0",
+            "oversBowled": "9.0",
+            "runsConceded": 51,
+            "runs": 51,
+            "economy": 5.67
           },
           "10": {
             "id": 10,
             "name": "Wishwa Shrimal",
-            "rating": 2,
-            "team": "E21"
-          },
-          "12": {
-            "id": 12,
-            "name": "Charith Nuwantha",
-            "rating": 0,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 15,
+            "overs": "2.3",
+            "oversBowled": "2.3",
+            "runsConceded": 25,
+            "runs": 25,
+            "economy": 10
           },
           "21": {
             "id": 21,
-            "name": "Dinusha Deshan",
-            "rating": 7,
-            "team": "E21"
+            "name": "Ravindu Pussekumbura",
+            "team": "E22",
+            "wickets": 7,
+            "takenWickets": 7,
+            "balls": 72,
+            "overs": "12.0",
+            "oversBowled": "12.0",
+            "runsConceded": 77,
+            "runs": 77,
+            "economy": 6.42
           },
           "22": {
             "id": 22,
             "name": "Nishan Pramodha",
-            "rating": 1,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 18,
+            "overs": "3.0",
+            "oversBowled": "3.0",
+            "runsConceded": 20,
+            "runs": 20,
+            "economy": 6.67
           },
           "24": {
             "id": 24,
             "name": "Kavindu Rathnayake",
-            "rating": 0,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 6,
+            "overs": "1.0",
+            "oversBowled": "1.0",
+            "runsConceded": 6,
+            "runs": 6,
+            "economy": 6
           },
           "25": {
             "id": 25,
             "name": "Ashan Madhusanka",
-            "rating": 6,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 6,
+            "takenWickets": 6,
+            "balls": 60,
+            "overs": "10.0",
+            "oversBowled": "10.0",
+            "runsConceded": 71,
+            "runs": 71,
+            "economy": 7.1
           },
           "30": {
             "id": 30,
             "name": "Abhisek Tharlas",
-            "rating": 1,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 66,
+            "overs": "11.0",
+            "oversBowled": "11.0",
+            "runsConceded": 77,
+            "runs": 77,
+            "economy": 7
           },
           "31": {
             "id": 31,
             "name": "Mehethuran Kujilan",
-            "rating": 5,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 5,
+            "takenWickets": 5,
+            "balls": 78,
+            "overs": "13.0",
+            "oversBowled": "13.0",
+            "runsConceded": 83,
+            "runs": 83,
+            "economy": 6.38
           },
           "32": {
             "id": 32,
             "name": "Yashikumar ",
-            "rating": 3,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 60,
+            "overs": "10.0",
+            "oversBowled": "10.0",
+            "runsConceded": 53,
+            "runs": 53,
+            "economy": 5.3
           },
           "33": {
             "id": 33,
             "name": "Sithum Sathmina",
-            "rating": 1,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 12,
+            "overs": "2.0",
+            "oversBowled": "2.0",
+            "runsConceded": 16,
+            "runs": 16,
+            "economy": 8
           },
           "41": {
             "id": 41,
             "name": "Jalitha Tharuka",
-            "rating": 1,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 48,
+            "overs": "8.0",
+            "oversBowled": "8.0",
+            "runsConceded": 58,
+            "runs": 58,
+            "economy": 7.25
           },
           "42": {
             "id": 42,
             "name": "Kalindu Geeganage",
-            "rating": 3,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 36,
+            "overs": "6.0",
+            "oversBowled": "6.0",
+            "runsConceded": 35,
+            "runs": 35,
+            "economy": 5.83
           },
           "43": {
             "id": 43,
             "name": "Tharusha Dilhara",
-            "rating": 0,
-            "team": "E23"
-          },
-          "47": {
-            "id": 47,
-            "name": "Naveen Esanka",
-            "rating": 0,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 12,
+            "overs": "2.0",
+            "oversBowled": "2.0",
+            "runsConceded": 18,
+            "runs": 18,
+            "economy": 9
           },
           "48": {
             "id": 48,
             "name": "Rochana Muthukumarana",
-            "rating": 1,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 36,
+            "overs": "6.0",
+            "oversBowled": "6.0",
+            "runsConceded": 37,
+            "runs": 37,
+            "economy": 6.17
           },
           "49": {
             "id": 49,
-            "name": "Chamidu Gunasinghe",
-            "rating": 0,
-            "team": "E23"
+            "name": "Chamindu Gunasinghe",
+            "team": "E23",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 6,
+            "overs": "1.0",
+            "oversBowled": "1.0",
+            "runsConceded": 6,
+            "runs": 6,
+            "economy": 6
           },
           "50": {
             "id": 50,
             "name": "Nirod Shanil",
-            "rating": 2,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 44,
+            "overs": "7.2",
+            "oversBowled": "7.2",
+            "runsConceded": 45,
+            "runs": 45,
+            "economy": 6.14
           },
           "51": {
             "id": 51,
             "name": "Dehan Rajanayaka",
-            "rating": 2,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 55,
+            "runs": 55,
+            "economy": 7.86
           },
           "61": {
             "id": 61,
             "name": "Kaveesh Shaluka",
-            "rating": 0,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 12,
+            "overs": "2.0",
+            "oversBowled": "2.0",
+            "runsConceded": 15,
+            "runs": 15,
+            "economy": 7.5
           },
           "63": {
             "id": 63,
             "name": "Aflal Ahamed",
-            "rating": 0,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 48,
+            "overs": "8.0",
+            "oversBowled": "8.0",
+            "runsConceded": 59,
+            "runs": 59,
+            "economy": 7.38
           },
           "65": {
             "id": 65,
             "name": "Kaveeja Sandeepa",
-            "rating": 1,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 18,
+            "overs": "3.0",
+            "oversBowled": "3.0",
+            "runsConceded": 50,
+            "runs": 50,
+            "economy": 16.67
           },
           "66": {
             "id": 66,
             "name": "Dilshan Madhuranga",
-            "rating": 3,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 54,
+            "overs": "9.0",
+            "oversBowled": "9.0",
+            "runsConceded": 57,
+            "runs": 57,
+            "economy": 6.33
           },
           "68": {
             "id": 68,
             "name": "Chandupa Nipun",
-            "rating": 4,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 4,
+            "takenWickets": 4,
+            "balls": 54,
+            "overs": "9.0",
+            "oversBowled": "9.0",
+            "runsConceded": 57,
+            "runs": 57,
+            "economy": 6.33
           },
           "69": {
             "id": 69,
             "name": "Subodha Prabhashwara",
-            "rating": 1,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 36,
+            "overs": "6.0",
+            "oversBowled": "6.0",
+            "runsConceded": 54,
+            "runs": 54,
+            "economy": 9
           },
           "72": {
             "id": 72,
             "name": "Hadhil",
-            "rating": 3,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 48,
+            "overs": "8.0",
+            "oversBowled": "8.0",
+            "runsConceded": 57,
+            "runs": 57,
+            "economy": 7.13
+          },
+          "undefined": {
+            "name": "Naveen Esanka",
+            "team": "E23",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 3,
+            "overs": "0.3",
+            "oversBowled": "0.3",
+            "runsConceded": 6,
+            "runs": 6,
+            "economy": 12
           },
           "1748287864665": {
             "id": 1748287864665,
             "name": "Shamil Shahood",
-            "rating": 1,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 18,
+            "overs": "3.0",
+            "oversBowled": "3.0",
+            "runsConceded": 14,
+            "runs": 14,
+            "economy": 4.67
           }
         },
         "pointsTable": [
@@ -20615,448 +21101,934 @@
           "1": {
             "id": 1,
             "name": "Krishantha Supun",
-            "rating": 145,
-            "team": "E21"
+            "team": "E21",
+            "scores": 145,
+            "runs": 145,
+            "balls": 157,
+            "overs": "26.1",
+            "oversPlayed": "26.1",
+            "strikeRate": 92.36
           },
           "2": {
             "id": 2,
             "name": "Dinusha Deshan",
-            "rating": 29,
-            "team": "E21"
+            "team": "E21",
+            "scores": 29,
+            "runs": 29,
+            "balls": 33,
+            "overs": "5.3",
+            "oversPlayed": "5.3",
+            "strikeRate": 87.88
           },
           "3": {
             "id": 3,
             "name": "Awishka Dilshan",
-            "rating": 1,
-            "team": "E21"
+            "team": "E21",
+            "scores": 1,
+            "runs": 1,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 100
           },
           "4": {
             "id": 4,
             "name": "Kanishka Dulmith",
-            "rating": 49,
-            "team": "E21"
+            "team": "E21",
+            "scores": 49,
+            "runs": 49,
+            "balls": 43,
+            "overs": "7.1",
+            "oversPlayed": "7.1",
+            "strikeRate": 113.95
           },
           "5": {
             "id": 5,
             "name": "S. Pratheesh",
-            "rating": 57,
-            "team": "E21"
+            "team": "E21",
+            "scores": 57,
+            "runs": 57,
+            "balls": 72,
+            "overs": "12.0",
+            "oversPlayed": "12.0",
+            "strikeRate": 79.17
           },
           "6": {
             "id": 6,
             "name": "Merujan Sivanandan",
-            "rating": 4,
-            "team": "E21"
+            "team": "E21",
+            "scores": 4,
+            "runs": 4,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 100
           },
           "7": {
             "id": 7,
             "name": "Ishan Dilaksha",
-            "rating": 5,
-            "team": "E21"
+            "team": "E21",
+            "scores": 5,
+            "runs": 5,
+            "balls": 7,
+            "overs": "1.1",
+            "oversPlayed": "1.1",
+            "strikeRate": 71.43
+          },
+          "8": {
+            "id": 8,
+            "name": "Mohamad Farhan",
+            "team": "E21",
+            "scores": 0,
+            "runs": 0,
+            "balls": 2,
+            "overs": "0.2",
+            "oversPlayed": "0.2",
+            "strikeRate": 0
+          },
+          "10": {
+            "id": 10,
+            "name": "Wishwa Shrimal",
+            "team": "E21",
+            "scores": 0,
+            "runs": 0,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 0
+          },
+          "12": {
+            "id": 12,
+            "name": "Charith Nuwantha",
+            "team": "E21",
+            "scores": 0,
+            "runs": 0,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 0
           },
           "14": {
             "id": 14,
-            "name": "Rikesh",
-            "rating": 9,
-            "team": "E21"
+            "name": "Rickesh",
+            "team": "E21",
+            "scores": 4,
+            "runs": 4,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 100
           },
           "21": {
             "id": 21,
             "name": "Ravindu Pussekumbura",
-            "rating": 12,
-            "team": "E22"
+            "team": "E22",
+            "scores": 12,
+            "runs": 12,
+            "balls": 29,
+            "overs": "4.5",
+            "oversPlayed": "4.5",
+            "strikeRate": 41.38
           },
           "22": {
             "id": 22,
             "name": "Nishan Pramodha",
-            "rating": 3,
-            "team": "E22"
+            "team": "E22",
+            "scores": 3,
+            "runs": 3,
+            "balls": 5,
+            "overs": "0.5",
+            "oversPlayed": "0.5",
+            "strikeRate": 60
           },
           "23": {
             "id": 23,
             "name": "Gaurawa Mihiranga",
-            "rating": 113,
-            "team": "E22"
+            "team": "E22",
+            "scores": 113,
+            "runs": 113,
+            "balls": 104,
+            "overs": "17.2",
+            "oversPlayed": "17.2",
+            "strikeRate": 108.65
           },
           "24": {
             "id": 24,
             "name": "Kavindu Rathnayake",
-            "rating": 21,
-            "team": "E22"
+            "team": "E22",
+            "scores": 21,
+            "runs": 21,
+            "balls": 23,
+            "overs": "3.5",
+            "oversPlayed": "3.5",
+            "strikeRate": 91.3
+          },
+          "25": {
+            "id": 25,
+            "name": "Ashan Madhusanka",
+            "team": "E22",
+            "scores": 0,
+            "runs": 0,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 0
           },
           "26": {
             "id": 26,
             "name": "Malan Premarathna",
-            "rating": 10,
-            "team": "E22"
+            "team": "E22",
+            "scores": 10,
+            "runs": 10,
+            "balls": 10,
+            "overs": "1.4",
+            "oversPlayed": "1.4",
+            "strikeRate": 100
+          },
+          "27": {
+            "id": 27,
+            "name": "Chirath Amayuru",
+            "team": "E22",
+            "scores": 0,
+            "runs": 0,
+            "balls": 2,
+            "overs": "0.2",
+            "oversPlayed": "0.2",
+            "strikeRate": 0
+          },
+          "29": {
+            "id": 29,
+            "name": "Hirusha Fernando",
+            "team": "E22",
+            "scores": 0,
+            "runs": 0,
+            "balls": 1,
+            "overs": "0.1",
+            "oversPlayed": "0.1",
+            "strikeRate": 0
           },
           "30": {
             "id": 30,
             "name": "Abhisek Tharlas",
-            "rating": 7,
-            "team": "E22"
+            "team": "E22",
+            "scores": 7,
+            "runs": 7,
+            "balls": 6,
+            "overs": "1.0",
+            "oversPlayed": "1.0",
+            "strikeRate": 116.67
           },
           "31": {
             "id": 31,
             "name": "Mehethuran Kujilan",
-            "rating": 83,
-            "team": "E22"
+            "team": "E22",
+            "scores": 83,
+            "runs": 83,
+            "balls": 85,
+            "overs": "14.1",
+            "oversPlayed": "14.1",
+            "strikeRate": 97.65
           },
           "32": {
             "id": 32,
             "name": "Yashikumar ",
-            "rating": 56,
-            "team": "E22"
+            "team": "E22",
+            "scores": 56,
+            "runs": 56,
+            "balls": 71,
+            "overs": "11.5",
+            "oversPlayed": "11.5",
+            "strikeRate": 78.87
           },
           "33": {
             "id": 33,
             "name": "Sithum Sathmina",
-            "rating": 2,
-            "team": "E22"
+            "team": "E22",
+            "scores": 2,
+            "runs": 2,
+            "balls": 6,
+            "overs": "1.0",
+            "oversPlayed": "1.0",
+            "strikeRate": 33.33
           },
           "34": {
             "id": 34,
             "name": "Wishwa Mahagamage",
-            "rating": 5,
-            "team": "E22"
+            "team": "E22",
+            "scores": 5,
+            "runs": 5,
+            "balls": 10,
+            "overs": "1.4",
+            "oversPlayed": "1.4",
+            "strikeRate": 50
           },
           "41": {
             "id": 41,
             "name": "Jalitha Tharuka",
-            "rating": 12,
-            "team": "E23"
+            "team": "E23",
+            "scores": 12,
+            "runs": 12,
+            "balls": 21,
+            "overs": "3.3",
+            "oversPlayed": "3.3",
+            "strikeRate": 57.14
           },
           "42": {
             "id": 42,
             "name": "Kalindu Geeganage",
-            "rating": 49,
-            "team": "E23"
+            "team": "E23",
+            "scores": 49,
+            "runs": 49,
+            "balls": 35,
+            "overs": "5.5",
+            "oversPlayed": "5.5",
+            "strikeRate": 140
           },
           "43": {
             "id": 43,
             "name": "Tharusha Dilhara",
-            "rating": 1,
-            "team": "E23"
+            "team": "E23",
+            "scores": 1,
+            "runs": 1,
+            "balls": 4,
+            "overs": "0.4",
+            "oversPlayed": "0.4",
+            "strikeRate": 25
           },
           "44": {
             "id": 44,
             "name": "Yatheesha Perera",
-            "rating": 20,
-            "team": "E23"
+            "team": "E23",
+            "scores": 20,
+            "runs": 20,
+            "balls": 23,
+            "overs": "3.5",
+            "oversPlayed": "3.5",
+            "strikeRate": 86.96
           },
           "45": {
             "id": 45,
             "name": "J. Robinson",
-            "rating": 38,
-            "team": "E23"
+            "team": "E23",
+            "scores": 38,
+            "runs": 38,
+            "balls": 46,
+            "overs": "7.4",
+            "oversPlayed": "7.4",
+            "strikeRate": 82.61
           },
           "46": {
             "id": 46,
             "name": "Janithra Chandima",
-            "rating": 3,
-            "team": "E23"
+            "team": "E23",
+            "scores": 3,
+            "runs": 3,
+            "balls": 16,
+            "overs": "2.4",
+            "oversPlayed": "2.4",
+            "strikeRate": 18.75
           },
           "47": {
             "id": 47,
             "name": "Naveen Esanka",
-            "rating": 20,
-            "team": "E23"
+            "team": "E23",
+            "scores": 20,
+            "runs": 20,
+            "balls": 26,
+            "overs": "4.2",
+            "oversPlayed": "4.2",
+            "strikeRate": 76.92
           },
           "48": {
             "id": 48,
             "name": "Rochana Muthukumarana",
-            "rating": 23,
-            "team": "E23"
+            "team": "E23",
+            "scores": 23,
+            "runs": 23,
+            "balls": 22,
+            "overs": "3.4",
+            "oversPlayed": "3.4",
+            "strikeRate": 104.55
           },
           "49": {
             "id": 49,
             "name": "Chamindu Gunasinghe",
-            "rating": 27,
-            "team": "E23"
+            "team": "E23",
+            "scores": 27,
+            "runs": 27,
+            "balls": 34,
+            "overs": "5.4",
+            "oversPlayed": "5.4",
+            "strikeRate": 79.41
           },
           "50": {
             "id": 50,
             "name": "Nirod Shanil",
-            "rating": 5,
-            "team": "E23"
+            "team": "E23",
+            "scores": 5,
+            "runs": 5,
+            "balls": 16,
+            "overs": "2.4",
+            "oversPlayed": "2.4",
+            "strikeRate": 31.25
           },
           "51": {
             "id": 51,
             "name": "Dehan Rajanayaka",
-            "rating": 26,
-            "team": "E23"
+            "team": "E23",
+            "scores": 26,
+            "runs": 26,
+            "balls": 21,
+            "overs": "3.3",
+            "oversPlayed": "3.3",
+            "strikeRate": 123.81
           },
           "54": {
             "id": 54,
             "name": "Udara Lakruwan",
-            "rating": 6,
-            "team": "E23"
+            "team": "E23",
+            "scores": 6,
+            "runs": 6,
+            "balls": 9,
+            "overs": "1.3",
+            "oversPlayed": "1.3",
+            "strikeRate": 66.67
           },
           "61": {
             "id": 61,
             "name": "Kaveesh Shaluka",
-            "rating": 1,
-            "team": "E24"
+            "team": "E24",
+            "scores": 1,
+            "runs": 1,
+            "balls": 2,
+            "overs": "0.2",
+            "oversPlayed": "0.2",
+            "strikeRate": 50
           },
           "62": {
             "id": 62,
             "name": "Tharusha Ranpriya",
-            "rating": 22,
-            "team": "E24"
+            "team": "E24",
+            "scores": 22,
+            "runs": 22,
+            "balls": 26,
+            "overs": "4.2",
+            "oversPlayed": "4.2",
+            "strikeRate": 84.62
           },
           "63": {
             "id": 63,
             "name": "Aflal Ahamed",
-            "rating": 25,
-            "team": "E24"
+            "team": "E24",
+            "scores": 25,
+            "runs": 25,
+            "balls": 38,
+            "overs": "6.2",
+            "oversPlayed": "6.2",
+            "strikeRate": 65.79
           },
           "64": {
             "id": 64,
             "name": "Rumesh Karunathilaka",
-            "rating": 34,
-            "team": "E24"
+            "team": "E24",
+            "scores": 34,
+            "runs": 34,
+            "balls": 44,
+            "overs": "7.2",
+            "oversPlayed": "7.2",
+            "strikeRate": 77.27
           },
           "65": {
             "id": 65,
             "name": "Kaveeja Sandeepa",
-            "rating": 22,
-            "team": "E24"
+            "team": "E24",
+            "scores": 22,
+            "runs": 22,
+            "balls": 34,
+            "overs": "5.4",
+            "oversPlayed": "5.4",
+            "strikeRate": 64.71
           },
           "66": {
             "id": 66,
             "name": "Dilshan Madhuranga",
-            "rating": 7,
-            "team": "E24"
+            "team": "E24",
+            "scores": 7,
+            "runs": 7,
+            "balls": 11,
+            "overs": "1.5",
+            "oversPlayed": "1.5",
+            "strikeRate": 63.64
           },
           "67": {
             "id": 67,
             "name": "Nadarajan Hariloshan",
-            "rating": 21,
-            "team": "E24"
+            "team": "E24",
+            "scores": 21,
+            "runs": 21,
+            "balls": 27,
+            "overs": "4.3",
+            "oversPlayed": "4.3",
+            "strikeRate": 77.78
           },
           "68": {
             "id": 68,
             "name": "Chandupa Nipun",
-            "rating": 42,
-            "team": "E24"
+            "team": "E24",
+            "scores": 42,
+            "runs": 42,
+            "balls": 37,
+            "overs": "6.1",
+            "oversPlayed": "6.1",
+            "strikeRate": 113.51
           },
           "69": {
             "id": 69,
             "name": "Subodha Prabhashwara",
-            "rating": 2,
-            "team": "E24"
+            "team": "E24",
+            "scores": 2,
+            "runs": 2,
+            "balls": 6,
+            "overs": "1.0",
+            "oversPlayed": "1.0",
+            "strikeRate": 33.33
           },
           "70": {
             "id": 70,
             "name": "Ravindu Lakmal",
-            "rating": 37,
-            "team": "E24"
+            "team": "E24",
+            "scores": 37,
+            "runs": 37,
+            "balls": 18,
+            "overs": "3.0",
+            "oversPlayed": "3.0",
+            "strikeRate": 205.56
           },
           "72": {
             "id": 72,
             "name": "Hadhil",
-            "rating": 6,
-            "team": "E24"
+            "team": "E24",
+            "scores": 6,
+            "runs": 6,
+            "balls": 15,
+            "overs": "2.3",
+            "oversPlayed": "2.3",
+            "strikeRate": 40
           },
           "1748287864665": {
             "id": 1748287864665,
-            "name": "Shamil Shahood",
-            "rating": 11,
-            "team": "E21"
+            "name": "Shamil Suhood",
+            "team": "E21",
+            "scores": 11,
+            "runs": 11,
+            "balls": 14,
+            "overs": "2.2",
+            "oversPlayed": "2.2",
+            "strikeRate": 78.57
           }
         },
         "bowlers": {
           "1": {
             "id": 1,
-            "name": "Ravindu Pussekumbura",
-            "rating": 7,
-            "team": "E22"
+            "name": "Krishantha Supun",
+            "team": "E21",
+            "wickets": 7,
+            "takenWickets": 7,
+            "balls": 52,
+            "overs": "8.4",
+            "oversBowled": "8.4",
+            "runsConceded": 35,
+            "runs": 35,
+            "economy": 4.04
           },
           "2": {
             "id": 2,
-            "name": "Krishantha Supun",
-            "rating": 7,
-            "team": "E21"
+            "name": "Dinush Deshan",
+            "team": "E21",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 25,
+            "runs": 25,
+            "economy": 3.57
           },
           "3": {
             "id": 3,
             "name": "Awishka Dilshan",
-            "rating": 5,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 5,
+            "takenWickets": 5,
+            "balls": 24,
+            "overs": "4.0",
+            "oversBowled": "4.0",
+            "runsConceded": 19,
+            "runs": 19,
+            "economy": 4.75
           },
           "5": {
             "id": 5,
             "name": "S. Pratheesh",
-            "rating": 4,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 4,
+            "takenWickets": 4,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 42,
+            "runs": 42,
+            "economy": 6
           },
           "6": {
             "id": 6,
             "name": "Merujan Sivanandan",
-            "rating": 2,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 31,
+            "runs": 31,
+            "economy": 4.43
           },
           "8": {
             "id": 8,
             "name": "Mohamad Farhan",
-            "rating": 4,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 4,
+            "takenWickets": 4,
+            "balls": 54,
+            "overs": "9.0",
+            "oversBowled": "9.0",
+            "runsConceded": 51,
+            "runs": 51,
+            "economy": 5.67
           },
           "10": {
             "id": 10,
             "name": "Wishwa Shrimal",
-            "rating": 2,
-            "team": "E21"
-          },
-          "12": {
-            "id": 12,
-            "name": "Charith Nuwantha",
-            "rating": 0,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 15,
+            "overs": "2.3",
+            "oversBowled": "2.3",
+            "runsConceded": 25,
+            "runs": 25,
+            "economy": 10
           },
           "21": {
             "id": 21,
-            "name": "Dinusha Deshan",
-            "rating": 7,
-            "team": "E21"
+            "name": "Ravindu Pussekumbura",
+            "team": "E22",
+            "wickets": 7,
+            "takenWickets": 7,
+            "balls": 72,
+            "overs": "12.0",
+            "oversBowled": "12.0",
+            "runsConceded": 77,
+            "runs": 77,
+            "economy": 6.42
           },
           "22": {
             "id": 22,
             "name": "Nishan Pramodha",
-            "rating": 1,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 18,
+            "overs": "3.0",
+            "oversBowled": "3.0",
+            "runsConceded": 20,
+            "runs": 20,
+            "economy": 6.67
           },
           "24": {
             "id": 24,
             "name": "Kavindu Rathnayake",
-            "rating": 0,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 6,
+            "overs": "1.0",
+            "oversBowled": "1.0",
+            "runsConceded": 6,
+            "runs": 6,
+            "economy": 6
           },
           "25": {
             "id": 25,
             "name": "Ashan Madhusanka",
-            "rating": 6,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 6,
+            "takenWickets": 6,
+            "balls": 60,
+            "overs": "10.0",
+            "oversBowled": "10.0",
+            "runsConceded": 71,
+            "runs": 71,
+            "economy": 7.1
           },
           "30": {
             "id": 30,
             "name": "Abhisek Tharlas",
-            "rating": 1,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 66,
+            "overs": "11.0",
+            "oversBowled": "11.0",
+            "runsConceded": 77,
+            "runs": 77,
+            "economy": 7
           },
           "31": {
             "id": 31,
             "name": "Mehethuran Kujilan",
-            "rating": 5,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 5,
+            "takenWickets": 5,
+            "balls": 78,
+            "overs": "13.0",
+            "oversBowled": "13.0",
+            "runsConceded": 83,
+            "runs": 83,
+            "economy": 6.38
           },
           "32": {
             "id": 32,
             "name": "Yashikumar ",
-            "rating": 3,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 60,
+            "overs": "10.0",
+            "oversBowled": "10.0",
+            "runsConceded": 53,
+            "runs": 53,
+            "economy": 5.3
           },
           "33": {
             "id": 33,
             "name": "Sithum Sathmina",
-            "rating": 1,
-            "team": "E22"
+            "team": "E22",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 12,
+            "overs": "2.0",
+            "oversBowled": "2.0",
+            "runsConceded": 16,
+            "runs": 16,
+            "economy": 8
           },
           "41": {
             "id": 41,
             "name": "Jalitha Tharuka",
-            "rating": 1,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 48,
+            "overs": "8.0",
+            "oversBowled": "8.0",
+            "runsConceded": 58,
+            "runs": 58,
+            "economy": 7.25
           },
           "42": {
             "id": 42,
             "name": "Kalindu Geeganage",
-            "rating": 3,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 36,
+            "overs": "6.0",
+            "oversBowled": "6.0",
+            "runsConceded": 35,
+            "runs": 35,
+            "economy": 5.83
           },
           "43": {
             "id": 43,
             "name": "Tharusha Dilhara",
-            "rating": 0,
-            "team": "E23"
-          },
-          "47": {
-            "id": 47,
-            "name": "Naveen Esanka",
-            "rating": 0,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 12,
+            "overs": "2.0",
+            "oversBowled": "2.0",
+            "runsConceded": 18,
+            "runs": 18,
+            "economy": 9
           },
           "48": {
             "id": 48,
             "name": "Rochana Muthukumarana",
-            "rating": 1,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 36,
+            "overs": "6.0",
+            "oversBowled": "6.0",
+            "runsConceded": 37,
+            "runs": 37,
+            "economy": 6.17
           },
           "49": {
             "id": 49,
-            "name": "Chamidu Gunasinghe",
-            "rating": 0,
-            "team": "E23"
+            "name": "Chamindu Gunasinghe",
+            "team": "E23",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 6,
+            "overs": "1.0",
+            "oversBowled": "1.0",
+            "runsConceded": 6,
+            "runs": 6,
+            "economy": 6
           },
           "50": {
             "id": 50,
             "name": "Nirod Shanil",
-            "rating": 2,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 44,
+            "overs": "7.2",
+            "oversBowled": "7.2",
+            "runsConceded": 45,
+            "runs": 45,
+            "economy": 6.14
           },
           "51": {
             "id": 51,
             "name": "Dehan Rajanayaka",
-            "rating": 2,
-            "team": "E23"
+            "team": "E23",
+            "wickets": 2,
+            "takenWickets": 2,
+            "balls": 42,
+            "overs": "7.0",
+            "oversBowled": "7.0",
+            "runsConceded": 55,
+            "runs": 55,
+            "economy": 7.86
           },
           "61": {
             "id": 61,
             "name": "Kaveesh Shaluka",
-            "rating": 0,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 12,
+            "overs": "2.0",
+            "oversBowled": "2.0",
+            "runsConceded": 15,
+            "runs": 15,
+            "economy": 7.5
           },
           "63": {
             "id": 63,
             "name": "Aflal Ahamed",
-            "rating": 0,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 48,
+            "overs": "8.0",
+            "oversBowled": "8.0",
+            "runsConceded": 59,
+            "runs": 59,
+            "economy": 7.38
           },
           "65": {
             "id": 65,
             "name": "Kaveeja Sandeepa",
-            "rating": 1,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 18,
+            "overs": "3.0",
+            "oversBowled": "3.0",
+            "runsConceded": 50,
+            "runs": 50,
+            "economy": 16.67
           },
           "66": {
             "id": 66,
             "name": "Dilshan Madhuranga",
-            "rating": 3,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 54,
+            "overs": "9.0",
+            "oversBowled": "9.0",
+            "runsConceded": 57,
+            "runs": 57,
+            "economy": 6.33
           },
           "68": {
             "id": 68,
             "name": "Chandupa Nipun",
-            "rating": 4,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 4,
+            "takenWickets": 4,
+            "balls": 54,
+            "overs": "9.0",
+            "oversBowled": "9.0",
+            "runsConceded": 57,
+            "runs": 57,
+            "economy": 6.33
           },
           "69": {
             "id": 69,
             "name": "Subodha Prabhashwara",
-            "rating": 1,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 36,
+            "overs": "6.0",
+            "oversBowled": "6.0",
+            "runsConceded": 54,
+            "runs": 54,
+            "economy": 9
           },
           "72": {
             "id": 72,
             "name": "Hadhil",
-            "rating": 3,
-            "team": "E24"
+            "team": "E24",
+            "wickets": 3,
+            "takenWickets": 3,
+            "balls": 48,
+            "overs": "8.0",
+            "oversBowled": "8.0",
+            "runsConceded": 57,
+            "runs": 57,
+            "economy": 7.13
+          },
+          "undefined": {
+            "name": "Naveen Esanka",
+            "team": "E23",
+            "wickets": 0,
+            "takenWickets": 0,
+            "balls": 3,
+            "overs": "0.3",
+            "oversBowled": "0.3",
+            "runsConceded": 6,
+            "runs": 6,
+            "economy": 12
           },
           "1748287864665": {
             "id": 1748287864665,
             "name": "Shamil Shahood",
-            "rating": 1,
-            "team": "E21"
+            "team": "E21",
+            "wickets": 1,
+            "takenWickets": 1,
+            "balls": 18,
+            "overs": "3.0",
+            "oversBowled": "3.0",
+            "runsConceded": 14,
+            "runs": 14,
+            "economy": 4.67
           }
         },
         "pointsTable": [

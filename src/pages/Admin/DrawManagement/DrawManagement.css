@@ -10,6 +10,7 @@
     max-width: 1360px;
     margin: 28px auto 0 auto;
     padding: 0 24px;
+    padding-bottom: 80px;
 }
 
 .dm-header {
@@ -1225,4 +1226,267 @@
     background: #f1f5f9;
     border-color: #cbd5e1;
     color: #94a3b8;
+}
+
+/* Live Match Status & Locked State Styles */
+.dm-match-card.is-live-match-card {
+    border-color: rgba(239, 68, 68, 0.6) !important;
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.15), 0 0 15px rgba(239, 68, 68, 0.1) !important;
+}
+
+.dmm-live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    animation: livePulseGlow 2s infinite;
+}
+
+.dm-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+}
+
+@keyframes livePulseGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.5);
+    }
+}
+
+.dmm-score-btn.live {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35) !important;
+    animation: liveBtnPulse 2s infinite;
+}
+
+@keyframes liveBtnPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+.dmm-score-btn.blocked {
+    background: rgba(148, 163, 184, 0.1) !important;
+    color: #94a3b8 !important;
+    border-color: rgba(148, 163, 184, 0.25) !important;
+    cursor: not-allowed !important;
+}
+
+.dmm-score-btn.blocked:hover {
+    background: rgba(239, 68, 68, 0.12) !important;
+    color: #f87171 !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+[data-theme="light"] .dm-match-card.is-live-match-card {
+    border-color: rgba(239, 68, 68, 0.5) !important;
+    background: linear-gradient(135deg, rgba(254, 242, 242, 0.9), #ffffff) !important;
+}
+
+[data-theme="light"] .dmm-score-btn.blocked {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* Completed Match Styles */
+.dm-match-card.is-completed-match-card {
+    border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.dmm-completed-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #10b981;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 9999px;
+}
+
+.dmm-result-banner {
+    margin: 8px 0;
+    padding: 6px 12px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px dashed rgba(16, 185, 129, 0.3);
+    border-radius: 8px;
+    color: #10b981;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dmm-score-btn.completed {
+    background: rgba(16, 185, 129, 0.12) !important;
+    color: #10b981 !important;
+    border: 1px solid rgba(16, 185, 129, 0.35) !important;
+}
+
+.dmm-score-btn.completed:hover {
+    background: rgba(16, 185, 129, 0.22) !important;
+    color: #34d399 !important;
+    border-color: rgba(16, 185, 129, 0.6) !important;
+}
+
+[data-theme="light"] .dm-match-card.is-completed-match-card {
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    background: linear-gradient(135deg, rgba(236, 253, 245, 0.7), #ffffff) !important;
+}
+
+[data-theme="light"] .dmm-result-banner {
+    background: rgba(16, 185, 129, 0.08);
+    color: #059669;
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="light"] .dmm-score-btn.completed {
+    background: #ecfdf5 !important;
+    color: #059669 !important;
+    border-color: #a7f3d0 !important;
+}
+
+/* ==========================================================================
+   STARTED & COMPLETED MATCH PROTECTIONS & DISABLED DRAW CONTROLS
+   ========================================================================== */
+
+/* Locked Team Slots for Live & Completed Matches */
+.dmm-team-slot.is-match-started-locked {
+    cursor: not-allowed !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    opacity: 0.85;
+}
+
+.dmm-team-slot.is-match-started-locked:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Disabled Schedule Edit Button */
+.dmm-edit-btn:disabled,
+.dmm-edit-btn.disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: #64748b !important;
+}
+
+/* Disabled Delete Match Box Button */
+.dmm-delete-btn:disabled,
+.dmm-delete-btn.disabled {
+    opacity: 0.3 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    background: rgba(148, 163, 184, 0.06) !important;
+    border-color: rgba(148, 163, 184, 0.12) !important;
+    color: #64748b !important;
+    transform: none !important;
+}
+
+/* Disabled Draw Controls when Matches Have Started */
+.dm-generate-btn:disabled,
+.dm-generate-btn.disabled,
+.dm-clear-draw-btn:disabled,
+.dm-clear-draw-btn.disabled,
+.dm-select:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    filter: grayscale(0.6);
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+/* Tournament In-Progress Notice */
+.dm-tournament-started-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px 16px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 12px;
+    color: #fbbf24;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.dm-tournament-started-notice svg {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] .dmm-team-slot.is-match-started-locked {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .dmm-edit-btn:disabled,
+[data-theme="light"] .dmm-edit-btn.disabled {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #94a3b8 !important;
+}
+
+[data-theme="light"] .dmm-delete-btn:disabled,
+[data-theme="light"] .dmm-delete-btn.disabled {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .dm-generate-btn:disabled,
+[data-theme="light"] .dm-generate-btn.disabled,
+[data-theme="light"] .dm-clear-draw-btn:disabled,
+[data-theme="light"] .dm-clear-draw-btn.disabled,
+[data-theme="light"] .dm-select:disabled {
+    opacity: 0.5 !important;
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .dm-tournament-started-notice {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #b45309;
 }

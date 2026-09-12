@@ -1,0 +1,28 @@
+/* Page transition animation — opacity-only fade (no translateY transform)
+   IMPORTANT: CSS transforms on ancestors break background-attachment:fixed
+   and position:fixed in children. Opacity-only avoids this entirely. */
+
+.page-transition-wrapper {
+    width: 100%;
+    min-height: 100%;
+}
+
+/* ── Entering: new page fades in ── */
+.page-transition-wrapper.page-enter {
+    animation: pageEnterAnim 0.28s ease-out both;
+}
+
+/* ── Exiting: current page fades out ── */
+.page-transition-wrapper.page-exit {
+    animation: pageExitAnim 0.16s ease-in both;
+}
+
+@keyframes pageEnterAnim {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes pageExitAnim {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}

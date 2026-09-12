@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import ThreeCricketScene from '../../components/3D/ThreeCricketScene';
 import TiltCard from '../../components/3D/TiltCard';
@@ -8,11 +9,12 @@ import {
     subscribeFixtures,
     subscribeStories,
     subscribeTeams,
-    subscribeDownloadCount,
     subscribeWebViewsCount,
     recordWebView,
     subscribeActiveTournament,
-    resolveTournamentLabels
+    resolveTournamentLabels,
+    subscribeCommonGallery,
+    subscribeUpcoming
 } from '../../services/rtdbService';
 import {
     MdLiveTv,
@@ -20,16 +22,24 @@ import {
     MdVisibility,
     MdEmojiEvents,
     MdPeople,
-    MdDownload,
     MdCalendarToday,
     MdArrowForward,
     MdClose,
     MdFiberManualRecord,
     MdLocationOn,
-    MdBolt
+    MdBolt,
+    MdPhotoLibrary,
+    MdChevronLeft,
+    MdChevronRight,
+    MdFullscreen,
+    MdSchedule,
+    MdCheckCircle
 } from 'react-icons/md';
-import MatchCard, { isMatchFinished, parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
+import MatchCard, { isMatchFinished, isMatchCurrentlyLive, parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
+import PageLoader from '../../components/common/PageLoader/PageLoader';
+import stadiumBgUrl from '../../Images/cricket_stadium_bg.jpg';
 import './Home3D.css';
+
 
 /**
  * Animated number ticker that counts up from 0 to target
@@ -84,11 +94,11 @@ const CountUpNumber = ({ target = 0, duration = 1600, shouldStart = false, suffi
 };
 
 const Home3D = () => {
+    const [isLoading, setIsLoading] = useState(true);
     const [liveData, setLiveData] = useState(null);
     const [allMatches, setAllMatches] = useState([]);
     const [stories, setStories] = useState([]);
     const [teams, setTeams] = useState({});
-    const [downloadCount, setDownloadCount] = useState(0);
     const [webViewsCount, setWebViewsCount] = useState(0);
     const [activeStoryModal, setActiveStoryModal] = useState(null);
     const [activeTournament, setActiveTournament] = useState(null);
@@ -96,33 +106,56 @@ const Home3D = () => {
     const [isTournamentLive, setIsTournamentLive] = useState(false);
     const [isTournamentCompleted, setIsTournamentCompleted] = useState(false);
 
-    // Section visibility detection for animated counter
+    // Section visibility for IntersectionObserver (animated counter + in-view classes)
     const statsSectionRef = useRef(null);
+    const storiesSectionRef = useRef(null);
+    const gallerySectionRef = useRef(null);
     const [statsAppeared, setStatsAppeared] = useState(false);
+    const [statsInView, setStatsInView] = useState(false);
+    const [storiesInView, setStoriesInView] = useState(false);
+    const [galleryInView, setGalleryInView] = useState(false);
+
+    // Gallery State for Home Page
+    const [galleryPhotos, setGalleryPhotos] = useState([]);
+    const [homeGalleryEdition, setHomeGalleryEdition] = useState('All');
+    const [homeGalleryCategory, setHomeGalleryCategory] = useState('All');
+    const [activeLightboxIndex, setActiveLightboxIndex] = useState(null);
 
     useEffect(() => {
-        const el = statsSectionRef.current;
-        if (!el) return;
-
         if (typeof IntersectionObserver === 'undefined') {
             setStatsAppeared(true);
+            setStatsInView(true);
+            setStoriesInView(true);
+            setGalleryInView(true);
             return;
         }
 
         const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setStatsAppeared(true);
-                    observer.disconnect(); // Only trigger on first appearance after page load
-                }
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.target === statsSectionRef.current) {
+                        setStatsInView(entry.isIntersecting);
+                        if (entry.isIntersecting) {
+                            setStatsAppeared(true);
+                        }
+                    }
+                    if (entry.target === storiesSectionRef.current) {
+                        setStoriesInView(entry.isIntersecting);
+                    }
+                    if (entry.target === gallerySectionRef.current) {
+                        setGalleryInView(entry.isIntersecting);
+                    }
+                });
             },
             {
-                threshold: 0.15,
-                rootMargin: '0px 0px -40px 0px'
+                threshold: 0.08,
+                rootMargin: '60px 0px 60px 0px'
             }
         );
 
-        observer.observe(el);
+        if (statsSectionRef.current) observer.observe(statsSectionRef.current);
+        if (storiesSectionRef.current) observer.observe(storiesSectionRef.current);
+        if (gallerySectionRef.current) observer.observe(gallerySectionRef.current);
 
         return () => {
             observer.disconnect();
@@ -130,16 +163,43 @@ const Home3D = () => {
     }, []);
 
     useEffect(() => {
-        const unsubLive = subscribeLiveData((data) => setLiveData(data));
-        const unsubFixtures = subscribeFixtures((data) => {
-            if (data?.finishedMatches && Object.keys(data.finishedMatches).length > 0) {
-                const list = Object.values(data.finishedMatches);
-                // Order by ascending order of date and time as requested
-                list.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
-                setAllMatches(list);
-            } else {
-                setAllMatches([]);
+        let loadedCount = 0;
+        const markLoaded = () => {
+            loadedCount++;
+            if (loadedCount >= 2) setIsLoading(false);
+        };
+
+        const unsubLive = subscribeLiveData((data) => {
+            setLiveData(data);
+            markLoaded();
+        });
+        let fixturesList = [];
+        let upcomingList = [];
+        const combineAndSetMatches = () => {
+            const raw = [...fixturesList, ...upcomingList];
+            const seen = new Set();
+            const list = [];
+            for (const m of raw) {
+                if (!m) continue;
+                const key = m.id || `${m.title || ''}-${m.teams || ''}-${m.date || ''}-${m.time || ''}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    list.push(m);
+                }
             }
+            list.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
+            setAllMatches(list);
+        };
+
+        const unsubFixtures = subscribeFixtures((data) => {
+            fixturesList = Object.values(data?.finishedMatches || {});
+            combineAndSetMatches();
+            markLoaded();
+        });
+
+        const unsubUpcoming = subscribeUpcoming((data) => {
+            upcomingList = Object.values(data?.upcomingMatches || data?.matches || {});
+            combineAndSetMatches();
         });
         const unsubStories = subscribeStories((data) => {
             if (data && typeof data === 'object' && Object.keys(data).length > 0) {
@@ -153,18 +213,25 @@ const Home3D = () => {
         });
         recordWebView();
         const unsubTeams = subscribeTeams((data) => setTeams(data || {}));
-        const unsubCount = subscribeDownloadCount((count) => setDownloadCount(count));
         const unsubViews = subscribeWebViewsCount((count) => setWebViewsCount(count));
-        const unsubTourney = subscribeActiveTournament((tourney) => setActiveTournament(tourney));
+        const unsubTourney = subscribeActiveTournament((tourney) => {
+            setActiveTournament(tourney);
+            markLoaded();
+        });
+        const unsubGallery = subscribeCommonGallery((photos) => setGalleryPhotos(photos || []));
+
+        const timer = setTimeout(() => setIsLoading(false), 1200);
 
         return () => {
+            clearTimeout(timer);
             unsubLive();
             unsubFixtures();
+            unsubUpcoming();
             unsubStories();
             unsubTeams();
-            unsubCount();
             unsubViews();
             unsubTourney();
+            unsubGallery();
         };
     }, []);
 
@@ -212,9 +279,94 @@ const Home3D = () => {
 
     const labels = resolveTournamentLabels(activeTournament);
     const completedMatches = allMatches.filter(isMatchFinished);
-    const upcomingMatches = allMatches.filter((m) => !isMatchFinished(m));
-    const displayedMatches = completedMatches.length > 0 ? completedMatches : upcomingMatches;
-    const isShowingCompleted = completedMatches.length > 0;
+    const upcomingMatches = allMatches.filter((m) => !isMatchFinished(m) && !isMatchCurrentlyLive(m, liveData));
+
+    // Gallery helpers and filters
+    const resolvePhotoUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+        if (url.startsWith('/')) return url;
+        return '/' + url;
+    };
+
+    const formatEditionLabel = (ed) => {
+        if (!ed || ed === 'All') return 'All';
+        const match = ed.match(/2K\d{2}|\b\d{4}\b/i);
+        if (match) return match[0].toUpperCase();
+        const cleaned = ed.replace(/E-Legend['’;]?s?\s*Trophy\s*/gi, '').trim();
+        return cleaned || ed;
+    };
+
+    const rawEditions = Array.from(new Set(galleryPhotos.map((p) => p.tournamentId).filter(Boolean)));
+    rawEditions.sort((a, b) => {
+        const getYearVal = (str) => {
+            const m2k = str.match(/2K(\d{2})/i);
+            if (m2k) return parseInt('20' + m2k[1], 10);
+            const m4 = str.match(/\b\d{4}\b/);
+            if (m4) return parseInt(m4[0], 10);
+            return 0;
+        };
+        return getYearVal(b) - getYearVal(a);
+    });
+    const galleryEditions = ['All', ...rawEditions];
+    const galleryCategories = [
+        'All',
+        'Match Action',
+        'Trophy & Awards',
+        'Opening Ceremony',
+        'Team Squads',
+        'Celebrations',
+        'Stadium & Fans',
+        'Highlights'
+    ];
+
+    const filteredHomePhotos = galleryPhotos.filter((p) => {
+        const matchEdition = homeGalleryEdition === 'All' || p.tournamentId === homeGalleryEdition;
+        const matchCategory = homeGalleryCategory === 'All' || p.category === homeGalleryCategory;
+        return matchEdition && matchCategory;
+    });
+
+    // Horizontal slider scroll handlers
+    const gallerySliderRef = useRef(null);
+
+    const handleSlideLeft = () => {
+        if (gallerySliderRef.current) {
+            gallerySliderRef.current.scrollBy({ left: -360, behavior: 'smooth' });
+        }
+    };
+
+    const handleSlideRight = () => {
+        if (gallerySliderRef.current) {
+            gallerySliderRef.current.scrollBy({ left: 360, behavior: 'smooth' });
+        }
+    };
+
+    // Reset slider scroll position when edition or category filter changes
+    useEffect(() => {
+        if (gallerySliderRef.current) {
+            gallerySliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+        }
+    }, [homeGalleryEdition, homeGalleryCategory]);
+
+    // Keyboard navigation for gallery lightbox
+    useEffect(() => {
+        if (activeLightboxIndex === null) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setActiveLightboxIndex(null);
+            } else if (e.key === 'ArrowLeft') {
+                setActiveLightboxIndex((prev) =>
+                    prev > 0 ? prev - 1 : filteredHomePhotos.length - 1
+                );
+            } else if (e.key === 'ArrowRight') {
+                setActiveLightboxIndex((prev) =>
+                    prev < filteredHomePhotos.length - 1 ? prev + 1 : 0
+                );
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeLightboxIndex, filteredHomePhotos.length]);
 
     useEffect(() => {
         if (labels.webTitle) {
@@ -222,8 +374,27 @@ const Home3D = () => {
         }
     }, [labels.webTitle]);
 
+    if (isLoading) {
+        return (
+            <PageLoader
+                message="Entering Tournament Arena..."
+                subtitle="Initializing 3D cricket stadium, live fixtures & team nodes"
+                tournamentName={labels.fullName || "E-Legends Trophy 2K26"}
+            />
+        );
+    }
+
     return (
         <div className="home-3d-page">
+            {/* Single fixed background image layer across the entire page (does not scroll with content) */}
+            <div
+                className="home-fixed-bg-layer"
+                style={{ backgroundImage: `url(${stadiumBgUrl})` }}
+                aria-hidden="true"
+            >
+                <div className="home-fixed-bg-overlay" />
+            </div>
+
             {/* Hero Section */}
             <section className="hero-3d-section">
                 <div className="hero-bg-glow" />
@@ -340,25 +511,38 @@ const Home3D = () => {
                                 <span className="live-dot-ping" />
                                 <MdFiberManualRecord className="live-icon-dot" />
                                 <span>LIVE NOW • {liveScore.matchTitle || 'Active Match'}</span>
+                                {liveScore.dls?.isApplied && (
+                                    <span className="radar-dls-badge">DLS: Target {liveScore.dls.revisedTarget} ({liveScore.dls.revisedOvers} ov)</span>
+                                )}
                             </div>
 
-                            <div className="live-radar-teams">
-                                <div className="radar-team">
-                                    <span className="radar-team-name">{liveScore.team1?.name || 'Team 1'}</span>
-                                    <span className="radar-team-score">
-                                        {liveScore.team1?.score ?? 0}/{liveScore.team1?.wicket ?? 0}
-                                        <small> ({liveScore.team1?.overs ?? 0} ov)</small>
-                                    </span>
-                                </div>
-                                <div className="radar-vs">VS</div>
-                                <div className="radar-team">
-                                    <span className="radar-team-name">{liveScore.team2?.name || 'Team 2'}</span>
-                                    <span className="radar-team-score">
-                                        {liveScore.team2?.score ?? 0}/{liveScore.team2?.wicket ?? 0}
-                                        <small> ({liveScore.team2?.overs ?? 0} ov)</small>
-                                    </span>
-                                </div>
-                            </div>
+                            {(() => {
+                                const isT2First = liveScore.firstBat === 2;
+                                const firstBat = isT2First ? liveScore.team2 : liveScore.team1;
+                                const secondBat = isT2First ? liveScore.team1 : liveScore.team2;
+                                const firstBatDefaultName = isT2First ? 'Team 2' : 'Team 1';
+                                const secondBatDefaultName = isT2First ? 'Team 1' : 'Team 2';
+
+                                return (
+                                    <div className="live-radar-teams">
+                                        <div className="radar-team">
+                                            <span className="radar-team-name">{firstBat?.name || firstBatDefaultName}</span>
+                                            <span className="radar-team-score">
+                                                {firstBat?.score ?? 0}/{firstBat?.wicket ?? 0}
+                                                <small> ({firstBat?.overs ?? 0} ov)</small>
+                                            </span>
+                                        </div>
+                                        <div className="radar-vs">VS</div>
+                                        <div className="radar-team">
+                                            <span className="radar-team-name">{secondBat?.name || secondBatDefaultName}</span>
+                                            <span className="radar-team-score">
+                                                {secondBat?.score ?? 0}/{secondBat?.wicket ?? 0}
+                                                <small> ({secondBat?.overs ?? 0} ov)</small>
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             <div className="live-radar-status">
                                 <p>{liveScore.status || 'Match in progress'}</p>
@@ -371,12 +555,20 @@ const Home3D = () => {
                 </section>
             )}
 
-            {/* Holographic 3D Stats Pedestals */}
-            <section className="stats-pedestal-section" ref={statsSectionRef}>
+            {/* Holographic 3D Stats Pedestals (Even Section 2) */}
+            <section
+                className={`stats-pedestal-section even-section ${statsInView ? 'in-view' : ''}`}
+                ref={statsSectionRef}
+                style={{ paddingTop: isMatchLive && liveScore ? '50px' : '120px' }}
+            >
                 <div className="home-container">
+                    <div className="stats-section-header">
+                        <span className="section-tag">TOURNAMENT REACH</span>
+                        <h2 className="section-title">Key Tournament Metrics</h2>
+                    </div>
                     <div className="stats-grid">
                         <TiltCard className="stat-card" maxTilt={12} data-tooltip="Registered Batches in Faculty of Engineering">
-                            <div className="stat-icon-wrap cyan">
+                            <div className="stat-icon-wrap">
                                 <MdPeople />
                             </div>
                             <div className="stat-details">
@@ -389,7 +581,7 @@ const Home3D = () => {
                         </TiltCard>
 
                         <TiltCard className="stat-card" maxTilt={12} data-tooltip="Total Matches Played in Selected Tournament">
-                            <div className="stat-icon-wrap emerald">
+                            <div className="stat-icon-wrap">
                                 <MdSportsCricket />
                             </div>
                             <div className="stat-details">
@@ -401,8 +593,24 @@ const Home3D = () => {
                             <span className="stat-glimmer" />
                         </TiltCard>
 
+                        <TiltCard className="stat-card" maxTilt={12} data-tooltip="Total Scheduled Matches in Selected Tournament">
+                            <div className="stat-icon-wrap">
+                                <MdCalendarToday />
+                            </div>
+                            <div className="stat-details">
+                                <span className="stat-number">
+                                    <CountUpNumber
+                                        target={allMatches.length > 0 ? allMatches.length : 12}
+                                        shouldStart={statsAppeared}
+                                    />
+                                </span>
+                                <span className="stat-label">Tournament Fixtures</span>
+                            </div>
+                            <span className="stat-glimmer" />
+                        </TiltCard>
+
                         <TiltCard className="stat-card" maxTilt={12} data-tooltip="Total Live Web Visitors & Viewers">
-                            <div className="stat-icon-wrap gold">
+                            <div className="stat-icon-wrap">
                                 <MdVisibility />
                             </div>
                             <div className="stat-details">
@@ -413,58 +621,76 @@ const Home3D = () => {
                             </div>
                             <span className="stat-glimmer" />
                         </TiltCard>
-
-                        <TiltCard className="stat-card" maxTilt={12} data-tooltip="Official Android Tournament App Installations">
-                            <div className="stat-icon-wrap purple">
-                                <MdDownload />
-                            </div>
-                            <div className="stat-details">
-                                <span className="stat-number">
-                                    <CountUpNumber
-                                        target={downloadCount > 0 ? downloadCount : 1200}
-                                        shouldStart={statsAppeared}
-                                        suffix="+"
-                                    />
-                                </span>
-                                <span className="stat-label">App Downloads</span>
-                            </div>
-                            <span className="stat-glimmer" />
-                        </TiltCard>
                     </div>
                 </div>
             </section>
 
-            {/* Tournament Highlights & Results */}
-            {displayedMatches && displayedMatches.length > 0 && (
-                <section className="results-section">
+            {/* TOURNAMENT FIXTURES SECTION: UPCOMING SCHEDULE & LATEST COMPLETED */}
+            {(upcomingMatches.length > 0 || completedMatches.length > 0) && (
+                <section className="results-section" id="home-fixtures-section">
                     <div className="home-container">
-                        <div className="section-header">
-                            <div>
-                                <span className="section-tag">TOURNAMENT FIXTURES</span>
-                                <h2 className="section-title">
-                                    {isShowingCompleted ? 'Latest Match Results' : 'Upcoming Match Schedule'}
-                                </h2>
+                        <div className="section-header results-section-header">
+                            <div className="section-header-titles">
+                                <span className="section-tag">TOURNAMENT FIXTURES &amp; RESULTS</span>
+                                <h2 className="section-title">Match Schedule &amp; Results</h2>
                             </div>
                             <Link to="/fixtures" className="view-all-link">
-                                All Fixtures <MdArrowForward />
+                                All Fixtures &amp; Scorecards <MdArrowForward />
                             </Link>
                         </div>
 
-                        <div className="results-grid">
-                            {displayedMatches.slice(0, 4).map((match, idx) => (
-                                <MatchCard key={match.id || idx} match={match} teamsMap={teams} />
-                            ))}
-                        </div>
+                        {/* 1. Upcoming Match Schedule Block */}
+                        {upcomingMatches.length > 0 && (
+                            <div className="fixtures-subblock upcoming-block">
+                                <div className="fixtures-subblock-header">
+                                    <div className="fixtures-subblock-title">
+                                        <MdSchedule className="subblock-icon upcoming" />
+                                        <h3>Upcoming Match Schedule</h3>
+                                    </div>
+                                    <span className="fixtures-count-badge upcoming">
+                                        {upcomingMatches.length} Upcoming
+                                    </span>
+                                </div>
+                                <div className="results-grid">
+                                    {upcomingMatches.slice(0, 4).map((match, idx) => (
+                                        <MatchCard key={match.id || `up-${idx}`} match={match} teamsMap={teams} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 2. Latest Completed Matches Block */}
+                        {completedMatches.length > 0 && (
+                            <div className="fixtures-subblock completed-block">
+                                <div className="fixtures-subblock-header">
+                                    <div className="fixtures-subblock-title">
+                                        <MdCheckCircle className="subblock-icon completed" />
+                                        <h3>Latest Concluded Matches</h3>
+                                    </div>
+                                    <span className="fixtures-count-badge completed">
+                                        {completedMatches.length} Concluded
+                                    </span>
+                                </div>
+                                <div className="results-grid">
+                                    {[...completedMatches].reverse().slice(0, 4).map((match, idx) => (
+                                        <MatchCard key={match.id || `comp-${idx}`} match={match} teamsMap={teams} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </section>
             )}
 
-            {/* Featured Stories Deck */}
+            {/* Featured Stories Deck (Even Section 4) */}
             {stories.length > 0 && (
-                <section className="stories-section">
+                <section
+                    className={`stories-section even-section ${storiesInView ? 'in-view' : ''}`}
+                    ref={storiesSectionRef}
+                >
                     <div className="home-container">
-                        <div className="section-header">
-                            <div>
+                        <div className="section-header stories-section-header">
+                            <div className="section-header-titles">
                                 <span className="section-tag">TOURNAMENT PULSE</span>
                                 <h2 className="section-title">Top Stories & Highlights</h2>
                             </div>
@@ -519,8 +745,169 @@ const Home3D = () => {
                 </section>
             )}
 
-            {/* Story Reader Modal */}
-            {activeStoryModal && (
+            {/* ================================================================= */}
+            {/* TOURNAMENT GALLERY SECTION (SMART, ATTRACTIVE HORIZONTAL SLIDER) */}
+            {/* ================================================================= */}
+            <section
+                ref={gallerySectionRef}
+                className={`tournament-gallery-section ${galleryInView ? 'in-view' : ''}`}
+                id="home-gallery-section"
+            >
+                <div className="home-container">
+                    <div className="section-header gallery-section-header">
+                        <div className="section-header-titles">
+                            <span className="section-tag">
+                                <MdPhotoLibrary className="section-tag-icon" /> TOURNAMENT MEMORIES & MOMENTS
+                            </span>
+                            <h2 className="section-title">Official Tournament Gallery</h2>
+                        </div>
+
+                        {/* Slider Nav Buttons & Edition Switcher */}
+                        <div className="gallery-header-controls">
+                            {galleryEditions.length > 1 && (
+                                <div className="gallery-edition-pills" role="tablist" aria-label="Tournament Editions">
+                                    {galleryEditions.map((ed) => {
+                                        const count = ed === 'All'
+                                            ? galleryPhotos.length
+                                            : galleryPhotos.filter((p) => p.tournamentId === ed).length;
+                                        return (
+                                            <button
+                                                key={ed}
+                                                type="button"
+                                                className={`gallery-edition-pill ${homeGalleryEdition === ed ? 'active' : ''}`}
+                                                onClick={() => setHomeGalleryEdition(ed)}
+                                                title={ed === 'All' ? 'All Editions' : ed}
+                                            >
+                                                <span>{formatEditionLabel(ed)}</span>
+                                                <span className="gallery-pill-badge">{count}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Category Filter Chips */}
+                    <div className="gallery-filter-chips-row">
+                        <div className="gallery-category-chips" role="tablist" aria-label="Gallery Category Filters">
+                            {galleryCategories.map((cat) => {
+                                const count = galleryPhotos.filter((p) => {
+                                    const matchEd = homeGalleryEdition === 'All' || p.tournamentId === homeGalleryEdition;
+                                    return matchEd && (cat === 'All' || p.category === cat);
+                                }).length;
+
+                                if (cat !== 'All' && count === 0) return null;
+
+                                return (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        className={`gallery-cat-chip ${homeGalleryCategory === cat ? 'active' : ''}`}
+                                        onClick={() => setHomeGalleryCategory(cat)}
+                                    >
+                                        <span>{cat === 'All' ? 'All Highlights' : cat}</span>
+                                        <span className="cat-badge">{count}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Horizontal Image Slider */}
+                    {filteredHomePhotos.length === 0 ? (
+                        <div className="gallery-empty-state">
+                            <MdPhotoLibrary className="gallery-empty-icon" />
+                            <h3>No Moments Found</h3>
+                            <p>No tournament photos match the selected edition or category filter.</p>
+                            <button
+                                className="gallery-reset-filter-btn"
+                                onClick={() => {
+                                    setHomeGalleryEdition('All');
+                                    setHomeGalleryCategory('All');
+                                }}
+                            >
+                                Show All Photos
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="gallery-slider-viewport">
+                            <button
+                                type="button"
+                                className="gallery-slider-floating-arrow prev"
+                                onClick={handleSlideLeft}
+                                aria-label="Scroll left"
+                            >
+                                <MdChevronLeft />
+                            </button>
+
+                            <div
+                                ref={gallerySliderRef}
+                                className="gallery-slider-track"
+                                role="region"
+                                aria-label="Tournament Photos Slider"
+                            >
+                                {filteredHomePhotos.map((photo, idx) => {
+                                    const photoSrc = resolvePhotoUrl(photo.imageUrl);
+                                    return (
+                                        <TiltCard
+                                            key={photo.id || idx}
+                                            className="gallery-slider-card"
+                                            maxTilt={6}
+                                            onClick={() => setActiveLightboxIndex(idx)}
+                                        >
+                                            <div className="gallery-card-media">
+                                                <img
+                                                    src={photoSrc}
+                                                    alt={photo.title || 'Tournament moment'}
+                                                    className="gallery-card-img"
+                                                    loading="lazy"
+                                                    onError={(e) => {
+                                                        e.target.src = 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop';
+                                                    }}
+                                                />
+                                                <div className="gallery-card-gradient" />
+                                                <div className="gallery-card-badges">
+                                                    <span className="gallery-edition-tag">
+                                                        {formatEditionLabel(photo.tournamentId) || "2K26"}
+                                                    </span>
+                                                    {photo.category && (
+                                                        <span className="gallery-category-tag">{photo.category}</span>
+                                                    )}
+                                                </div>
+                                                <div className="gallery-card-hover-overlay">
+                                                    <div className="gallery-hover-circle">
+                                                        <MdFullscreen />
+                                                    </div>
+                                                    <span className="gallery-hover-text">View Photo</span>
+                                                </div>
+                                            </div>
+                                            <div className="gallery-card-info">
+                                                <h4 className="gallery-card-title">{photo.title || 'Tournament Moment'}</h4>
+                                                {photo.caption && (
+                                                    <p className="gallery-card-caption">{photo.caption}</p>
+                                                )}
+                                            </div>
+                                        </TiltCard>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                type="button"
+                                className="gallery-slider-floating-arrow next"
+                                onClick={handleSlideRight}
+                                aria-label="Scroll right"
+                            >
+                                <MdChevronRight />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* Story Reader Modal rendered into document.body */}
+            {activeStoryModal && createPortal(
                 <div className="story-modal-overlay" onClick={() => setActiveStoryModal(null)}>
                     <div className="story-modal-card" onClick={(e) => e.stopPropagation()}>
                         <button className="story-modal-close" onClick={() => setActiveStoryModal(null)}>
@@ -537,7 +924,96 @@ const Home3D = () => {
                         )}
                         <p className="modal-story-body">{activeStoryModal.description || activeStoryModal.content}</p>
                     </div>
-                </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Gallery Lightbox Modal rendered into document.body */}
+            {activeLightboxIndex !== null && filteredHomePhotos[activeLightboxIndex] && createPortal(
+                <div
+                    className="gallery-lightbox-overlay"
+                    onClick={() => setActiveLightboxIndex(null)}
+                >
+                    <div
+                        className="gallery-lightbox-modal"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            className="gallery-lightbox-close"
+                            onClick={() => setActiveLightboxIndex(null)}
+                            aria-label="Close Gallery Lightbox"
+                        >
+                            <MdClose />
+                        </button>
+
+                        {/* Navigation controls */}
+                        {filteredHomePhotos.length > 1 && (
+                            <>
+                                <button
+                                    className="gallery-lightbox-nav prev"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveLightboxIndex((prev) =>
+                                            prev > 0 ? prev - 1 : filteredHomePhotos.length - 1
+                                        );
+                                    }}
+                                    aria-label="Previous Photo"
+                                >
+                                    <MdChevronLeft />
+                                </button>
+                                <button
+                                    className="gallery-lightbox-nav next"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveLightboxIndex((prev) =>
+                                            prev < filteredHomePhotos.length - 1 ? prev + 1 : 0
+                                        );
+                                    }}
+                                    aria-label="Next Photo"
+                                >
+                                    <MdChevronRight />
+                                </button>
+                            </>
+                        )}
+
+                        <div className="gallery-lightbox-image-container">
+                            <img
+                                src={resolvePhotoUrl(filteredHomePhotos[activeLightboxIndex].imageUrl)}
+                                alt={filteredHomePhotos[activeLightboxIndex].title}
+                                className="gallery-lightbox-full-img"
+                            />
+                        </div>
+
+                        <div className="gallery-lightbox-meta-panel">
+                            <div className="gallery-lightbox-header-row">
+                                <div className="gallery-lightbox-tags">
+                                    <span className="gallery-lightbox-edition">
+                                        <MdEmojiEvents /> {filteredHomePhotos[activeLightboxIndex].tournamentId || "E-Legend's Trophy"}
+                                    </span>
+                                    {filteredHomePhotos[activeLightboxIndex].category && (
+                                        <span className="gallery-lightbox-cat">
+                                            {filteredHomePhotos[activeLightboxIndex].category}
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="gallery-lightbox-counter">
+                                    {activeLightboxIndex + 1} / {filteredHomePhotos.length}
+                                </span>
+                            </div>
+
+                            <h3 className="gallery-lightbox-title">
+                                {filteredHomePhotos[activeLightboxIndex].title}
+                            </h3>
+
+                            {filteredHomePhotos[activeLightboxIndex].caption && (
+                                <p className="gallery-lightbox-caption">
+                                    {filteredHomePhotos[activeLightboxIndex].caption}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
             <Footer />

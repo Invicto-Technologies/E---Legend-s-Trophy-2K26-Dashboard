@@ -23,6 +23,7 @@ import {
     MdCheckCircle,
     MdSettings
 } from 'react-icons/md';
+import PageLoader from '../../../components/common/PageLoader/PageLoader';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -31,7 +32,8 @@ const AdminDashboard = () => {
         tournaments,
         activeTournamentId,
         selectTournament,
-        selectedTournamentId
+        selectedTournamentId,
+        loading
     } = useAdminTournament();
 
     const [teams, setTeams] = useState({});
@@ -90,6 +92,16 @@ const AdminDashboard = () => {
         selectTournament(tournamentId);
         navigate('/admin/tournaments');
     };
+
+    if (loading) {
+        return (
+            <PageLoader
+                message="Loading Admin Dashboard..."
+                subtitle="Synchronizing tournament editions, fixtures & match analytics"
+                tournamentName="Admin Suite"
+            />
+        );
+    }
 
     return (
         <div className="admin-dashboard-page">

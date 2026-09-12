@@ -1,0 +1,394 @@
+/* ==========================================================================
+   PageLoader.css - Futuristic 3D Holographic Loading Animation
+   ========================================================================== */
+
+.page-loader-overlay {
+    position: relative;
+    width: 100%;
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    z-index: 50;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.page-loader-overlay.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    z-index: 9999;
+    background: radial-gradient(circle at 50% 45%, #0d1527 0%, #060a12 70%, #03060a 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.page-loader-overlay.embedded {
+    min-height: 60vh;
+    background: transparent;
+    padding: 60px 20px;
+}
+
+/* Ambient Backlight Auras */
+.loader-ambient-glow {
+    position: absolute;
+    width: 480px;
+    height: 480px;
+    border-radius: 50%;
+    filter: blur(110px);
+    pointer-events: none;
+    opacity: 0.18;
+    animation: loaderAuraPulse 4s ease-in-out infinite alternate;
+}
+
+.loader-glow-cyan {
+    top: 25%;
+    left: 45%;
+    background: #00f0ff;
+}
+
+.loader-glow-gold {
+    bottom: 25%;
+    right: 45%;
+    background: #f59e0b;
+    animation-delay: -2s;
+}
+
+@keyframes loaderAuraPulse {
+    0% {
+        transform: scale(0.9) translate(-10px, -10px);
+        opacity: 0.14;
+    }
+    100% {
+        transform: scale(1.15) translate(15px, 15px);
+        opacity: 0.24;
+    }
+}
+
+/* Cyber Grid Background */
+.loader-cyber-grid {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    background-size: 36px 36px;
+    opacity: 0.7;
+    pointer-events: none;
+    mask-image: radial-gradient(circle at 50% 50%, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, black 30%, transparent 75%);
+}
+
+/* Card Container */
+.loader-content-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 36px 44px;
+    max-width: 520px;
+    width: 90%;
+    z-index: 2;
+}
+
+/* -------------------------------------------------------------
+   3D HOLOGRAPHIC GYRO STAGE
+   ------------------------------------------------------------- */
+.loader-3d-stage {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 800px;
+    transform-style: preserve-3d;
+    margin-bottom: 24px;
+}
+
+/* Gyro Concentric Rings */
+.gyro-ring {
+    position: absolute;
+    border-radius: 50%;
+    transform-style: preserve-3d;
+    pointer-events: none;
+}
+
+.ring-outer {
+    width: 124px;
+    height: 124px;
+    border: 2px dashed rgba(0, 240, 255, 0.7);
+    border-top-color: #00f0ff;
+    border-right-color: transparent;
+    filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.5));
+    animation: spinOuterGyro 3.2s linear infinite;
+}
+
+.ring-middle {
+    width: 96px;
+    height: 96px;
+    border: 2px solid rgba(245, 158, 11, 0.6);
+    border-left-color: #f59e0b;
+    border-bottom-color: transparent;
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+    animation: spinMiddleGyro 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+}
+
+.ring-inner {
+    width: 72px;
+    height: 72px;
+    border: 1.5px dotted rgba(226, 232, 240, 0.8);
+    border-top-color: #e2e8f0;
+    border-bottom-color: transparent;
+    animation: spinInnerGyro 1.8s linear infinite;
+}
+
+@keyframes spinOuterGyro {
+    0% {
+        transform: rotateX(65deg) rotateY(20deg) rotateZ(0deg);
+    }
+    100% {
+        transform: rotateX(65deg) rotateY(20deg) rotateZ(360deg);
+    }
+}
+
+@keyframes spinMiddleGyro {
+    0% {
+        transform: rotateX(-55deg) rotateY(35deg) rotateZ(0deg);
+    }
+    100% {
+        transform: rotateX(-55deg) rotateY(35deg) rotateZ(360deg);
+    }
+}
+
+@keyframes spinInnerGyro {
+    0% {
+        transform: rotateX(25deg) rotateY(-40deg) rotateZ(0deg);
+    }
+    100% {
+        transform: rotateX(25deg) rotateY(-40deg) rotateZ(360deg);
+    }
+}
+
+/* Radar Pulse Wave */
+.radar-ping-wave {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0, 240, 255, 0.8);
+    animation: radarWaveExpand 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+    pointer-events: none;
+}
+
+@keyframes radarWaveExpand {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.9;
+    }
+    70% {
+        transform: scale(1.85);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+/* Central Orb */
+.loader-center-orb {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #00f0ff 0%, #0284c7 50%, #0f172a 100%);
+    box-shadow: 
+        0 0 24px rgba(0, 240, 255, 0.65),
+        inset 0 0 10px rgba(255, 255, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: corePulse 2s ease-in-out infinite;
+    z-index: 3;
+}
+
+@keyframes corePulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(0, 240, 255, 0.5), inset 0 0 8px rgba(255, 255, 255, 0.3);
+    }
+    50% {
+        transform: scale(1.08);
+        box-shadow: 0 0 32px rgba(0, 240, 255, 0.85), inset 0 0 12px rgba(255, 255, 255, 0.6);
+    }
+}
+
+.core-cricket-icon {
+    font-size: 1.6rem;
+    color: #ffffff;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.core-trophy-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    border: 1.5px solid #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* -------------------------------------------------------------
+   TYPOGRAPHY & STATUS
+   ------------------------------------------------------------- */
+.loader-tournament-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    box-shadow: 0 0 16px rgba(0, 240, 255, 0.1);
+    margin-bottom: 12px;
+}
+
+.live-ping-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #00f0ff;
+    box-shadow: 0 0 8px #00f0ff;
+    animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.4;
+        transform: scale(0.75);
+    }
+}
+
+.pill-text {
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #00f0ff;
+}
+
+.loader-title {
+    font-size: clamp(1.2rem, 2.8vw, 1.5rem);
+    font-weight: 800;
+    color: #f8fafc;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.3px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.loader-subtitle {
+    font-size: 0.88rem;
+    color: #94a3b8;
+    margin: 0 0 24px 0;
+    min-height: 22px;
+    max-width: 420px;
+    line-height: 1.45;
+}
+
+.status-fade-in {
+    display: inline-block;
+    animation: statusSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes statusSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* -------------------------------------------------------------
+   HOLOGRAPHIC PROGRESS TRACK
+   ------------------------------------------------------------- */
+.loader-progress-track {
+    width: 220px;
+    height: 4px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.loader-progress-beam {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 45%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, transparent, #00f0ff, #f59e0b, transparent);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.8);
+    animation: beamSweep 1.6s ease-in-out infinite;
+}
+
+@keyframes beamSweep {
+    0% {
+        left: -50%;
+    }
+    100% {
+        left: 110%;
+    }
+}
+
+/* -------------------------------------------------------------
+   LIGHT THEME SUPPORT
+   ------------------------------------------------------------- */
+[data-theme='light'] .page-loader-overlay.fullscreen {
+    background: radial-gradient(circle at 50% 45%, #f1f5f9 0%, #e2e8f0 70%, #cbd5e1 100%);
+}
+
+[data-theme='light'] .loader-title {
+    color: #0f172a;
+}
+
+[data-theme='light'] .loader-subtitle {
+    color: #475569;
+}
+
+[data-theme='light'] .loader-tournament-pill {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.3);
+}
+
+[data-theme='light'] .pill-text {
+    color: #0284c7;
+}
+
+[data-theme='light'] .loader-progress-track {
+    background: rgba(0, 0, 0, 0.08);
+}

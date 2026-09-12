@@ -25,16 +25,20 @@ import {
     MdBolt,
     MdSave,
     MdLock,
-    MdInfo
+    MdInfo,
+    MdWorkspacePremium,
+    MdMilitaryTech
 } from 'react-icons/md';
 import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import ConfirmationModal from '../../../components/common/ConfirmationModal';
+import PageLoader from '../../../components/common/PageLoader/PageLoader';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
 import './TournamentManagement.css';
 
 const TournamentManagement = () => {
     const location = useLocation();
     const { selectTournament } = useAdminTournament();
+    const [isLoading, setIsLoading] = useState(true);
     const [tournamentList, setTournamentList] = useState([]);
     const [activeTournament, setActiveTournament] = useState(null);
     const [activeFixturesData, setActiveFixturesData] = useState(null);
@@ -81,13 +85,17 @@ const TournamentManagement = () => {
     useEffect(() => {
         const unsubIndex = subscribeTournamentIndex((list) => {
             setTournamentList(list || []);
+            setIsLoading(false);
         });
 
         const unsubActive = subscribeActiveTournament((tourney) => {
             setActiveTournament(tourney);
         });
 
+        const timer = setTimeout(() => setIsLoading(false), 1200);
+
         return () => {
+            clearTimeout(timer);
             unsubIndex();
             unsubActive();
         };
@@ -349,6 +357,16 @@ const TournamentManagement = () => {
             setDeleteTarget(null);
         }
     };
+
+    if (isLoading && tournamentList.length === 0) {
+        return (
+            <PageLoader
+                message="Loading Tournament Editions..."
+                subtitle="Retrieving tournament database nodes and active configurations"
+                tournamentName="Tournament Manager"
+            />
+        );
+    }
 
     return (
         <div className="admin-tournaments-page">
@@ -1107,7 +1125,7 @@ const TournamentManagement = () => {
                             {/* Champion & Runner-Up Selection */}
                             <div className="modal-section-box">
                                 <div className="section-box-header">
-                                    <span className="section-box-step">🏆</span>
+                                    <span className="section-box-step"><MdEmojiEvents /></span>
                                     <div className="section-box-title-wrap">
                                         <h4>Tournament Podium & Honors</h4>
                                         <p className="section-box-subtitle">Specify the Champion and Runner-Up to be enshrined in the public Hall of Fame.</p>
@@ -1116,7 +1134,7 @@ const TournamentManagement = () => {
 
                                 <div className="form-row two-col">
                                     <div className="form-field">
-                                        <label>Champion Team 🥇</label>
+                                        <label>Champion Team <MdWorkspacePremium className="honor-medal champion" /></label>
                                         <input
                                             type="text"
                                             value={completeChampion}
@@ -1127,7 +1145,7 @@ const TournamentManagement = () => {
                                         />
                                     </div>
                                     <div className="form-field">
-                                        <label>Runner-Up Team 🥈</label>
+                                        <label>Runner-Up Team <MdMilitaryTech className="honor-medal runner-up" /></label>
                                         <input
                                             type="text"
                                             value={completeRunnerUp}

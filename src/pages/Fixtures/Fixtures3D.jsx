@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
-import MatchCard, { isMatchFinished, parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
+import MatchCard, { isMatchFinished, isMatchCurrentlyLive, parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
 import {
     subscribeFixtures,
     subscribeLiveData,
@@ -19,10 +19,12 @@ import {
     MdEventAvailable,
     MdLocationOn
 } from 'react-icons/md';
+import PageLoader from '../../components/common/PageLoader/PageLoader';
 import './Fixtures3D.css';
 
 const Fixtures3D = () => {
     const [activeTournament, setActiveTournament] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('upcoming'); // 'live', 'upcoming', 'history'
     const [userSelectedTab, setUserSelectedTab] = useState(false);
     const [fixturesData, setFixturesData] = useState(null);
@@ -31,13 +33,34 @@ const Fixtures3D = () => {
     const [teams, setTeams] = useState({});
 
     useEffect(() => {
-        const unsubActive = subscribeActiveTournament((tourney) => setActiveTournament(tourney));
-        const unsubFix = subscribeFixtures((data) => setFixturesData(data));
-        const unsubLive = subscribeLiveData((data) => setLiveData(data));
-        const unsubUp = subscribeUpcoming((data) => setUpcomingData(data));
+        let loadedCount = 0;
+        const markLoaded = () => {
+            loadedCount++;
+            if (loadedCount >= 2) setIsLoading(false);
+        };
+
+        const unsubActive = subscribeActiveTournament((tourney) => {
+            setActiveTournament(tourney);
+            markLoaded();
+        });
+        const unsubFix = subscribeFixtures((data) => {
+            setFixturesData(data);
+            markLoaded();
+        });
+        const unsubLive = subscribeLiveData((data) => {
+            setLiveData(data);
+            markLoaded();
+        });
+        const unsubUp = subscribeUpcoming((data) => {
+            setUpcomingData(data);
+            markLoaded();
+        });
         const unsubTeams = subscribeTeams((data) => setTeams(data || {}));
 
+        const timer = setTimeout(() => setIsLoading(false), 1200);
+
         return () => {
+            clearTimeout(timer);
             unsubActive();
             unsubFix();
             unsubLive();
@@ -49,10 +72,10 @@ const Fixtures3D = () => {
     const labels = resolveTournamentLabels(activeTournament);
     const isMatchLive = Boolean(liveData?.isLive);
 
-    // Combine matches from finishedMatches (where published draw lives) and upcomingData
+    // Combine matches from finishedMatches (where published draw lives) and upcomingData (supporting both upcomingMatches and matches)
     const allMatchesRaw = [
         ...Object.values(fixturesData?.finishedMatches || {}),
-        ...Object.values(upcomingData?.matches || {})
+        ...Object.values(upcomingData?.upcomingMatches || upcomingData?.matches || {})
     ];
 
     // Deduplicate matches
@@ -70,8 +93,8 @@ const Fixtures3D = () => {
     // Sort in ascending order of date and time
     allMatches.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
 
-    // Scheduled matches means upcoming matches; finished matches shows in results tab
-    const upcomingMatches = allMatches.filter((m) => !isMatchFinished(m));
+    // Scheduled matches means upcoming matches (excluding matches currently live); finished matches shows in results tab
+    const upcomingMatches = allMatches.filter((m) => !isMatchFinished(m) && !isMatchCurrentlyLive(m, liveData));
     const finishedMatches = allMatches.filter(isMatchFinished);
 
     // Automatically set logical initial tab unless user manually selected one
@@ -88,6 +111,16 @@ const Fixtures3D = () => {
             }
         }
     }, [isMatchLive, upcomingMatches.length, finishedMatches.length, userSelectedTab]);
+
+    if (isLoading) {
+        return (
+            <PageLoader
+                message="Loading Tournament Fixtures..."
+                subtitle="Synchronizing draw schedules, live timings & match venues"
+                tournamentName={labels.fullName || "E-Legends Trophy 2K26"}
+            />
+        );
+    }
 
     return (
         <div className="fixtures-3d-page">
@@ -153,6 +186,19 @@ const Fixtures3D = () => {
                                 const t1Crr = t1Overs > 0 ? (Number(t1.score || 0) / t1Overs).toFixed(2) : null;
                                 const t2Crr = t2Overs > 0 ? (Number(t2.score || 0) / t2Overs).toFixed(2) : null;
 
+                                // First batting team must always be displayed on the left side
+                                const isTeam1FirstBat = ls.firstBattingTeam ? (ls.firstBattingTeam === t1Name) : (firstBat !== 2 && firstBat !== 0);
+                                const leftTeam = isTeam1FirstBat ? t1 : t2;
+                                const rightTeam = isTeam1FirstBat ? t2 : t1;
+                                const leftName = isTeam1FirstBat ? t1Name : t2Name;
+                                const rightName = isTeam1FirstBat ? t2Name : t1Name;
+                                const leftLogo = isTeam1FirstBat ? t1Logo : t2Logo;
+                                const rightLogo = isTeam1FirstBat ? t2Logo : t1Logo;
+                                const isLeftBatting = isTeam1FirstBat ? isT1Batting : isT2Batting;
+                                const isRightBatting = !isLeftBatting;
+                                const leftCrr = isTeam1FirstBat ? t1Crr : t2Crr;
+                                const rightCrr = isTeam1FirstBat ? t2Crr : t1Crr;
+
                                 return (
                                     <div className="fixtures-live-wrap">
                                         <TiltCard className="fixture-live-card" maxTilt={6}>
@@ -169,25 +215,25 @@ const Fixtures3D = () => {
                                             </div>
 
                                             <div className="flc-matchup">
-                                                {/* Team 1 Box */}
-                                                <div className={`flc-team-box ${isT1Batting ? 'is-batting' : ''}`}>
+                                                {/* First Batting Team Box (Left) */}
+                                                <div className={`flc-team-box ${isLeftBatting ? 'is-batting' : ''}`}>
                                                     <div className="flc-team-crest-wrap">
-                                                        {t1Logo ? (
-                                                            <img src={t1Logo} alt={t1Name} className="flc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                        {leftLogo ? (
+                                                            <img src={leftLogo} alt={leftName} className="flc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
                                                         ) : (
-                                                            <div className="flc-team-crest-fallback">{t1Name.substring(0, 3)}</div>
+                                                            <div className="flc-team-crest-fallback">{leftName.substring(0, 3)}</div>
                                                         )}
-                                                        {isT1Batting && <span className="flc-batting-tag">🏏 BATTING</span>}
+                                                        {isLeftBatting && <span className="flc-batting-tag">🏏 BATTING</span>}
                                                     </div>
-                                                    <h2 className="flc-team-name">{t1Name}</h2>
+                                                    <h2 className="flc-team-name">{leftName}</h2>
                                                     <div className="flc-score-display">
-                                                        <span className="flc-score-num">{t1.score ?? 0}</span>
+                                                        <span className="flc-score-num">{leftTeam.score ?? 0}</span>
                                                         <span className="flc-score-sep">/</span>
-                                                        <span className="flc-score-wkt">{t1.wicket ?? 0}</span>
+                                                        <span className="flc-score-wkt">{leftTeam.wicket ?? 0}</span>
                                                     </div>
                                                     <div className="flc-team-meta">
-                                                        <span className="flc-overs-pill">({t1.overs ?? 0} ov)</span>
-                                                        {t1Crr && <span className="flc-crr-pill">CRR {t1Crr}</span>}
+                                                        <span className="flc-overs-pill">({leftTeam.overs ?? 0} ov)</span>
+                                                        {leftCrr && <span className="flc-crr-pill">CRR {leftCrr}</span>}
                                                     </div>
                                                 </div>
 
@@ -197,25 +243,25 @@ const Fixtures3D = () => {
                                                     <span className="flc-format-tag">15 Overs T20</span>
                                                 </div>
 
-                                                {/* Team 2 Box */}
-                                                <div className={`flc-team-box ${isT2Batting ? 'is-batting' : ''}`}>
+                                                {/* Second Batting Team Box (Right) */}
+                                                <div className={`flc-team-box ${isRightBatting ? 'is-batting' : ''}`}>
                                                     <div className="flc-team-crest-wrap">
-                                                        {t2Logo ? (
-                                                            <img src={t2Logo} alt={t2Name} className="flc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                        {rightLogo ? (
+                                                            <img src={rightLogo} alt={rightName} className="flc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
                                                         ) : (
-                                                            <div className="flc-team-crest-fallback">{t2Name.substring(0, 3)}</div>
+                                                            <div className="flc-team-crest-fallback">{rightName.substring(0, 3)}</div>
                                                         )}
-                                                        {isT2Batting && <span className="flc-batting-tag">🏏 BATTING</span>}
+                                                        {isRightBatting && <span className="flc-batting-tag">🏏 BATTING</span>}
                                                     </div>
-                                                    <h2 className="flc-team-name">{t2Name}</h2>
+                                                    <h2 className="flc-team-name">{rightName}</h2>
                                                     <div className="flc-score-display">
-                                                        <span className="flc-score-num">{t2.score ?? 0}</span>
+                                                        <span className="flc-score-num">{rightTeam.score ?? 0}</span>
                                                         <span className="flc-score-sep">/</span>
-                                                        <span className="flc-score-wkt">{t2.wicket ?? 0}</span>
+                                                        <span className="flc-score-wkt">{rightTeam.wicket ?? 0}</span>
                                                     </div>
                                                     <div className="flc-team-meta">
-                                                        <span className="flc-overs-pill">({t2.overs ?? 0} ov)</span>
-                                                        {t2Crr && <span className="flc-crr-pill">CRR {t2Crr}</span>}
+                                                        <span className="flc-overs-pill">({rightTeam.overs ?? 0} ov)</span>
+                                                        {rightCrr && <span className="flc-crr-pill">CRR {rightCrr}</span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -228,7 +274,7 @@ const Fixtures3D = () => {
 
                                             <div className="flc-actions">
                                                 <Link to="/live" className="flc-enter-btn">
-                                                    <MdPlayArrow /> Enter Live Match Center <MdArrowForward className="flc-arrow" />
+                                                    <MdPlayArrow /> Enter Live Match Center
                                                 </Link>
                                             </div>
                                         </TiltCard>

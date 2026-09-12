@@ -13,6 +13,7 @@
     max-width: 1280px;
     margin: 28px auto 0 auto;
     padding: 0 24px;
+    padding-bottom: 80px;
 }
 
 /* --------------------------------------------------------------------------
@@ -636,9 +637,23 @@
 }
 
 .action-btn-primary.edit-btn:hover {
-    background: rgba(0, 240, 255, 0.08);
-    border-color: rgba(0, 240, 255, 0.4);
-    color: var(--accent-cyan);
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: var(--primary-blue-light);
+}
+
+.honor-medal {
+    font-size: 1.15rem;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.honor-medal.champion {
+    color: #eab308;
+}
+
+.honor-medal.runner-up {
+    color: #94a3b8;
 }
 
 /* Active marker (replaces "Set Active" button) */

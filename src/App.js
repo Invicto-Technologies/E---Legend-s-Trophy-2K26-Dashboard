@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Theme Context and 3D Transition Engine
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AdminTournamentProvider } from './contexts/AdminTournamentContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Theme3DTransition from './components/3D/Theme3DTransition';
 import CustomTooltip from './components/common/Tooltip/CustomTooltip';
+import PageTransition from './components/common/PageTransition/PageTransition';
+import PageLoader from './components/common/PageLoader/PageLoader';
 import { subscribeActiveTournament, resolveTournamentLabels, recordWebView } from './services/rtdbService';
 
 // Navigation Headers
@@ -26,6 +29,7 @@ import TournamentManagement from './pages/Admin/TournamentManagement/TournamentM
 import DrawManagement from './pages/Admin/DrawManagement/DrawManagement';
 import ScoringConsole from './pages/Admin/Scoring/ScoringConsole';
 import StoriesManagement from './pages/Admin/StoriesManagement/StoriesManagement';
+import GalleryManagement from './pages/Admin/GalleryManagement/GalleryManagement';
 import TeamManagement from './pages/Admin/TeamManagement/TeamManagement';
 import AdminLogin from './pages/Admin/Login/AdminLogin';
 
@@ -39,8 +43,9 @@ const ScrollToTop = () => {
 };
 
 // Layout Controller that switches between UserNavbar and AdminNavbar
-const AppLayout = ({ isLoggedIn, onLogin, onLogout }) => {
+const AppLayout = () => {
     const location = useLocation();
+    const { isLoggedIn, isChecking, logout } = useAuth();
     const isAdminRoute = location.pathname.startsWith('/admin') && location.pathname !== '/admin/login';
 
     useEffect(() => {
@@ -48,121 +53,133 @@ const AppLayout = ({ isLoggedIn, onLogin, onLogout }) => {
         recordWebView();
     }, []);
 
+    if (isChecking) {
+        return (
+            <PageLoader
+                message="Initializing Tournament Engine..."
+                subtitle="Verifying session credentials and telemetry config"
+            />
+        );
+    }
+
     return (
         <div className="app-root">
             {/* Header selection */}
             {isAdminRoute ? (
-                <AdminNavbar onLogout={onLogout} />
+                <AdminNavbar onLogout={logout} />
             ) : (
                 location.pathname !== '/admin/login' && <UserNavbar />
             )}
 
             <main className="app-main-content">
-                <Routes>
-                    {/* Public User 3D Views */}
-                    <Route path="/" element={<Home3D />} />
-                    <Route path="/home" element={<Home3D />} />
-                    <Route path="/fixtures" element={<Fixtures3D />} />
-                    <Route path="/live" element={<LiveScore3D />} />
-                    <Route path="/match/:matchTitle" element={<LiveScore3D />} />
-                    <Route path="/rankings" element={<Rankings3D />} />
-                    <Route path="/history" element={<History3D />} />
-                    <Route path="/history/:editionId" element={<History3D />} />
-                    <Route path="/download" element={<PublishingPage />} />
+                <PageTransition>
+                    <Routes>
+                        {/* Public User 3D Views */}
+                        <Route path="/" element={<Home3D />} />
+                        <Route path="/home" element={<Home3D />} />
+                        <Route path="/fixtures" element={<Fixtures3D />} />
+                        <Route path="/live" element={<LiveScore3D />} />
+                        <Route path="/match/:matchTitle" element={<LiveScore3D />} />
+                        <Route path="/rankings" element={<Rankings3D />} />
+                        <Route path="/history" element={<History3D />} />
+                        <Route path="/history/:editionId" element={<History3D />} />
+                        <Route path="/download" element={<PublishingPage />} />
 
-                    {/* Admin Login & Legacy alias */}
-                    <Route
-                        path="/admin/login"
-                        element={
-                            isLoggedIn ? (
-                                <Navigate to="/admin" replace />
-                            ) : (
-                                <AdminLogin onLogin={onLogin} />
-                            )
-                        }
-                    />
-                    <Route path="/gtpxj" element={<Navigate to="/admin/login" replace />} />
+                        {/* Admin Login & Legacy alias */}
+                        <Route
+                            path="/admin/login"
+                            element={
+                                isLoggedIn ? (
+                                    <Navigate to="/admin" replace />
+                                ) : (
+                                    <AdminLogin />
+                                )
+                            }
+                        />
+                        <Route path="/gtpxj" element={<Navigate to="/admin/login" replace />} />
 
-                    {/* Protected Admin Console Routes */}
-                    <Route
-                        path="/admin"
-                        element={
-                            isLoggedIn ? (
-                                <AdminDashboard />
-                            ) : (
-                                <Navigate to="/admin/login" replace />
-                            )
-                        }
-                    />
-                    <Route
-                        path="/admin/tournaments"
-                        element={
-                            isLoggedIn ? (
-                                <TournamentManagement />
-                            ) : (
-                                <Navigate to="/admin/login" replace />
-                            )
-                        }
-                    />
-                    <Route
-                        path="/admin/draw"
-                        element={
-                            isLoggedIn ? (
-                                <DrawManagement />
-                            ) : (
-                                <Navigate to="/admin/login" replace />
-                            )
-                        }
-                    />
-                    <Route
-                        path="/admin/scoring"
-                        element={
-                            isLoggedIn ? (
-                                <ScoringConsole />
-                            ) : (
-                                <Navigate to="/admin/login" replace />
-                            )
-                        }
-                    />
-                    <Route
-                        path="/admin/stories"
-                        element={
-                            isLoggedIn ? (
-                                <StoriesManagement />
-                            ) : (
-                                <Navigate to="/admin/login" replace />
-                            )
-                        }
-                    />
-                    <Route
-                        path="/admin/teams"
-                        element={
-                            isLoggedIn ? (
-                                <TeamManagement />
-                            ) : (
-                                <Navigate to="/admin/login" replace />
-                            )
-                        }
-                    />
+                        {/* Protected Admin Console Routes */}
+                        <Route
+                            path="/admin"
+                            element={
+                                isLoggedIn ? (
+                                    <AdminDashboard />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/tournaments"
+                            element={
+                                isLoggedIn ? (
+                                    <TournamentManagement />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/draw"
+                            element={
+                                isLoggedIn ? (
+                                    <DrawManagement />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/scoring"
+                            element={
+                                isLoggedIn ? (
+                                    <ScoringConsole />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/stories"
+                            element={
+                                isLoggedIn ? (
+                                    <StoriesManagement />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/gallery"
+                            element={
+                                isLoggedIn ? (
+                                    <GalleryManagement />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/teams"
+                            element={
+                                isLoggedIn ? (
+                                    <TeamManagement />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
 
-                    {/* Catch all fallback */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+                        {/* Catch all fallback */}
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                </PageTransition>
             </main>
         </div>
     );
 };
 
 function App() {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [isChecking, setIsChecking] = useState(true);
-
-    useEffect(() => {
-        const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-        setIsLoggedIn(loggedIn);
-        setIsChecking(false);
-    }, []);
-
     useEffect(() => {
         const unsub = subscribeActiveTournament((tourney) => {
             const labels = resolveTournamentLabels(tourney);
@@ -173,31 +190,17 @@ function App() {
         return () => unsub();
     }, []);
 
-    const handleLogin = () => {
-        setIsLoggedIn(true);
-    };
-
-    const handleLogout = () => {
-        setIsLoggedIn(false);
-    };
-
-    if (isChecking) {
-        return <div className="app-preloader" />;
-    }
-
     return (
         <ThemeProvider>
             <Theme3DTransition />
             <CustomTooltip />
             <Router>
-                <ScrollToTop />
-                <AdminTournamentProvider>
-                    <AppLayout
-                        isLoggedIn={isLoggedIn}
-                        onLogin={handleLogin}
-                        onLogout={handleLogout}
-                    />
-                </AdminTournamentProvider>
+                <AuthProvider>
+                    <ScrollToTop />
+                    <AdminTournamentProvider>
+                        <AppLayout />
+                    </AdminTournamentProvider>
+                </AuthProvider>
             </Router>
         </ThemeProvider>
     );

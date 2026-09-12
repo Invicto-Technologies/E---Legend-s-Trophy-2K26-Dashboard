@@ -1548,56 +1548,106 @@ const LiveMatch = () => {
         //Update batter ranking
         const battingTeam1Players = Object.entries(matchData.team1.players || {});
         const battingTeam2Players = Object.entries(matchData.team2.players || {});
-
         const allBatters = [...battingTeam1Players, ...battingTeam2Players];
 
-        for (const [id, player] of allBatters) {
-            if (player.runs > 0) {
-                const batterKey = `RankingData/batters/${id}`;
+        const parseOversToBallsLM = (ov) => {
+            if (ov === null || ov === undefined || ov === '') return 0;
+            const ovNum = typeof ov === 'string' ? parseFloat(ov) : Number(ov);
+            if (isNaN(ovNum)) return 0;
+            const fullOvers = Math.floor(ovNum);
+            const remBalls = Math.round((ovNum - fullOvers) * 10);
+            return (fullOvers * 6) + remBalls;
+        };
 
-                // Get existing batter data or create new entry
+        for (const [id, player] of allBatters) {
+            const pRuns = Number(player.runs || 0);
+            const pBalls = Number(player.balls || 0);
+            if (pRuns > 0 || pBalls > 0) {
+                const batterKey = `RankingData/batters/${id}`;
                 const batterRef = ref(database, batterKey);
                 const snapshot = await get(batterRef);
 
                 if (snapshot.exists()) {
-                    // Update existing batter
-                    updates[`${batterKey}/rating`] = (snapshot.val().rating || 0) + player.runs;
+                    const existingB = snapshot.val() || {};
+                    const totalScores = Number(existingB.scores ?? existingB.runs ?? existingB.rating ?? 0) + pRuns;
+                    const totalBalls = Number(existingB.balls || (existingB.overs ? parseOversToBallsLM(existingB.overs) : 0)) + pBalls;
+                    const oversStr = totalBalls > 0 ? `${Math.floor(totalBalls / 6)}.${totalBalls % 6}` : '0.0';
+                    const sr = totalBalls > 0 ? parseFloat(((totalScores / totalBalls) * 100).toFixed(2)) : 0.00;
+
+                    updates[`${batterKey}/scores`] = totalScores;
+                    updates[`${batterKey}/runs`] = totalScores;
+                    updates[`${batterKey}/balls`] = totalBalls;
+                    updates[`${batterKey}/overs`] = oversStr;
+                    updates[`${batterKey}/oversPlayed`] = oversStr;
+                    updates[`${batterKey}/strikeRate`] = sr;
+                    updates[`${batterKey}/rating`] = null; // Remove rating
                 } else {
-                    // Create new batter entry
+                    const oversStr = pBalls > 0 ? `${Math.floor(pBalls / 6)}.${pBalls % 6}` : '0.0';
+                    const sr = pBalls > 0 ? parseFloat(((pRuns / pBalls) * 100).toFixed(2)) : 0.00;
+
                     updates[batterKey] = {
                         id: parseInt(id),
                         name: player.name,
                         team: matchData.team1.players[id] ? matchData.team1.name : matchData.team2.name,
-                        rating: player.runs,
+                        scores: pRuns,
+                        runs: pRuns,
+                        balls: pBalls,
+                        overs: oversStr,
+                        oversPlayed: oversStr,
+                        strikeRate: sr
                     };
                 }
             }
         }
 
-        // Update bowlers ranking
+        // Update bowlers ranking (Store taken wickets, overs, economy - not rating)
         const bowlingTeam1Players = Object.entries(matchData.team1.bowlers || {});
         const bowlingTeam2Players = Object.entries(matchData.team2.bowlers || {});
-
         const allBowlers = [...bowlingTeam1Players, ...bowlingTeam2Players];
 
         for (const [id, bowler] of allBowlers) {
-            if (bowler.wickets > 0 || bowler.overs > 0) {
-                const bowlerKey = `RankingData/bowlers/${id}`;
+            const bWickets = Number(bowler.wickets || 0);
+            const bBalls = bowler.balls !== undefined ? Number(bowler.balls) : parseOversToBallsLM(bowler.overs);
+            const bRuns = Number(bowler.runs || 0);
 
-                // Get existing bowler data or create new entry
+            if (bWickets > 0 || bBalls > 0 || Number(bowler.overs || 0) > 0) {
+                const bowlerKey = `RankingData/bowlers/${id}`;
                 const bowlerRef = ref(database, bowlerKey);
                 const snapshot = await get(bowlerRef);
 
                 if (snapshot.exists()) {
-                    // Update existing bowler
-                    updates[`${bowlerKey}/rating`] = (snapshot.val().rating || 0) + bowler.wickets;
+                    const existingBowler = snapshot.val() || {};
+                    const totalWickets = Number(existingBowler.wickets ?? existingBowler.takenWickets ?? existingBowler.rating ?? 0) + bWickets;
+                    const totalBalls = Number(existingBowler.balls || parseOversToBallsLM(existingBowler.overs)) + bBalls;
+                    const oversStr = totalBalls > 0 ? `${Math.floor(totalBalls / 6)}.${totalBalls % 6}` : '0.0';
+                    const totalRunsConceded = Number(existingBowler.runsConceded ?? existingBowler.runs ?? 0) + bRuns;
+                    const eco = totalBalls > 0 ? parseFloat(((totalRunsConceded * 6) / totalBalls).toFixed(2)) : 0.00;
+
+                    updates[`${bowlerKey}/wickets`] = totalWickets;
+                    updates[`${bowlerKey}/takenWickets`] = totalWickets;
+                    updates[`${bowlerKey}/balls`] = totalBalls;
+                    updates[`${bowlerKey}/overs`] = oversStr;
+                    updates[`${bowlerKey}/oversBowled`] = oversStr;
+                    updates[`${bowlerKey}/runsConceded`] = totalRunsConceded;
+                    updates[`${bowlerKey}/runs`] = totalRunsConceded;
+                    updates[`${bowlerKey}/economy`] = eco;
+                    updates[`${bowlerKey}/rating`] = null; // Remove rating
                 } else {
-                    // Create new bowler entry
+                    const oversStr = bBalls > 0 ? `${Math.floor(bBalls / 6)}.${bBalls % 6}` : '0.0';
+                    const eco = bBalls > 0 ? parseFloat(((bRuns * 6) / bBalls).toFixed(2)) : 0.00;
+
                     updates[bowlerKey] = {
                         id: parseInt(id),
                         name: bowler.name,
                         team: matchData.team1.bowlers[id] ? matchData.team1.name : matchData.team2.name,
-                        rating: bowler.wickets,
+                        wickets: bWickets,
+                        takenWickets: bWickets,
+                        balls: bBalls,
+                        overs: oversStr,
+                        oversBowled: oversStr,
+                        runsConceded: bRuns,
+                        runs: bRuns,
+                        economy: eco
                     };
                 }
             }
