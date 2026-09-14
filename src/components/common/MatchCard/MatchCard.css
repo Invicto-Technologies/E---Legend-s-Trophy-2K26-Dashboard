@@ -34,11 +34,11 @@
 /* Header Top Bar */
 .pmc-top-bar {
     display: flex;
-    align-items: center;
+    width: 100%;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 8px;
+    gap: 12px;
     margin-bottom: 16px;
-    flex-wrap: wrap;
 }
 
 .pmc-stage-badge {
@@ -50,6 +50,15 @@
     border: 1px solid rgba(59, 130, 246, 0.25);
     padding: 3px 10px;
     border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.pmc-top-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    margin-left: auto;
 }
 
 .pmc-status-pill {
@@ -86,7 +95,7 @@
     gap: 5px;
     font-size: 0.8rem;
     color: #94a3b8;
-    margin-left: auto;
+    white-space: nowrap;
 }
 
 .pmc-cal-icon {
@@ -248,9 +257,11 @@
     display: flex;
     width: 100%;
     align-items: center;
-    justify-content: space-between;
+    justify-content: space-between !important;
+    gap: 12px;
     margin-top: auto;
     padding-top: 14px;
+    padding-left: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.82rem;
     color: #94a3b8;
@@ -265,20 +276,29 @@
     padding: 4px 10px;
     border-radius: 8px;
     color: #f8fafc;
+    max-width: calc(100% - 85px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .potm-star-icon {
     color: #60a5fa;
     font-size: 1rem;
+    flex-shrink: 0;
 }
 
 .potm-label {
     color: #60a5fa;
     font-weight: 700;
+    flex-shrink: 0;
 }
 
 .potm-name {
     color: #ffffff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .pmc-venue-tag {
@@ -297,6 +317,9 @@
     text-decoration: none;
     font-weight: 700;
     font-size: 0.82rem;
+    margin-left: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
     transition: transform 0.2s ease, color 0.2s ease;
 }
 
@@ -579,4 +602,109 @@
 
 [data-theme="light"] .pmc-cricket-icon {
     color: #1d4ed8;
+}
+
+/* ==========================================================================
+   MOBILE RESPONSIVE TWEAKS FOR MATCH CARDS
+   ========================================================================== */
+@media (max-width: 768px) {
+    .pro-match-card {
+        padding: 14px 12px 12px !important;
+        gap: 10px !important;
+        border-radius: 16px !important;
+    }
+
+    .pmc-top-bar {
+        gap: 6px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .pmc-top-right {
+        gap: 3px !important;
+    }
+
+    .pmc-stage-badge {
+        font-size: 0.72rem !important;
+        padding: 2px 7px !important;
+    }
+
+    .pmc-status-pill {
+        font-size: 0.68rem !important;
+        padding: 2px 7px !important;
+    }
+
+    .pmc-schedule-snippet {
+        font-size: 0.72rem !important;
+        gap: 4px !important;
+    }
+
+    .pmc-competitors {
+        padding: 10px 8px !important;
+        gap: 6px !important;
+        margin-bottom: 10px !important;
+        border-radius: 12px !important;
+    }
+
+    .pmc-team-row {
+        padding: 4px 6px !important;
+    }
+
+    .pmc-team-crest,
+    .pmc-team-avatar-fallback {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.68rem !important;
+    }
+
+    .pmc-team-name {
+        font-size: 0.94rem !important;
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .pmc-score-text {
+        font-size: 0.88rem !important;
+    }
+
+    .pmc-status-banner {
+        margin-bottom: 10px !important;
+        font-size: 0.80rem !important;
+    }
+
+    .pmc-footer {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        padding-top: 10px !important;
+    }
+
+    .pmc-potm-pill {
+        padding: 3px 7px !important;
+        font-size: 0.72rem !important;
+        max-width: calc(100% - 75px) !important;
+    }
+
+    .pmc-action-link {
+        font-size: 0.76rem !important;
+        margin-left: auto !important;
+    }
+
+    /* Upcoming single row variants */
+    .pmc-teams-single-row {
+        padding: 10px 10px !important;
+        border-radius: 12px !important;
+    }
+
+    .pmc-single-name {
+        font-size: 0.86rem !important;
+    }
+
+    .pmc-single-avatar {
+        width: 24px !important;
+        height: 24px !important;
+        font-size: 0.65rem !important;
+    }
 }

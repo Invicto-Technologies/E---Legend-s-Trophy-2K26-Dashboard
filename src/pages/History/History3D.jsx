@@ -60,8 +60,8 @@ const History3D = () => {
 
     // Filter out the active tournament (active tournament no need to show here)
     const historyTournaments = (tournamentIndex || []).filter((ed) => {
-        const isMatchingActive = 
-            ed.id === activeTournamentId || 
+        const isMatchingActive =
+            ed.id === activeTournamentId ||
             resolveTournamentKey(ed.id) === resolveTournamentKey(activeTournamentId) ||
             ed.status === 'active';
         return !isMatchingActive;
@@ -71,9 +71,9 @@ const History3D = () => {
     useEffect(() => {
         if (historyTournaments.length > 0) {
             const currentIsValid = historyTournaments.some(
-                (t) => t.id === selectedEditionId || 
-                       t.editionId === selectedEditionId || 
-                       resolveTournamentKey(t.id) === resolveTournamentKey(selectedEditionId)
+                (t) => t.id === selectedEditionId ||
+                    t.editionId === selectedEditionId ||
+                    resolveTournamentKey(t.id) === resolveTournamentKey(selectedEditionId)
             );
             if (!currentIsValid) {
                 const defaultEd = historyTournaments.find(
@@ -158,7 +158,7 @@ const History3D = () => {
                 <div className="history-hero-glow" />
                 <div className="history-container">
                     <span className="history-tag">
-                        <MdMilitaryTech /> TOURNAMENT ARCHIVE &amp; HALL OF FAME
+                        TOURNAMENT ARCHIVE &amp; HALL OF FAME
                     </span>
                     <h1 className="history-title">
                         E-LEGENDS <span className="gradient-text">HISTORY</span>
@@ -172,12 +172,11 @@ const History3D = () => {
                         {historyTournaments.map((ed) => (
                             <button
                                 key={ed.id}
-                                className={`timeline-tab-btn ${
-                                    selectedEditionId === ed.id ||
-                                    resolveTournamentKey(selectedEditionId) === resolveTournamentKey(ed.id)
+                                className={`timeline-tab-btn ${selectedEditionId === ed.id ||
+                                        resolveTournamentKey(selectedEditionId) === resolveTournamentKey(ed.id)
                                         ? 'active'
                                         : ''
-                                }`}
+                                    }`}
                                 onClick={() => handleSelectEdition(ed.id)}
                             >
                                 <span className="timeline-year">{ed.year || ed.editionId || ed.id}</span>
@@ -539,9 +538,9 @@ const History3D = () => {
                                 {/* Row 2: Match Label */}
                                 <div className="sm-row sm-label-row">
                                     <span className="sm-title-tag">
-                                        {common.title 
-                                            ? (common.title.toLowerCase().includes('match') 
-                                                ? common.title 
+                                        {common.title
+                                            ? (common.title.toLowerCase().includes('match')
+                                                ? common.title
                                                 : `${common.title} Match Scorecard`)
                                             : 'Match Scorecard'}
                                     </span>

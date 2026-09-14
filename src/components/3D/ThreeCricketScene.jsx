@@ -397,11 +397,11 @@ const ThreeCricketScene = ({ className = '', height = '520px', edition = '2K26' 
 
         // --- Animation Loop ---
         let animationFrameId;
-        const clock = new THREE.Clock();
+        const sceneStartTime = performance.now();
 
         const animate = () => {
             animationFrameId = requestAnimationFrame(animate);
-            const elapsedTime = clock.getElapsedTime();
+            const elapsedTime = (performance.now() - sceneStartTime) / 1000;
 
             // Smooth parallax lerp
             mouseX += (targetX - mouseX) * 0.05;

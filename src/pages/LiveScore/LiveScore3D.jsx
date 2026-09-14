@@ -995,13 +995,15 @@ const LiveScore3D = () => {
                                                 className={`innings-switch-btn ${activeInningsTab === firstBatTeamKey ? '' : 'active'}`}
                                                 onClick={() => setUserSelectedInningsTab(firstBatTeamKey)}
                                             >
-                                                1st Innings: <strong>{firstBatName}</strong> ({firstBatTeamData.totalRuns ?? 0}/{firstBatTeamData.totalWickets ?? 0} in {firstBatTeamData.overs ?? 0} ov)
+                                                <span className="col-full">1st Innings: <strong>{firstBatName}</strong> ({firstBatTeamData.totalRuns ?? 0}/{firstBatTeamData.totalWickets ?? 0} in {firstBatTeamData.overs ?? 0} ov)</span>
+                                                <span className="col-short">1st: <strong>{firstBatName}</strong> ({firstBatTeamData.totalRuns ?? 0}/{firstBatTeamData.totalWickets ?? 0})</span>
                                             </button>
                                             <button
                                                 className={`innings-switch-btn ${activeInningsTab === secondBatTeamKey ? '' : 'active'}`}
                                                 onClick={() => setUserSelectedInningsTab(secondBatTeamKey)}
                                             >
-                                                2nd Innings: <strong>{secondBatName}</strong> ({secondBatTeamData.totalRuns ?? 0}/{secondBatTeamData.totalWickets ?? 0} in {secondBatTeamData.overs ?? 0} ov)
+                                                <span className="col-full">2nd Innings: <strong>{secondBatName}</strong> ({secondBatTeamData.totalRuns ?? 0}/{secondBatTeamData.totalWickets ?? 0} in {secondBatTeamData.overs ?? 0} ov)</span>
+                                                <span className="col-short">2nd: <strong>{secondBatName}</strong> ({secondBatTeamData.totalRuns ?? 0}/{secondBatTeamData.totalWickets ?? 0})</span>
                                             </button>
                                         </div>
 
@@ -1131,10 +1133,16 @@ const LiveScore3D = () => {
                                                             return (
                                                                 <div className="cpb-bar-track">
                                                                     <div className="cpb-bar-left" style={{ width: `${Math.max(15, Math.min(85, b1Pct))}%` }}>
-                                                                        <span>{currentPartnership.batsman1.name?.split(' ')[0]}: {b1Runs}</span>
+                                                                        <span>
+                                                                            <span className="cpb-bar-name">{currentPartnership.batsman1.name?.split(' ')[0]}: </span>
+                                                                            <strong className="cpb-bar-runs">{b1Runs}</strong>
+                                                                        </span>
                                                                     </div>
                                                                     <div className="cpb-bar-right" style={{ width: `${Math.max(15, Math.min(85, b2Pct))}%` }}>
-                                                                        <span>{currentPartnership.batsman2.name?.split(' ')[0]}: {b2Runs}</span>
+                                                                        <span>
+                                                                            <span className="cpb-bar-name">{currentPartnership.batsman2.name?.split(' ')[0]}: </span>
+                                                                            <strong className="cpb-bar-runs">{b2Runs}</strong>
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -1181,12 +1189,12 @@ const LiveScore3D = () => {
                                                         <table className="score-table partnerships-table">
                                                             <thead>
                                                                 <tr>
-                                                                    <th>Wicket</th>
-                                                                    <th>Runs (Balls)</th>
-                                                                    <th>Overs</th>
-                                                                    <th>Batters Breakdown</th>
-                                                                    <th>Extras</th>
-                                                                    <th>End Score</th>
+                                                                    <th><span className="col-full">Wicket</span><span className="col-short">W</span></th>
+                                                                    <th><span className="col-full">Runs (Balls)</span><span className="col-short">R</span></th>
+                                                                    <th><span className="col-full">Overs</span><span className="col-short">O</span></th>
+                                                                    <th><span className="col-full">Batters Breakdown</span><span className="col-short">B</span></th>
+                                                                    <th><span className="col-full">Extras</span><span className="col-short">E</span></th>
+                                                                    <th><span className="col-full">End Score</span><span className="col-short">S</span></th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>

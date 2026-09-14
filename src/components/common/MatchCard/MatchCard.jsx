@@ -150,23 +150,25 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '' }) => 
             {/* Card Header Bar */}
             <div className="pmc-top-bar">
                 <span className="pmc-stage-badge">{match.title ? `${match.title} Match` : 'Match'}</span>
-                <span className={`pmc-status-pill ${finished ? 'completed' : 'scheduled'}`}>
-                    {finished ? (
-                        <>
-                            <MdCheckCircle className="pmc-pill-icon" />
-                            <span>Completed {res.includes('dls') ? '• DLS' : ''}</span>
-                        </>
-                    ) : (
-                        <>
-                            <MdSchedule className="pmc-pill-icon" />
-                            <span>Upcoming</span>
-                        </>
-                    )}
-                </span>
-                <div className="pmc-schedule-snippet">
-                    <MdCalendarToday className="pmc-cal-icon" />
-                    <span>{match.date || 'Date TBD'}</span>
-                    {match.time && <span className="pmc-time-dot">• {match.time}</span>}
+                <div className="pmc-top-right">
+                    <span className={`pmc-status-pill ${finished ? 'completed' : 'scheduled'}`}>
+                        {finished ? (
+                            <>
+                                <MdCheckCircle className="pmc-pill-icon" />
+                                <span>Completed {res.includes('dls') ? '• DLS' : ''}</span>
+                            </>
+                        ) : (
+                            <>
+                                <MdSchedule className="pmc-pill-icon" />
+                                <span>Upcoming</span>
+                            </>
+                        )}
+                    </span>
+                    <div className="pmc-schedule-snippet">
+                        <MdCalendarToday className="pmc-cal-icon" />
+                        <span>{match.date || 'Date TBD'}</span>
+                        {match.time && <span className="pmc-time-dot">• {match.time}</span>}
+                    </div>
                 </div>
             </div>
 

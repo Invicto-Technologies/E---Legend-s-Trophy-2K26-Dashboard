@@ -26,7 +26,7 @@ const Footer = () => {
                     <div className="cx-footer-links-group">
                         <h5>Platform</h5>
                         <Link to="/download">Mobile App</Link>
-                        <Link to="/admin">Admin Gateway</Link>
+                        <Link to="/admin" className="footer-admin-link">Admin Gateway</Link>
                     </div>
                 </div>
 

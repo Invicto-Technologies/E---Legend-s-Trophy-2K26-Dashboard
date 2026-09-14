@@ -31,8 +31,6 @@ const ThemeToggle = ({ className = '' }) => {
             onMouseLeave={handleMouseLeave}
             role="switch"
             aria-checked={isDark}
-            aria-label={`Switch to ${isDark ? 'Light (Day)' : 'Dark (Night)'} Mode`}
-            data-tooltip={`Switch to ${isDark ? 'Day' : 'Night'} Mode`}
         >
             {/* 3D Track */}
             <div className="toggle-track">

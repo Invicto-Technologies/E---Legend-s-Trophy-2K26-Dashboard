@@ -1296,6 +1296,15 @@
         text-align: center;
     }
 
+    /* In mobile responsive, no need display hero-badge and 3d ball animation */
+    .hero-badge {
+        display: none !important;
+    }
+
+    .hero-canvas-wrap {
+        display: none !important;
+    }
+
     .hero-countdown-widget {
         margin: 0 auto 28px auto;
         max-width: 100%;
@@ -1312,17 +1321,6 @@
     .hero-interaction-hint {
         justify-content: center;
     }
-
-    .hero-canvas-wrap {
-        order: -1;
-        width: 100%;
-        max-width: 440px;
-        margin: 0 auto;
-    }
-
-    .hero-canvas-wrap .three-cricket-container {
-        height: 320px !important;
-    }
 }
 
 @media (max-width: 640px) {
@@ -1336,10 +1334,11 @@
     }
 
     .hero-badge {
-        font-size: 0.7rem;
-        padding: 4px 10px;
-        margin-bottom: 12px;
-        line-height: 1.4;
+        display: none !important;
+    }
+
+    .hero-canvas-wrap {
+        display: none !important;
     }
 
     .hero-countdown-widget {
@@ -1396,17 +1395,33 @@
         width: 100%;
     }
 
+    /* Key tournament metrics section boxes show in two columns and little smaller */
     .stats-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
     }
 
     .stat-card {
-        padding: 18px 16px;
-        gap: 16px;
+        padding: 14px 10px !important;
+        gap: 10px !important;
+        flex-direction: column !important;
+        border-radius: 14px !important;
+    }
+
+    .stat-icon-wrap {
+        width: 42px !important;
+        height: 42px !important;
+        font-size: 1.25rem !important;
+        border-radius: 10px !important;
     }
 
     .stat-number {
-        font-size: 1.8rem;
+        font-size: 1.35rem !important;
+    }
+
+    .stat-label {
+        font-size: 0.74rem !important;
+        line-height: 1.2 !important;
     }
 
     .match-results-deck,
@@ -1427,8 +1442,29 @@
 }
 
 @media (max-width: 420px) {
-    .hero-canvas-wrap .three-cricket-container {
-        height: 240px !important;
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+
+    .stat-card {
+        padding: 12px 6px !important;
+        gap: 8px !important;
+        border-radius: 12px !important;
+    }
+
+    .stat-icon-wrap {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 1.15rem !important;
+    }
+
+    .stat-number {
+        font-size: 1.2rem !important;
+    }
+
+    .stat-label {
+        font-size: 0.68rem !important;
     }
 
     .hero-title {
@@ -1723,10 +1759,178 @@
     }
 
     .stats-pedestal-section,
-    .results-section,
     .stories-section {
         padding-top: 60px;
         padding-bottom: 80px;
+    }
+
+    /* Match schedule & results section top and bottom paddings not enough */
+    .results-section {
+        padding-top: 110px !important;
+        padding-bottom: 120px !important;
+        clip-path: polygon(0 35px, 100% 0, 100% calc(100% - 35px), 0 100%) !important;
+    }
+
+    /* Upcoming-block and completed-block make little smaller */
+    .fixtures-subblock {
+        margin-bottom: 24px !important;
+    }
+
+    .fixtures-subblock.upcoming-block {
+        margin-bottom: 48px !important;
+    }
+
+    .fixtures-subblock-header {
+        margin-bottom: 12px !important;
+        padding-bottom: 8px !important;
+    }
+
+    .fixtures-subblock-title h3 {
+        font-size: 1.05rem !important;
+    }
+
+    .fixtures-count-badge {
+        font-size: 0.68rem !important;
+        padding: 2px 8px !important;
+    }
+
+    .results-grid {
+        gap: 14px !important;
+    }
+
+    /* Official Tournament Gallery mobile responsive optimizations */
+    .tournament-gallery-section {
+        padding-top: 60px !important;
+        padding-bottom: 80px !important;
+    }
+
+    .gallery-section-header {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        gap: 14px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .gallery-section-header .section-header-titles {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    .gallery-section-header .section-tag {
+        margin: 0 auto 10px auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .gallery-section-header .section-title {
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    .gallery-header-controls {
+        width: 100% !important;
+        justify-content: center !important;
+        margin-top: 0 !important;
+    }
+
+    .gallery-edition-pills {
+        width: 100% !important;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-top: 6px !important;
+        padding-bottom: 8px !important;
+        scrollbar-width: none !important;
+    }
+
+    .gallery-edition-pills::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .gallery-edition-pill {
+        padding: 6px 14px !important;
+        font-size: 0.82rem !important;
+        flex-shrink: 0 !important;
+        line-height: normal !important;
+        transform: none !important;
+    }
+
+    .gallery-edition-pill.active {
+        transform: none !important;
+    }
+
+    /* Hide Category Filter Chips in mobile responsive */
+    .gallery-filter-chips-row {
+        display: none !important;
+    }
+
+    /* Hide desktop floating edge arrows on touch screens to prevent screen-edge overflow */
+    .gallery-slider-floating-arrow {
+        display: none !important;
+    }
+
+    .gallery-slider-track {
+        gap: 14px !important;
+        padding: 8px 2px 18px !important;
+    }
+
+    .gallery-slider-card {
+        flex: 0 0 78vw !important;
+        max-width: 290px !important;
+        border-radius: 14px !important;
+    }
+
+    .gallery-card-info {
+        padding: 12px 14px !important;
+    }
+
+    .gallery-card-title {
+        font-size: 0.95rem !important;
+    }
+
+    .gallery-lightbox-modal {
+        max-width: 95vw !important;
+        max-height: 92vh !important;
+        border-radius: 16px !important;
+    }
+
+    .gallery-lightbox-close {
+        top: 10px !important;
+        right: 10px !important;
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 1.2rem !important;
+    }
+
+    .gallery-lightbox-nav {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 1.2rem !important;
+    }
+
+    .gallery-lightbox-nav.prev {
+        left: 8px !important;
+    }
+
+    .gallery-lightbox-nav.next {
+        right: 8px !important;
+    }
+
+    .gallery-lightbox-full-img {
+        max-height: 52vh !important;
+    }
+
+    .gallery-lightbox-meta-panel {
+        padding: 14px 16px !important;
+    }
+
+    .gallery-lightbox-title {
+        font-size: 1.1rem !important;
     }
 }
 
@@ -1921,8 +2125,7 @@
     gap: 22px;
     overflow-x: auto;
     overflow-y: hidden;
-    scroll-behavior: smooth;
-    scroll-snap-type: x mandatory;
+    scroll-behavior: auto;
     -webkit-overflow-scrolling: touch;
     padding: 10px 4px 26px;
     scrollbar-width: thin;
@@ -1988,7 +2191,6 @@
 /* Slider Cards */
 .gallery-slider-card {
     flex: 0 0 340px;
-    scroll-snap-align: start;
     background: rgba(15, 23, 42, 0.72);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 18px;

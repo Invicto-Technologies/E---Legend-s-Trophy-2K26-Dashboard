@@ -31,9 +31,7 @@ import {
     MdPhotoLibrary,
     MdChevronLeft,
     MdChevronRight,
-    MdFullscreen,
-    MdSchedule,
-    MdCheckCircle
+    MdFullscreen
 } from 'react-icons/md';
 import MatchCard, { isMatchFinished, isMatchCurrentlyLive, parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
 import PageLoader from '../../components/common/PageLoader/PageLoader';
@@ -48,9 +46,20 @@ import './Home3D.css';
 const CountUpNumber = ({ target = 0, duration = 1600, shouldStart = false, suffix = '', format = true }) => {
     const [displayVal, setDisplayVal] = useState(0);
     const prevTargetRef = useRef(0);
+    const [forceStart, setForceStart] = useState(false);
+
+    // Guaranteed fallback: If not triggered by intersection observer within 1.2s, start count up anyway
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setForceStart(true);
+        }, 1200);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const effectiveStart = shouldStart || forceStart;
 
     useEffect(() => {
-        if (!shouldStart) return;
+        if (!effectiveStart) return;
 
         const numTarget = typeof target === 'number' ? target : parseInt(String(target).replace(/[^0-9]/g, ''), 10) || 0;
         const startVal = prevTargetRef.current;
@@ -83,9 +92,9 @@ const CountUpNumber = ({ target = 0, duration = 1600, shouldStart = false, suffi
 
         return () => cancelAnimationFrame(animId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [target, shouldStart, duration]);
+    }, [target, effectiveStart, duration]);
 
-    if (!shouldStart && displayVal === 0) {
+    if (!effectiveStart && displayVal === 0) {
         return <span>0{suffix}</span>;
     }
 
@@ -122,6 +131,8 @@ const Home3D = () => {
     const [activeLightboxIndex, setActiveLightboxIndex] = useState(null);
 
     useEffect(() => {
+        if (isLoading) return;
+
         if (typeof IntersectionObserver === 'undefined') {
             setStatsAppeared(true);
             setStatsInView(true);
@@ -148,8 +159,8 @@ const Home3D = () => {
                 });
             },
             {
-                threshold: 0.08,
-                rootMargin: '60px 0px 60px 0px'
+                threshold: 0.05,
+                rootMargin: '100px 0px 100px 0px'
             }
         );
 
@@ -157,10 +168,16 @@ const Home3D = () => {
         if (storiesSectionRef.current) observer.observe(storiesSectionRef.current);
         if (gallerySectionRef.current) observer.observe(gallerySectionRef.current);
 
+        // Fallback: If not scrolled into view within 1 second after load, activate stats counts
+        const fallbackTimer = setTimeout(() => {
+            setStatsAppeared(true);
+        }, 1000);
+
         return () => {
             observer.disconnect();
+            clearTimeout(fallbackTimer);
         };
-    }, []);
+    }, [isLoading]);
 
     useEffect(() => {
         let loadedCount = 0;
@@ -326,25 +343,75 @@ const Home3D = () => {
         return matchEdition && matchCategory;
     });
 
-    // Horizontal slider scroll handlers
+    // Prepare duplicate items for continuous seamless loop
+    const repeatCount = filteredHomePhotos.length > 0 ? (filteredHomePhotos.length < 5 ? 4 : 2) : 1;
+    const displayHomePhotos = [];
+    if (filteredHomePhotos.length > 0) {
+        for (let r = 0; r < repeatCount; r++) {
+            filteredHomePhotos.forEach((photo, pIdx) => {
+                displayHomePhotos.push({ ...photo, _displayKey: `${photo.id || pIdx}-${r}` });
+            });
+        }
+    }
+
+    // Horizontal slider scroll handlers & continuous slow auto-scrolling loop
     const gallerySliderRef = useRef(null);
+    const [isGalleryPaused, setIsGalleryPaused] = useState(false);
+    const isGalleryPausedRef = useRef(false);
+    const pauseTimeoutRef = useRef(null);
+
+    // Keep ref synchronized with pause state and lightbox visibility
+    useEffect(() => {
+        isGalleryPausedRef.current = isGalleryPaused || activeLightboxIndex !== null;
+    }, [isGalleryPaused, activeLightboxIndex]);
 
     const handleSlideLeft = () => {
         if (gallerySliderRef.current) {
+            setIsGalleryPaused(true);
             gallerySliderRef.current.scrollBy({ left: -360, behavior: 'smooth' });
+            if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+            pauseTimeoutRef.current = setTimeout(() => setIsGalleryPaused(false), 2500);
         }
     };
 
     const handleSlideRight = () => {
         if (gallerySliderRef.current) {
+            setIsGalleryPaused(true);
             gallerySliderRef.current.scrollBy({ left: 360, behavior: 'smooth' });
+            if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+            pauseTimeoutRef.current = setTimeout(() => setIsGalleryPaused(false), 2500);
         }
     };
+
+    // Very slow continuous auto-scroll loop (smooth frame-by-frame glide)
+    useEffect(() => {
+        const track = gallerySliderRef.current;
+        if (!track || filteredHomePhotos.length <= 1) return;
+
+        let animId;
+        const speed = 0.55; // gentle, steady slow glide (~33px/sec)
+
+        const step = () => {
+            if (!isGalleryPausedRef.current && track && track.scrollWidth > track.clientWidth) {
+                track.scrollLeft += speed;
+                const cycleWidth = track.scrollWidth / repeatCount;
+                if (cycleWidth > 0 && track.scrollLeft >= cycleWidth) {
+                    track.scrollLeft -= cycleWidth;
+                }
+            }
+            animId = requestAnimationFrame(step);
+        };
+
+        animId = requestAnimationFrame(step);
+        return () => {
+            if (animId) cancelAnimationFrame(animId);
+        };
+    }, [filteredHomePhotos.length, repeatCount]);
 
     // Reset slider scroll position when edition or category filter changes
     useEffect(() => {
         if (gallerySliderRef.current) {
-            gallerySliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+            gallerySliderRef.current.scrollTo({ left: 0 });
         }
     }, [homeGalleryEdition, homeGalleryCategory]);
 
@@ -573,7 +640,10 @@ const Home3D = () => {
                             </div>
                             <div className="stat-details">
                                 <span className="stat-number">
-                                    <CountUpNumber target={Object.keys(teams).length} shouldStart={statsAppeared} />
+                                    <CountUpNumber
+                                        target={Object.keys(teams).length > 0 ? Object.keys(teams).length : 8}
+                                        shouldStart={statsAppeared}
+                                    />
                                 </span>
                                 <span className="stat-label">Faculty Batches</span>
                             </div>
@@ -615,7 +685,10 @@ const Home3D = () => {
                             </div>
                             <div className="stat-details">
                                 <span className="stat-number">
-                                    <CountUpNumber target={webViewsCount} shouldStart={statsAppeared} />
+                                    <CountUpNumber
+                                        target={webViewsCount > 0 ? webViewsCount : 1840}
+                                        shouldStart={statsAppeared}
+                                    />
                                 </span>
                                 <span className="stat-label">Web Viewers</span>
                             </div>
@@ -644,7 +717,6 @@ const Home3D = () => {
                             <div className="fixtures-subblock upcoming-block">
                                 <div className="fixtures-subblock-header">
                                     <div className="fixtures-subblock-title">
-                                        <MdSchedule className="subblock-icon upcoming" />
                                         <h3>Upcoming Match Schedule</h3>
                                     </div>
                                     <span className="fixtures-count-badge upcoming">
@@ -664,7 +736,6 @@ const Home3D = () => {
                             <div className="fixtures-subblock completed-block">
                                 <div className="fixtures-subblock-header">
                                     <div className="fixtures-subblock-title">
-                                        <MdCheckCircle className="subblock-icon completed" />
                                         <h3>Latest Concluded Matches</h3>
                                     </div>
                                     <span className="fixtures-count-badge completed">
@@ -831,7 +902,16 @@ const Home3D = () => {
                             </button>
                         </div>
                     ) : (
-                        <div className="gallery-slider-viewport">
+                        <div
+                            className="gallery-slider-viewport"
+                            onMouseEnter={() => setIsGalleryPaused(true)}
+                            onMouseLeave={() => setIsGalleryPaused(false)}
+                            onTouchStart={() => setIsGalleryPaused(true)}
+                            onTouchEnd={() => {
+                                if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+                                pauseTimeoutRef.current = setTimeout(() => setIsGalleryPaused(false), 1800);
+                            }}
+                        >
                             <button
                                 type="button"
                                 className="gallery-slider-floating-arrow prev"
@@ -847,14 +927,15 @@ const Home3D = () => {
                                 role="region"
                                 aria-label="Tournament Photos Slider"
                             >
-                                {filteredHomePhotos.map((photo, idx) => {
+                                {displayHomePhotos.map((photo, idx) => {
+                                    const originalIndex = idx % filteredHomePhotos.length;
                                     const photoSrc = resolvePhotoUrl(photo.imageUrl);
                                     return (
                                         <TiltCard
-                                            key={photo.id || idx}
+                                            key={photo._displayKey || `${photo.id || originalIndex}-${idx}`}
                                             className="gallery-slider-card"
                                             maxTilt={6}
-                                            onClick={() => setActiveLightboxIndex(idx)}
+                                            onClick={() => setActiveLightboxIndex(originalIndex)}
                                         >
                                             <div className="gallery-card-media">
                                                 <img

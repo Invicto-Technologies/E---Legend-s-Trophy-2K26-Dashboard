@@ -78,8 +78,31 @@
 
 @media (max-width: 768px) {
     .cx-footer-top {
-        grid-template-columns: 1fr;
-        gap: 30px;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px 20px;
+    }
+
+    .cx-footer-brand {
+        grid-column: 1 / -1;
+        max-width: 100%;
+        margin-bottom: 4px;
+    }
+
+    .cx-footer-links-group {
+        gap: 8px;
+    }
+
+    .cx-footer-links-group h5 {
+        font-size: 0.92rem;
+        margin-bottom: 4px;
+    }
+
+    .cx-footer-links-group a {
+        font-size: 0.84rem;
+    }
+
+    .footer-admin-link {
+        display: none !important;
     }
 }
 

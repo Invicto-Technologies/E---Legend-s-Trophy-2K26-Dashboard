@@ -18,8 +18,37 @@
     position: relative;
     padding-top: 130px;
     padding-bottom: 50px;
-    background: radial-gradient(circle at 50% 0%, var(--hero-glow-1) 0%, transparent 60%);
+    background: 
+        radial-gradient(ellipse 80% 55% at 50% -15%, rgba(0, 240, 255, 0.18) 0%, rgba(2, 132, 199, 0.08) 45%, transparent 75%),
+        radial-gradient(circle at 15% 40%, rgba(245, 158, 11, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 85% 40%, rgba(0, 240, 255, 0.06) 0%, transparent 40%),
+        var(--bg-space);
     border-bottom: 1px solid var(--bg-card-border);
+    text-align: center;
+    overflow: hidden;
+}
+
+.history-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(0, 240, 255, 0.10) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 25%, transparent 90%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 25%, transparent 90%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.history-hero > * {
+    position: relative;
+    z-index: 1;
+}
+
+.history-hero .history-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
 }
 
@@ -27,7 +56,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 14px;
+    padding: 6px 16px;
     background: rgba(0, 240, 255, 0.08);
     border: 1px solid rgba(0, 240, 255, 0.25);
     border-radius: 20px;
@@ -35,7 +64,9 @@
     font-weight: 700;
     color: #00f0ff;
     letter-spacing: 0.08em;
-    margin-bottom: 18px;
+    margin: 0 auto 18px auto;
+    box-shadow: 0 0 16px rgba(0, 240, 255, 0.08);
+    backdrop-filter: blur(8px);
 }
 
 .history-title {
@@ -44,6 +75,10 @@
     margin: 0 0 16px 0;
     letter-spacing: -0.02em;
     text-transform: uppercase;
+    text-align: center;
+    background: linear-gradient(180deg, #ffffff 15%, #cbd5e1 75%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .history-subtitle {
@@ -52,6 +87,7 @@
     max-width: 680px;
     margin: 0 auto 36px;
     line-height: 1.6;
+    text-align: center;
 }
 
 /* Timeline Switcher Bar */
@@ -62,9 +98,11 @@
     border: 1px solid var(--bg-card-border);
     padding: 8px;
     border-radius: 20px;
-    box-shadow: var(--card-shadow);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(12px);
     flex-wrap: wrap;
     justify-content: center;
+    margin: 0 auto;
 }
 
 .timeline-tab-btn {
@@ -1106,16 +1144,59 @@
         padding: 8px 14px;
     }
 
+    /* Champion Card Hero scaled down for mobile */
+    .tilt-card-wrapper:has(.champion-card-hero),
+    .champion-card-hero {
+        padding: 20px 18px !important;
+        border-radius: 18px !important;
+    }
+
+    .champion-card-hero .champ-trophy-badge {
+        width: 46px !important;
+        height: 46px !important;
+        font-size: 1.6rem !important;
+        border-radius: 12px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .champion-card-hero .champ-label {
+        font-size: 0.72rem !important;
+        margin-bottom: 4px !important;
+    }
+
+    .champion-card-hero .champ-title {
+        font-size: 1.6rem !important;
+        margin-bottom: 6px !important;
+        line-height: 1.2 !important;
+    }
+
+    .champion-card-hero .champ-note {
+        font-size: 0.84rem !important;
+        line-height: 1.45 !important;
+        margin-bottom: 14px !important;
+    }
+
     .champ-stats-row {
-        gap: 10px;
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
     }
 
     .cs-item {
-        padding: 12px 8px;
+        padding: 8px 6px !important;
+    }
+
+    .cs-item .cs-icon {
+        font-size: 1.2rem !important;
+        margin-bottom: 3px !important;
     }
 
     .cs-item strong {
-        font-size: 0.95rem;
+        font-size: 0.82rem !important;
+    }
+
+    .cs-item span {
+        font-size: 0.68rem !important;
     }
 
     .history-matches-grid {
@@ -1149,37 +1230,123 @@
         font-size: 0.85rem;
     }
 
+    .history-match-card {
+        padding: 16px 14px !important;
+        border-radius: 16px !important;
+    }
+
+    .hm-teams {
+        font-size: 1.12rem !important;
+        margin-bottom: 10px !important;
+    }
+
+    .hm-scores-box {
+        padding: 10px 12px !important;
+        border-radius: 12px !important;
+    }
+
+    .scorecard-modal-overlay {
+        padding: 16px 8px !important;
+    }
+
     .scorecard-modal-card {
-        padding: 24px 16px;
-        border-radius: 20px;
-        max-width: 95vw;
+        padding: 24px 16px 20px !important;
+        border-radius: 20px !important;
+        width: 95vw !important;
+        max-width: 95vw !important;
+        max-height: 90vh !important;
+    }
+
+    .scorecard-modal-close {
+        top: 14px !important;
+        right: 14px !important;
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 1.15rem !important;
+    }
+
+    /* Scorecard modal top section with proper padding and comfortable spacing */
+    .sm-header {
+        padding-top: 6px !important;
+        padding-right: 46px !important;
+        margin-bottom: 18px !important;
+        padding-bottom: 14px !important;
+        gap: 9px !important;
     }
 
     .sm-teams {
-        font-size: 1.3rem;
+        font-size: 1.25rem !important;
+        line-height: 1.35 !important;
+        margin-bottom: 2px !important;
+    }
+
+    .sm-title-tag {
+        font-size: 0.75rem !important;
+    }
+
+    .sm-meta-badge {
+        font-size: 0.80rem !important;
+    }
+
+    .sm-status {
+        font-size: 0.85rem !important;
+        line-height: 1.4 !important;
+    }
+
+    .sm-result-pill {
+        font-size: 0.82rem !important;
+        padding: 5px 12px !important;
+        margin-top: 4px !important;
+        border-radius: 10px !important;
     }
 
     .sm-inn-banner {
         flex-direction: column;
         align-items: flex-start;
-        gap: 10px;
+        gap: 8px !important;
+        padding: 10px 12px !important;
     }
 
     .sm-inn-score-badge {
         align-self: flex-start;
     }
 
+    .sm-table-wrap {
+        border-radius: 10px !important;
+    }
+
     .sm-table th,
     .sm-table td {
-        padding: 8px 10px;
-        font-size: 0.82rem;
-        white-space: nowrap;
+        padding: 6px 6px !important;
+        font-size: 0.76rem !important;
+        white-space: nowrap !important;
+    }
+
+    .sm-table-subheading {
+        font-size: 0.82rem !important;
+        padding: 6px 10px !important;
     }
 }
 
 @media (max-width: 520px) {
     .champ-stats-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 4px !important;
+    }
+
+    .scorecard-modal-card {
+        padding: 22px 14px 18px !important;
+    }
+
+    .sm-header {
+        padding-top: 6px !important;
+        padding-right: 44px !important;
+        margin-bottom: 16px !important;
+        padding-bottom: 12px !important;
+    }
+
+    .sm-teams {
+        font-size: 1.15rem !important;
     }
 }
 
@@ -1276,4 +1443,34 @@
 [data-theme="light"] .cs-item:hover {
     border-color: rgba(2, 132, 199, 0.4);
     background: rgba(2, 132, 199, 0.03);
+}
+
+[data-theme="light"] .history-hero {
+    background: 
+        radial-gradient(ellipse 90% 70% at 50% -10%, rgba(2, 132, 199, 0.18) 0%, rgba(245, 158, 11, 0.12) 40%, rgba(254, 243, 199, 0.40) 70%, #f8fafc 100%),
+        radial-gradient(circle at 15% 45%, rgba(245, 158, 11, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 85% 45%, rgba(2, 132, 199, 0.15) 0%, transparent 45%),
+        #fdfcf9;
+    border-bottom: 1px solid rgba(253, 230, 138, 0.8);
+}
+
+[data-theme="light"] .history-hero::before {
+    background-image: radial-gradient(rgba(217, 119, 6, 0.28) 1.5px, transparent 1.5px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, black 35%, transparent 95%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, black 35%, transparent 95%);
+    opacity: 0.85;
+}
+
+[data-theme="light"] .history-tag {
+    background: rgba(217, 119, 6, 0.08);
+    border-color: rgba(217, 119, 6, 0.30);
+    color: #b45309;
+    box-shadow: 0 2px 10px rgba(217, 119, 6, 0.10);
+}
+
+[data-theme="light"] .history-title {
+    background: linear-gradient(180deg, #0f172a 15%, #1e293b 80%, #334155 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }

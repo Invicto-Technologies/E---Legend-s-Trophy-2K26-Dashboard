@@ -193,7 +193,7 @@ const Rankings3D = () => {
             <section className="rankings-hero">
                 <div className="rankings-container">
                     <div className="rankings-badge">
-                        <FaTrophy /> OFFICIAL TOURNAMENT STANDINGS
+                        OFFICIAL TOURNAMENT STANDINGS
                     </div>
                     <h1 className="rankings-title">Tournament Leaderboards</h1>
                     <p className="rankings-subtitle">
@@ -322,21 +322,21 @@ const Rankings3D = () => {
                                         <table className="rankings-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Rank</th>
-                                                    <th style={{ textAlign: 'center' }}>Team</th>
-                                                    <th style={{ textAlign: 'center' }}>Played</th>
-                                                    <th style={{ textAlign: 'center' }}>Won</th>
-                                                    <th style={{ textAlign: 'center' }}>Lost</th>
-                                                    <th style={{ textAlign: 'center' }}>NR</th>
-                                                    <th style={{ textAlign: 'center' }}>NRR</th>
-                                                    <th style={{ textAlign: 'center' }}>PTS</th>
+                                                    <th><span className="col-full">Rank</span><span className="col-short">#</span></th>
+                                                    <th style={{ textAlign: 'left' }}><span className="col-full">Team</span><span className="col-short">Team</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Played</span><span className="col-short">P</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Won</span><span className="col-short">W</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Lost</span><span className="col-short">L</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">NR</span><span className="col-short">D</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">NRR</span><span className="col-short">N</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">PTS</span><span className="col-short">PTS</span></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {filteredList.map((t) => (
                                                     <tr key={t.id || t.team} className={t.rank === 1 ? 'gold-row' : ''}>
                                                         <td className="rank-cell">#{t.rank}</td>
-                                                        <td className="team-cell" style={{ textAlign: 'center' }}>
+                                                        <td className="team-cell" style={{ textAlign: 'left' }}>
                                                             <strong>{t.team}</strong>
                                                         </td>
                                                         <td style={{ textAlign: 'center' }}>{t.played}</td>
@@ -354,12 +354,12 @@ const Rankings3D = () => {
                                         <table className="rankings-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Rank</th>
-                                                    <th>Batter</th>
-                                                    <th style={{ textAlign: 'center' }}>Team</th>
-                                                    <th style={{ textAlign: 'center' }}>Score (Runs)</th>
-                                                    <th style={{ textAlign: 'center' }}>Overs Played</th>
-                                                    <th style={{ textAlign: 'center' }}>Strike Rate</th>
+                                                    <th><span className="col-full">Rank</span><span className="col-short">#</span></th>
+                                                    <th><span className="col-full">Batter's Name</span><span className="col-short">Batter's Name</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Team</span><span className="col-short">Team</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Score (Runs)</span><span className="col-short">R</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Overs Played</span><span className="col-short">O</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Strike Rate</span><span className="col-short">SR</span></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -400,12 +400,12 @@ const Rankings3D = () => {
                                         <table className="rankings-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Rank</th>
-                                                    <th>Bowler</th>
-                                                    <th style={{ textAlign: 'center' }}>Team</th>
-                                                    <th style={{ textAlign: 'center' }}>Wickets Taken</th>
-                                                    <th style={{ textAlign: 'center' }}>Overs Bowled</th>
-                                                    <th style={{ textAlign: 'center' }}>Economy</th>
+                                                    <th><span className="col-full">Rank</span><span className="col-short">#</span></th>
+                                                    <th><span className="col-full">Bowler's Name</span><span className="col-short">Bowler's Name</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Team</span><span className="col-short">Team</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Wickets Taken</span><span className="col-short">W</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Overs Bowled</span><span className="col-short">O</span></th>
+                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Economy</span><span className="col-short">ECO</span></th>
                                                 </tr>
                                             </thead>
                                             <tbody>

@@ -307,7 +307,7 @@ const Fixtures3D = () => {
                     {activeTab === 'upcoming' && (
                         <div className="fixtures-tab-content">
                             {upcomingMatches.length > 0 ? (
-                                <div className="fixtures-grid">
+                                <div className={`fixtures-grid count-${upcomingMatches.length}`}>
                                     {upcomingMatches.map((m, idx) => (
                                         <MatchCard key={m.id || idx} match={m} teamsMap={teams} />
                                     ))}
@@ -333,7 +333,7 @@ const Fixtures3D = () => {
                     {activeTab === 'history' && (
                         <div className="fixtures-tab-content">
                             {finishedMatches.length > 0 ? (
-                                <div className="fixtures-grid">
+                                <div className={`fixtures-grid count-${finishedMatches.length}`}>
                                     {finishedMatches.map((match, idx) => (
                                         <MatchCard key={match.id || idx} match={match} teamsMap={teams} />
                                     ))}

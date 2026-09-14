@@ -86,8 +86,42 @@
   --hero-glow-2: rgba(29, 78, 216, 0.06);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection in editable fields so users/admins can type, highlight, and edit text */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable="true"] * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+img,
+svg {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+::selection {
+  background: transparent;
+}
+
+input::selection,
+textarea::selection {
+  background: var(--accent-primary, #3b82f6);
+  color: #ffffff;
 }
 
 html,
@@ -103,6 +137,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   transition: background-color 0.45s ease, color 0.45s ease;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 h1,

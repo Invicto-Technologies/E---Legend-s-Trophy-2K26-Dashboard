@@ -30,7 +30,8 @@ import {
     MdChevronRight,
     MdClose,
     MdNotificationsActive,
-    MdTimeline
+    MdTimeline,
+    MdExpandMore
 } from 'react-icons/md';
 import { FaGooglePlay, FaLinkedin } from 'react-icons/fa';
 import { RiFacebookFill, RiShareLine } from 'react-icons/ri';
@@ -49,6 +50,14 @@ const PublishingPage = () => {
     const [activeTournament, setActiveTournament] = useState(null);
     const [showComingSoonModal, setShowComingSoonModal] = useState(false);
     const [comingSoonPlatform, setComingSoonPlatform] = useState('Android APK');
+    const [expandedPrivacyCards, setExpandedPrivacyCards] = useState({});
+
+    const togglePrivacyCard = (id) => {
+        setExpandedPrivacyCards(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
+    };
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -120,7 +129,6 @@ const PublishingPage = () => {
                     {/* Left: App Details & Action */}
                     <div className="pub-hero-content">
                         <div className="pub-badge-tag">
-                            <MdAndroid className="pub-badge-icon" />
                             <span>OFFICIAL ANDROID APP • {activeTournament?.name || "E-Legend's Trophy 2K26"}</span>
                         </div>
 
@@ -372,92 +380,144 @@ const PublishingPage = () => {
 
                     {/* Policy Detailed Cards Grid */}
                     <div className="privacy-cards-grid">
-                        <div className="privacy-card">
-                            <div className="privacy-card-header">
-                                <div className="p-icon-box">
-                                    <MdPolicy />
+                        <div className={`privacy-card ${expandedPrivacyCards['card-1'] ? 'expanded' : 'collapsed'}`}>
+                            <div
+                                className="privacy-card-header clickable"
+                                onClick={() => togglePrivacyCard('card-1')}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!!expandedPrivacyCards['card-1']}
+                            >
+                                <div className="p-header-main">
+                                    <div className="p-icon-box">
+                                        <MdPolicy />
+                                    </div>
+                                    <div>
+                                        <h3>Information Collection &amp; Use</h3>
+                                        <span className="p-card-tag">Strictly Minimal &amp; Anonymous</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3>Information Collection & Use</h3>
-                                    <span className="p-card-tag">Strictly Minimal & Anonymous</span>
+                                <div className="p-collapse-toggle">
+                                    <MdExpandMore className={`p-chevron ${expandedPrivacyCards['card-1'] ? 'open' : ''}`} />
                                 </div>
                             </div>
-                            <div className="privacy-card-body">
-                                <p>
-                                    The <strong>E-Legends Trophy</strong> application is designed solely as a live collegiate cricket companion for undergraduates, faculty, and alumni.
-                                </p>
-                                <ul>
-                                    <li><strong>Personal Information:</strong> We do <em>not</em> collect, store, or solicit personal details such as your legal name, email address, phone number, physical address, contacts, or financial details.</li>
-                                    <li><strong>Anonymous Diagnostics:</strong> Standard non-identifying telemetry (such as crash stack traces and device model performance) may be processed anonymously via Google Play Services to ensure stability across various Android releases.</li>
-                                </ul>
-                            </div>
+                            {expandedPrivacyCards['card-1'] && (
+                                <div className="privacy-card-body">
+                                    <p>
+                                        The <strong>E-Legends Trophy</strong> application is designed solely as a live collegiate cricket companion for undergraduates, faculty, and alumni.
+                                    </p>
+                                    <ul>
+                                        <li><strong>Personal Information:</strong> We do <em>not</em> collect, store, or solicit personal details such as your legal name, email address, phone number, physical address, contacts, or financial details.</li>
+                                        <li><strong>Anonymous Diagnostics:</strong> Standard non-identifying telemetry (such as crash stack traces and device model performance) may be processed anonymously via Google Play Services to ensure stability across various Android releases.</li>
+                                    </ul>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="privacy-card">
-                            <div className="privacy-card-header">
-                                <div className="p-icon-box">
-                                    <MdSecurity />
+                        <div className={`privacy-card ${expandedPrivacyCards['card-2'] ? 'expanded' : 'collapsed'}`}>
+                            <div
+                                className="privacy-card-header clickable"
+                                onClick={() => togglePrivacyCard('card-2')}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!!expandedPrivacyCards['card-2']}
+                            >
+                                <div className="p-header-main">
+                                    <div className="p-icon-box">
+                                        <MdSecurity />
+                                    </div>
+                                    <div>
+                                        <h3>Device Permissions Explained</h3>
+                                        <span className="p-card-tag">Essential Access Only</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3>Device Permissions Explained</h3>
-                                    <span className="p-card-tag">Essential Access Only</span>
+                                <div className="p-collapse-toggle">
+                                    <MdExpandMore className={`p-chevron ${expandedPrivacyCards['card-2'] ? 'open' : ''}`} />
                                 </div>
                             </div>
-                            <div className="privacy-card-body">
-                                <p>
-                                    Our application requests only the essential system permissions necessary to deliver a live scoreboard experience:
-                                </p>
-                                <ul>
-                                    <li><code>android.permission.INTERNET</code>: Enables communication with Google Firebase Realtime Database to receive instant ball-by-ball commentary, team standings, and match updates.</li>
-                                    <li><code>android.permission.ACCESS_NETWORK_STATE</code>: Detects internet availability to notify users when network connectivity is lost.</li>
-                                    <li><code>android.permission.POST_NOTIFICATIONS</code> (Optional): Used solely to alert users when a scheduled match commences or milestone events occur. Users may toggle notifications on or off at any time in system settings.</li>
-                                    <li><strong>Zero Sensitive Permissions:</strong> We do <em>not</em> access your camera, microphone, gallery, storage, GPS location, or contact list.</li>
-                                </ul>
-                            </div>
+                            {expandedPrivacyCards['card-2'] && (
+                                <div className="privacy-card-body">
+                                    <p>
+                                        Our application requests only the essential system permissions necessary to deliver a live scoreboard experience:
+                                    </p>
+                                    <ul>
+                                        <li><code>android.permission.INTERNET</code>: Enables communication with Google Firebase Realtime Database to receive instant ball-by-ball commentary, team standings, and match updates.</li>
+                                        <li><code>android.permission.ACCESS_NETWORK_STATE</code>: Detects internet availability to notify users when network connectivity is lost.</li>
+                                        <li><code>android.permission.POST_NOTIFICATIONS</code> (Optional): Used solely to alert users when a scheduled match commences or milestone events occur. Users may toggle notifications on or off at any time in system settings.</li>
+                                        <li><strong>Zero Sensitive Permissions:</strong> We do <em>not</em> access your camera, microphone, gallery, storage, GPS location, or contact list.</li>
+                                    </ul>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="privacy-card">
-                            <div className="privacy-card-header">
-                                <div className="p-icon-box">
-                                    <MdLock />
+                        <div className={`privacy-card ${expandedPrivacyCards['card-3'] ? 'expanded' : 'collapsed'}`}>
+                            <div
+                                className="privacy-card-header clickable"
+                                onClick={() => togglePrivacyCard('card-3')}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!!expandedPrivacyCards['card-3']}
+                            >
+                                <div className="p-header-main">
+                                    <div className="p-icon-box">
+                                        <MdLock />
+                                    </div>
+                                    <div>
+                                        <h3>Third Party Services &amp; Cloud Security</h3>
+                                        <span className="p-card-tag">Google Infrastructure</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3>Third Party Services & Cloud Security</h3>
-                                    <span className="p-card-tag">Google Infrastructure</span>
+                                <div className="p-collapse-toggle">
+                                    <MdExpandMore className={`p-chevron ${expandedPrivacyCards['card-3'] ? 'open' : ''}`} />
                                 </div>
                             </div>
-                            <div className="privacy-card-body">
-                                <p>
-                                    To provide reliable and instantaneous score synchronization, the app leverages verified cloud infrastructure provided by <strong>Google LLC</strong>:
-                                </p>
-                                <ul>
-                                    <li><strong>Google Firebase Realtime Database:</strong> Cloud database synchronizing official match scores and tournament fixtures. All network communications are encrypted in transit via TLS 1.3 / HTTPS.</li>
-                                    <li><strong>Google Play Services:</strong> Manages application deployment, integrity validation, and automatic release distribution.</li>
-                                    <li><strong>No Data Brokering:</strong> We do not sell, rent, trade, or share user data with any advertisers or third-party marketing entities.</li>
-                                </ul>
-                            </div>
+                            {expandedPrivacyCards['card-3'] && (
+                                <div className="privacy-card-body">
+                                    <p>
+                                        To provide reliable and instantaneous score synchronization, the app leverages verified cloud infrastructure provided by <strong>Google LLC</strong>:
+                                    </p>
+                                    <ul>
+                                        <li><strong>Google Firebase Realtime Database:</strong> Cloud database synchronizing official match scores and tournament fixtures. All network communications are encrypted in transit via TLS 1.3 / HTTPS.</li>
+                                        <li><strong>Google Play Services:</strong> Manages application deployment, integrity validation, and automatic release distribution.</li>
+                                        <li><strong>No Data Brokering:</strong> We do not sell, rent, trade, or share user data with any advertisers or third-party marketing entities.</li>
+                                    </ul>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="privacy-card">
-                            <div className="privacy-card-header">
-                                <div className="p-icon-box">
-                                    <MdShield />
+                        <div className={`privacy-card ${expandedPrivacyCards['card-4'] ? 'expanded' : 'collapsed'}`}>
+                            <div
+                                className="privacy-card-header clickable"
+                                onClick={() => togglePrivacyCard('card-4')}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!!expandedPrivacyCards['card-4']}
+                            >
+                                <div className="p-header-main">
+                                    <div className="p-icon-box">
+                                        <MdShield />
+                                    </div>
+                                    <div>
+                                        <h3>Children's Privacy &amp; Data Retention</h3>
+                                        <span className="p-card-tag">Family Safe (All Ages)</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3>Children's Privacy & Data Retention</h3>
-                                    <span className="p-card-tag">Family Safe (All Ages)</span>
+                                <div className="p-collapse-toggle">
+                                    <MdExpandMore className={`p-chevron ${expandedPrivacyCards['card-4'] ? 'open' : ''}`} />
                                 </div>
                             </div>
-                            <div className="privacy-card-body">
-                                <p>
-                                    Our application provides public sporting information suitable for cricket fans of all ages, including collegiate students and youth:
-                                </p>
-                                <ul>
-                                    <li>We do not knowingly collect or solicit personal information from children under 13 years of age.</li>
-                                    <li>Because no user accounts or persistent profiles exist, we retain zero personal records on our servers.</li>
-                                    <li>Users can clear temporary offline cached match cards anytime via Android Settings <MdChevronRight className="path-arrow" /> Apps <MdChevronRight className="path-arrow" /> E-Legends Trophy <MdChevronRight className="path-arrow" /> Storage <MdChevronRight className="path-arrow" /> Clear Cache.</li>
-                                </ul>
-                            </div>
+                            {expandedPrivacyCards['card-4'] && (
+                                <div className="privacy-card-body">
+                                    <p>
+                                        Our application provides public sporting information suitable for cricket fans of all ages, including collegiate students and youth:
+                                    </p>
+                                    <ul>
+                                        <li>We do not knowingly collect or solicit personal information from children under 13 years of age.</li>
+                                        <li>Because no user accounts or persistent profiles exist, we retain zero personal records on our servers.</li>
+                                        <li>Users can clear temporary offline cached match cards anytime via Android Settings <MdChevronRight className="path-arrow" /> Apps <MdChevronRight className="path-arrow" /> E-Legends Trophy <MdChevronRight className="path-arrow" /> Storage <MdChevronRight className="path-arrow" /> Clear Cache.</li>
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                     </div>
 

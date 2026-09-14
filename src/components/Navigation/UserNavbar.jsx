@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { subscribeLiveData, subscribeActiveTournament, resolveTournamentLabels } from '../../services/rtdbService';
 import ThemeToggle from '../3D/ThemeToggle';
@@ -18,6 +18,7 @@ import logoImg from '../../Images/e22_logo_transparent.png';
 
 const UserNavbar = () => {
     const location = useLocation();
+    const navRef = useRef(null);
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isLive, setIsLive] = useState(false);
@@ -49,6 +50,22 @@ const UserNavbar = () => {
         setMobileMenuOpen(false);
     }, [location.pathname]);
 
+    // Close mobile menu when clicked outside
+    useEffect(() => {
+        if (!mobileMenuOpen) return;
+        const handleOutsideClick = (event) => {
+            if (navRef.current && !navRef.current.contains(event.target)) {
+                setMobileMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick);
+        document.addEventListener('touchstart', handleOutsideClick);
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+            document.removeEventListener('touchstart', handleOutsideClick);
+        };
+    }, [mobileMenuOpen]);
+
     const labels = resolveTournamentLabels(tourneyData);
 
     const isActive = (path) => {
@@ -58,7 +75,7 @@ const UserNavbar = () => {
     };
 
     return (
-        <header className={`user-nav-header ${isScrolled ? 'scrolled' : ''}`}>
+        <header className={`user-nav-header ${isScrolled ? 'scrolled' : ''} ${mobileMenuOpen ? 'menu-open' : ''}`} ref={navRef}>
             <div className="user-nav-inner">
                 {/* Brand — left anchor */}
                 <Link to="/" className="user-nav-brand" data-tooltip={labels.fullName}>
@@ -109,11 +126,11 @@ const UserNavbar = () => {
                         </Link>
                     </nav>
 
-                    {/* Hamburger (mobile only) */}
+                    {/* Hamburger / Close toggle (mobile only) */}
                     <button
-                        className="mobile-toggle-btn"
+                        className={`mobile-toggle-btn ${mobileMenuOpen ? 'is-active' : ''}`}
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        aria-label="Toggle Navigation"
+                        aria-label={mobileMenuOpen ? "Close Navigation Menu" : "Open Navigation Menu"}
                         aria-expanded={mobileMenuOpen}
                     >
                         {mobileMenuOpen ? <MdClose /> : <MdMenu />}
@@ -121,35 +138,39 @@ const UserNavbar = () => {
                 </div>
             </div>
 
-            {/* Mobile Nav Overlay */}
+            {/* Mobile Nav Overlay & Backdrop */}
             {mobileMenuOpen && (
-                <div className="mobile-nav-menu">
-                    <Link to="/" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/') ? 'active' : ''}`}>
-                        <MdHome /> Home
-                    </Link>
-                    <Link to="/fixtures" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/fixtures') ? 'active' : ''}`}>
-                        <MdCalendarToday /> Fixtures
-                    </Link>
-                    <Link to="/live" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link live-link ${isActive('/live') ? 'active' : ''}`}>
-                        <MdLiveTv /> Live Score {isLive && <span className="live-pulse-dot" />}
-                    </Link>
-                    <Link to="/rankings" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/rankings') ? 'active' : ''}`}>
-                        <MdEmojiEvents /> Rankings
-                    </Link>
-                    <Link to="/history" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/history') ? 'active' : ''}`}>
-                        <MdHistoryEdu /> History
-                    </Link>
-                    <Link to="/download" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/download') ? 'active' : ''}`}>
-                        <MdDownload /> App Download
-                    </Link>
-                    <div className="mobile-nav-theme-row">
-                        <span className="mobile-theme-text">Display Mode</span>
-                        <ThemeToggle />
+                <>
+                    <div
+                        className="mobile-nav-backdrop"
+                        onClick={() => setMobileMenuOpen(false)}
+                        aria-hidden="true"
+                    />
+                    <div className="mobile-nav-menu">
+                        <Link to="/" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/') ? 'active' : ''}`}>
+                            <MdHome /> Home
+                        </Link>
+                        <Link to="/fixtures" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/fixtures') ? 'active' : ''}`}>
+                            <MdCalendarToday /> Fixtures
+                        </Link>
+                        <Link to="/live" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link live-link ${isActive('/live') ? 'active' : ''}`}>
+                            <MdLiveTv /> Live Score {isLive && <span className="live-pulse-dot" />}
+                        </Link>
+                        <Link to="/rankings" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/rankings') ? 'active' : ''}`}>
+                            <MdEmojiEvents /> Rankings
+                        </Link>
+                        <Link to="/history" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/history') ? 'active' : ''}`}>
+                            <MdHistoryEdu /> History
+                        </Link>
+                        <Link to="/download" onClick={() => setMobileMenuOpen(false)} className={`mobile-nav-link ${isActive('/download') ? 'active' : ''}`}>
+                            <MdDownload /> App Download
+                        </Link>
+                        <div className="mobile-nav-theme-row">
+                            <span className="mobile-theme-text">Display Mode</span>
+                            <ThemeToggle />
+                        </div>
                     </div>
-                    <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link admin-link">
-                        <MdAdminPanelSettings /> Admin Console
-                    </Link>
-                </div>
+                </>
             )}
         </header>
     );
