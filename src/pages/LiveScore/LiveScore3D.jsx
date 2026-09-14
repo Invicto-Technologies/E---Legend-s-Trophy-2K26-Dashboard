@@ -809,7 +809,7 @@ const LiveScore3D = () => {
             {/* Main Interactive Broadcast Console */}
             <main className="ls-main-section">
                 <div className="ls-container">
-                    <div className="ls-two-col-layout">
+                    <div className={`ls-two-col-layout tab-${activeHubTab}`}>
                         {/* ========================================================= */}
                         {/* LEFT COLUMN: Holographic Scoreboard + Scorecard & Match Info Hub */}
                         {/* ========================================================= */}
@@ -920,7 +920,7 @@ const LiveScore3D = () => {
 
                                                 {common.mom && (
                                                     <div className="sb-mom">
-                                                        <MdEmojiEvents /> PoTM: <strong>{common.mom}</strong>
+                                                        Man of the Match: <strong>{common.mom}</strong>
                                                     </div>
                                                 )}
                                             </div>

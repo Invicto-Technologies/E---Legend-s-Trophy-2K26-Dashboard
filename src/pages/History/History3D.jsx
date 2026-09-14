@@ -339,7 +339,7 @@ const History3D = () => {
                                                 {/* Score summary */}
                                                 <div className="hm-scores-box">
                                                     <div className="hm-team-score">
-                                                        <span style={{ marginRight: '35px' }}>{t1.name || 'Team 1'}</span>
+                                                        <span>{t1.name || 'Team 1'}</span>
                                                         <strong>{t1.totalRuns ?? 0}/{t1.totalWickets ?? 0} <small>({t1.overs ?? 0} ov)</small></strong>
                                                     </div>
                                                     <div className="hm-team-score">
@@ -378,13 +378,13 @@ const History3D = () => {
                                     <table className="history-data-table">
                                         <thead>
                                             <tr>
-                                                <th>POS</th>
-                                                <th>TEAM</th>
-                                                <th>PLAYED</th>
-                                                <th>WON</th>
-                                                <th>LOST</th>
-                                                <th>NRR</th>
-                                                <th>PTS</th>
+                                                <th><span className="col-full">POS</span><span className="col-short">#</span></th>
+                                                <th><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
+                                                <th><span className="col-full">PLAYED</span><span className="col-short">P</span></th>
+                                                <th><span className="col-full">WON</span><span className="col-short">W</span></th>
+                                                <th><span className="col-full">LOST</span><span className="col-short">L</span></th>
+                                                <th><span className="col-full">NRR</span><span className="col-short">NRR</span></th>
+                                                <th><span className="col-full">PTS</span><span className="col-short">PTS</span></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -430,10 +430,10 @@ const History3D = () => {
                                     <table className="history-data-table">
                                         <thead>
                                             <tr>
-                                                <th>#</th>
-                                                <th>PLAYER</th>
-                                                <th>TEAM</th>
-                                                <th>RUNS</th>
+                                                <th><span className="col-full">#</span><span className="col-short">#</span></th>
+                                                <th><span className="col-full">PLAYER</span><span className="col-short">PLAYER</span></th>
+                                                <th><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
+                                                <th><span className="col-full">RUNS</span><span className="col-short">R</span></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -458,10 +458,10 @@ const History3D = () => {
                                     <table className="history-data-table">
                                         <thead>
                                             <tr>
-                                                <th>#</th>
-                                                <th>PLAYER</th>
-                                                <th>TEAM</th>
-                                                <th>WICKETS</th>
+                                                <th><span className="col-full">#</span><span className="col-short">#</span></th>
+                                                <th><span className="col-full">PLAYER</span><span className="col-short">PLAYER</span></th>
+                                                <th><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
+                                                <th><span className="col-full">WICKETS</span><span className="col-short">W</span></th>
                                             </tr>
                                         </thead>
                                         <tbody>

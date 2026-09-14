@@ -195,6 +195,16 @@
     position: relative;
 }
 
+.podium-card .tilt-card-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    justify-content: flex-end;
+}
+
 .podium-card.gold {
     border-color: rgba(0, 240, 255, 0.45);
     box-shadow: 0 20px 45px rgba(0, 240, 255, 0.18);
@@ -721,6 +731,21 @@
     .podium-card {
         padding: 8px 4px 6px !important;
         border-radius: 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        text-align: center !important;
+    }
+
+    .podium-card .tilt-card-inner {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        text-align: center !important;
+        width: 100% !important;
+        margin: 0 auto !important;
     }
 
     .podium-card.gold {
@@ -730,46 +755,52 @@
 
     .podium-crown-icon {
         font-size: 1.15rem !important;
-        margin-bottom: 2px !important;
+        margin: 0 auto 2px auto !important;
     }
 
     .podium-pedestal-rank {
         font-size: 0.58rem !important;
         padding: 2px 5px !important;
-        margin-bottom: 5px !important;
+        margin: 0 auto 5px auto !important;
         gap: 2px !important;
+        justify-content: center !important;
     }
 
     .podium-avatar-wrap {
         width: 36px !important;
         height: 36px !important;
-        margin-bottom: 4px !important;
+        margin: 0 auto 4px auto !important;
         border-width: 2px !important;
     }
 
     .podium-rank-num {
         font-size: 1rem !important;
+        margin: 0 auto !important;
+        text-align: center !important;
     }
 
     .podium-name {
         font-size: 0.75rem !important;
         line-height: 1.15 !important;
-        margin-bottom: 2px !important;
+        margin: 0 auto 2px auto !important;
         max-width: 95px !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
+        text-align: center !important;
     }
 
     .podium-team-sub {
         font-size: 0.58rem !important;
-        margin-bottom: 3px !important;
+        margin: 0 auto 3px auto !important;
+        text-align: center !important;
     }
 
     .podium-score-pill {
         font-size: 0.65rem !important;
         padding: 2px 5px !important;
-        margin-bottom: 2px !important;
+        margin: 0 auto 2px auto !important;
+        text-align: center !important;
     }
 
     .podium-sub-stat {
@@ -779,7 +810,10 @@
     .podium-base-block {
         height: 20px !important;
         font-size: 0.6rem !important;
-        padding: 3px 0;
+        padding: 3px 0 !important;
+        width: 100% !important;
+        text-align: center !important;
+        margin: 0 auto !important;
     }
 
     /* Single letter column headers & compact fit-to-screen table */

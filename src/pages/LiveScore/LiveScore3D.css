@@ -3320,6 +3320,108 @@
     .rosters-comparison-grid {
         grid-template-columns: 1fr;
     }
+
+    /* Scorecard vs Match Info tab layout on mobile */
+    .ls-two-col-layout.tab-info .ls-col-right {
+        display: none !important;
+    }
+
+    /* Match Info & Rosters compact styling to prevent small screen overflow */
+    .match-info-card {
+        padding: 16px 12px !important;
+        border-radius: 14px !important;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+        padding: 14px 12px !important;
+        margin-bottom: 20px !important;
+    }
+
+    .info-item {
+        gap: 2px !important;
+    }
+
+    .info-label {
+        font-size: 0.72rem !important;
+    }
+
+    .info-val {
+        font-size: 0.84rem !important;
+        word-break: break-word !important;
+    }
+
+    .roster-col {
+        padding: 14px 10px !important;
+        border-radius: 14px !important;
+    }
+
+    .roster-header {
+        gap: 10px !important;
+        margin-bottom: 14px !important;
+        padding-bottom: 10px !important;
+    }
+
+    .roster-logo {
+        width: 32px !important;
+        height: 32px !important;
+    }
+
+    .roster-header h4 {
+        font-size: 0.98rem !important;
+    }
+
+    .roster-header-meta {
+        font-size: 0.7rem !important;
+    }
+
+    .roster-section-group {
+        margin-bottom: 16px !important;
+    }
+
+    .roster-section-heading {
+        padding: 5px 8px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .r-sec-title {
+        font-size: 0.8rem !important;
+        gap: 6px !important;
+    }
+
+    .r-sec-icon {
+        font-size: 0.92rem !important;
+    }
+
+    .r-sec-tag {
+        font-size: 0.65rem !important;
+    }
+
+    .roster-player-item {
+        padding: 6px 8px !important;
+        gap: 8px !important;
+        font-size: 0.8rem !important;
+        border-radius: 8px !important;
+    }
+
+    .r-p-num {
+        font-size: 0.7rem !important;
+        width: 18px !important;
+    }
+
+    .r-p-name {
+        font-size: 0.82rem !important;
+    }
+
+    .r-p-role {
+        font-size: 0.68rem !important;
+    }
+
+    .roster-captain-tag {
+        font-size: 0.62rem !important;
+        padding: 1px 4px !important;
+    }
 }
 
 @media (max-width: 640px) {
@@ -3444,6 +3546,7 @@
         font-size: 0.72rem !important;
         padding: 2px 8px !important;
         margin-top: 4px !important;
+        justify-content: center;
     }
 
     .crease-card {

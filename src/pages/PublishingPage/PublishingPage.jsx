@@ -762,8 +762,8 @@ const PublishingPage = () => {
                                 <div className="dev-logo-container">
                                     <img
                                         src={developer}
-                                        alt="Invicto Technologies"
-                                        className="invicto-brand-logo"
+                                        alt="Pramuda Kulathunga"
+                                        className="invicto-brand-logo dev-portrait-img"
                                     />
                                 </div>
                                 <span className="dev-badge-tag engineer-tag">
