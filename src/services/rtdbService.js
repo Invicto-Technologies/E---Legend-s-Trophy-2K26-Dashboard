@@ -3,6 +3,7 @@ import { database, firebaseConfig } from '../components/firebase';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import fallbackExport from '../data/fallbackData.json';
+import { getMatchOutcome } from '../utils/cricketEngine';
 
 // Cached fallback data for offline / empty state
 const cachedFallbackData = fallbackExport || {};
@@ -177,29 +178,447 @@ export const updateLiveData = async (liveData) => {
    MATCHES (Scoped to active tournament: Tournaments/{targetKey}/{cleanTitle})
    ========================================================================== */
 
+/**
+ * Bulletproof cricket score string parser that supports team names with digits (e.g., E21, E24, SF1).
+ * Example inputs:
+ *  "E21 29/3 (2.4) • E24 0/0 (0)"
+ *  "E22 80/2 (7.3) • E23 78/6 (10)"
+ *  "Team 1 145/6 (15.0) • Team 2 139/8 (15.0)"
+ */
+export const parseCricketScoreString = (scoreStr) => {
+    if (!scoreStr || typeof scoreStr !== 'string') return null;
+    const parts = scoreStr.split(' • ');
+    const parsePart = (p) => {
+        if (!p) return null;
+        // Priority 1: Match standard cricket score pattern "runs/wickets (overs)" or "runs/wickets"
+        // Uses (?:^|\s) boundary so digits in team names (e.g., "E21") won't be captured as runs
+        let m = p.match(/(?:^|\s)(\d+)\/(\d+)(?:\s*\(([\d.]+)\))?/);
+        if (m) {
+            return {
+                runs: parseInt(m[1], 10) || 0,
+                wickets: parseInt(m[2], 10) || 0,
+                overs: m[3] ? parseFloat(m[3]) : 0
+            };
+        }
+        // Priority 2: Match runs with overs in parentheses e.g. "120 (15.0)"
+        m = p.match(/(?:^|\s)(\d+)(?:\s*\(([\d.]+)\))/);
+        if (m) {
+            return {
+                runs: parseInt(m[1], 10) || 0,
+                wickets: 0,
+                overs: m[2] ? parseFloat(m[2]) : 0
+            };
+        }
+        return null;
+    };
+
+    return {
+        p1: parsePart(parts[0]),
+        p2: parts[1] ? parsePart(parts[1]) : null
+    };
+};
+
+/**
+ * Universal helper to build structured player roster for any team from teamData
+ */
+export const buildPlayersRoster = (teamObj, defaultPrefix = 'Player') => {
+    const result = {};
+    const squadList = Object.values(teamObj?.players || {}).map((p, idx) => ({
+        ...p,
+        type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve')
+    }));
+    const extraList = Object.values(teamObj?.extraPlayers || {}).map(p => ({
+        ...p,
+        type: p.type || 'Reserve'
+    }));
+    const rawList = [...squadList, ...extraList];
+    if (rawList.length > 0) {
+        rawList.forEach((p, idx) => {
+            const pid = p.id || idx + 1;
+            result[pid] = {
+                id: pid,
+                name: p.name || `${defaultPrefix} Player ${idx + 1}`,
+                imageUrl: p.imageUrl || p.ImageURL || p.imageuRL || p.image || p.photo || '',
+                role: p.role || 'All Rounder',
+                runs: p.runs || 0,
+                balls: p.balls || 0,
+                boundaries: {
+                    fours: p.fours || p.boundaries?.fours || 0,
+                    sixes: p.sixes || p.boundaries?.sixes || 0,
+                    singles: p.boundaries?.singles || 0,
+                    twos: p.boundaries?.twos || 0
+                },
+                fours: p.fours || p.boundaries?.fours || 0,
+                sixes: p.sixes || p.boundaries?.sixes || 0,
+                strikeRate: '0.00',
+                dismissal: p.dismissal || '',
+                status: p.status || 'yet to bat',
+                hand: p.hand || (idx % 3 === 0 ? 'Left Hand' : 'Right Hand'),
+                type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
+                shots: p.shots || {}
+            };
+        });
+    } else {
+        for (let i = 1; i <= 15; i++) {
+            result[i] = {
+                id: i,
+                name: `${defaultPrefix} Player ${i}`,
+                imageUrl: '',
+                role: 'Player',
+                runs: 0,
+                balls: 0,
+                boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                fours: 0,
+                sixes: 0,
+                strikeRate: '0.00',
+                dismissal: '',
+                status: 'yet to bat',
+                hand: i % 4 === 0 ? 'Left Hand' : 'Right Hand',
+                type: i <= 11 ? 'Playing XI' : 'Reserve',
+                shots: {}
+            };
+        }
+    }
+    return result;
+};
+
+/**
+ * Universal helper to construct a complete scheduled match payload for RTDB
+ */
+export const buildInitialMatchPayload = (m, teamsData = {}) => {
+    const cleanTitle = decodeURIComponent(String(m.title || m.name || '')).replace(/^\//, '').split('/').pop().trim();
+    let [t1 = 'Team 1', t2 = 'Team 2'] = String(m.teams || '').split(' vs ').map(s => s.trim());
+    t1 = m.team1 || t1 || 'Team 1';
+    t2 = m.team2 || t2 || 'Team 2';
+
+    const findTeamObj = (name) => {
+        if (!name || !teamsData) return {};
+        if (teamsData[name]) return teamsData[name];
+        const norm = String(name).trim().toLowerCase();
+        return Object.values(teamsData).find(t =>
+            String(t.name || t.teamName || t.id || '').trim().toLowerCase() === norm
+        ) || {};
+    };
+
+    const t1Obj = findTeamObj(t1);
+    const t2Obj = findTeamObj(t2);
+    const t1Players = buildPlayersRoster(t1Obj, t1);
+    const t2Players = buildPlayersRoster(t2Obj, t2);
+
+    return {
+        id: m.id || Date.now(),
+        common: {
+            matchId: String(m.id || cleanTitle),
+            title: cleanTitle,
+            teams: `${t1} vs ${t2}`,
+            date: m.date || '',
+            time: m.time || '',
+            venue: m.venue || 'Faculty Cricket Grounds',
+            umpire1: m.umpire1 || 'Mr. S. Ketheeswaran',
+            umpire2: m.umpire2 || 'Mr. N. Ramanan',
+            status: 'Match Scheduled',
+            finished: 0,
+            firstBat: 1,
+            firstBattingTeam: t1,
+            overLimit: 15,
+            result: 'Scheduled',
+            score: 'Scheduled',
+            mom: '',
+            ballType: 'Hard Ball',
+            tossWinner: t1,
+            tossDecision: 'bat'
+        },
+        team1: {
+            name: t1,
+            overs: 0,
+            totalBalls: 0,
+            totalRuns: 0,
+            totalWickets: 0,
+            totalExtraAmount: 0,
+            extraTypes: [],
+            players: t1Players,
+            ballFaceBatsman: null,
+            otherSideBatsman: null,
+            bowler: null,
+            bowlers: {},
+            currentPartnership: null,
+            partnerships: {}
+        },
+        team2: {
+            name: t2,
+            overs: 0,
+            totalBalls: 0,
+            totalRuns: 0,
+            totalWickets: 0,
+            totalExtraAmount: 0,
+            extraTypes: [],
+            players: t2Players,
+            ballFaceBatsman: null,
+            otherSideBatsman: null,
+            bowler: null,
+            bowlers: {},
+            currentPartnership: null,
+            partnerships: {}
+        }
+    };
+};
+
+/**
+ * Helper to enrich match data from FixturesData/finishedMatches when root node is empty, scheduled, or zeroed.
+ */
+export const enrichMatchWithFixturesData = (matchData, finishedMatches, matchTitle, customTourneyId) => {
+    if (!finishedMatches || typeof finishedMatches !== 'object') return matchData;
+
+    const rawTarget = decodeURIComponent(String(matchTitle || '')).replace(/^\//, '').split('/').pop().trim();
+    const normTarget = rawTarget.toLowerCase();
+    const normTargetSpaced = normTarget.replace(/[-_]/g, ' ');
+
+    // Find in finishedMatches: Prioritize exact ID/Title match first
+    let found = null;
+
+    // Pass 1: Strict exact matching by ID, title, or matchId
+    for (const [k, v] of Object.entries(finishedMatches)) {
+        if (!v || typeof v !== 'object') continue;
+        const vTitle = String(v.title || '').trim().toLowerCase();
+        const vTitleSpaced = vTitle.replace(/[-_]/g, ' ');
+        const vId = String(v.id || k).trim();
+
+        if (
+            vId === rawTarget ||
+            vTitle === normTarget ||
+            vTitleSpaced === normTargetSpaced ||
+            (v.matchId && String(v.matchId).trim().toLowerCase() === normTarget)
+        ) {
+            found = { ...v, _key: k };
+            break;
+        }
+    }
+
+    // Pass 2: Safe fuzzy match (only if no exact match was found)
+    if (!found) {
+        for (const [k, v] of Object.entries(finishedMatches)) {
+            if (!v || typeof v !== 'object') continue;
+            const vTitle = String(v.title || '').trim().toLowerCase();
+            const vTitleSpaced = vTitle.replace(/[-_]/g, ' ');
+
+            // Guard: Never match "Final" with "Semi-Final" or "Quarter-Final"
+            const isTargetFinalOnly = normTarget === 'final' || normTargetSpaced === 'final' || normTargetSpaced === 'the final' || normTargetSpaced === 'final match';
+            const isCandidateSemiOrQuarter = vTitleSpaced.includes('semi') || vTitleSpaced.includes('quarter');
+            if (isTargetFinalOnly && isCandidateSemiOrQuarter) {
+                continue;
+            }
+
+            // Guard: Never match Semi-Final 1 with Semi-Final 2 (check contained digits)
+            const targetNum = (normTarget.match(/\d+/) || [])[0];
+            const candNum = (vTitle.match(/\d+/) || [])[0];
+            if (targetNum && candNum && targetNum !== candNum) {
+                continue;
+            }
+
+            // Guard: If candidate is a final, target must not be semi/quarter
+            const isCandidateFinalOnly = vTitleSpaced === 'final' || vTitleSpaced === 'the final' || vTitleSpaced === 'final match';
+            const isTargetSemiOrQuarter = normTargetSpaced.includes('semi') || normTargetSpaced.includes('quarter');
+            if (isCandidateFinalOnly && isTargetSemiOrQuarter) {
+                continue;
+            }
+
+            if (
+                vTitleSpaced === `${normTargetSpaced} match` ||
+                normTargetSpaced === `${vTitleSpaced} match` ||
+                vTitleSpaced === `the ${normTargetSpaced}` ||
+                normTargetSpaced === `the ${vTitleSpaced}`
+            ) {
+                found = { ...v, _key: k };
+                break;
+            }
+        }
+    }
+
+    if (!found) return matchData;
+
+    const parsed = parseCricketScoreString(found.score);
+    const [t1FromTeams = 'Team 1', t2FromTeams = 'Team 2'] = String(found.teams || '').split(' vs ').map(s => s.trim());
+
+    // Check if matchData already has complete finished score
+    const hasDataScores = matchData && (
+        (Number(matchData.team1?.totalRuns || 0) > 0 || Number(matchData.team1?.overs || 0) > 0) ||
+        (Number(matchData.team2?.totalRuns || 0) > 0 || Number(matchData.team2?.overs || 0) > 0)
+    ) && matchData.common?.result;
+
+    const isMatchConcluded = Boolean(
+        found.result && !['scheduled', 'match scheduled', 'tbd', 'live'].includes(String(found.result).trim().toLowerCase())
+    );
+
+    const base = matchData ? { ...matchData } : {};
+    const baseCommon = base.common ? { ...base.common } : {};
+    const baseTeam1 = base.team1 ? { ...base.team1 } : {};
+    const baseTeam2 = base.team2 ? { ...base.team2 } : {};
+
+    const enrichedCommon = {
+        ...baseCommon,
+        title: baseCommon.title || found.title || rawTarget,
+        teams: found.teams || baseCommon.teams || `${t1FromTeams} vs ${t2FromTeams}`,
+        date: found.date || baseCommon.date || '',
+        time: found.time || baseCommon.time || '',
+        venue: found.venue || baseCommon.venue || '',
+        umpire1: found.umpire1 || baseCommon.umpire1 || '',
+        umpire2: found.umpire2 || baseCommon.umpire2 || '',
+        result: (isMatchConcluded ? found.result : baseCommon.result) || found.result || '',
+        score: (isMatchConcluded ? found.score : baseCommon.score) || found.score || '',
+        status: (isMatchConcluded ? found.result : baseCommon.status) || found.result || baseCommon.status || 'Match Finished',
+        finished: isMatchConcluded ? 1 : (baseCommon.finished ?? 0),
+        isFinished: isMatchConcluded ? true : Boolean(baseCommon.isFinished)
+    };
+
+    const team1Name = baseTeam1.name || (typeof found.team1 === 'string' ? found.team1 : found.team1?.name) || t1FromTeams;
+    const team2Name = baseTeam2.name || (typeof found.team2 === 'string' ? found.team2 : found.team2?.name) || t2FromTeams;
+
+    // Resolve team rosters from fallback if missing
+    let p1 = baseTeam1.players;
+    let p2 = baseTeam2.players;
+    if (!p1 || Object.keys(p1).length === 0) {
+        const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
+        const fbTourney = getFallbackTournament(targetKey);
+        const tObj = fbTourney?.teamData?.[team1Name] || cachedFallbackData?.Tournaments?.[targetKey]?.teamData?.[team1Name] || {};
+        p1 = buildPlayersRoster(tObj, team1Name);
+    }
+    if (!p2 || Object.keys(p2).length === 0) {
+        const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
+        const fbTourney = getFallbackTournament(targetKey);
+        const tObj = fbTourney?.teamData?.[team2Name] || cachedFallbackData?.Tournaments?.[targetKey]?.teamData?.[team2Name] || {};
+        p2 = buildPlayersRoster(tObj, team2Name);
+    }
+
+    const enrichedTeam1 = {
+        ...baseTeam1,
+        name: team1Name,
+        totalRuns: (hasDataScores && Number(baseTeam1.totalRuns) > 0) ? Number(baseTeam1.totalRuns) : (parsed?.p1?.runs ?? Number(baseTeam1.totalRuns || 0)),
+        totalWickets: (hasDataScores && baseTeam1.totalWickets !== undefined) ? Number(baseTeam1.totalWickets) : (parsed?.p1?.wickets ?? Number(baseTeam1.totalWickets || 0)),
+        overs: (hasDataScores && Number(baseTeam1.overs) > 0) ? Number(baseTeam1.overs) : (parsed?.p1?.overs ?? Number(baseTeam1.overs || 0)),
+        players: p1 || {}
+    };
+
+    const enrichedTeam2 = {
+        ...baseTeam2,
+        name: team2Name,
+        totalRuns: (hasDataScores && Number(baseTeam2.totalRuns) > 0) ? Number(baseTeam2.totalRuns) : (parsed?.p2?.runs ?? Number(baseTeam2.totalRuns || 0)),
+        totalWickets: (hasDataScores && baseTeam2.totalWickets !== undefined) ? Number(baseTeam2.totalWickets) : (parsed?.p2?.wickets ?? Number(baseTeam2.totalWickets || 0)),
+        overs: (hasDataScores && Number(baseTeam2.overs) > 0) ? Number(baseTeam2.overs) : (parsed?.p2?.overs ?? Number(baseTeam2.overs || 0)),
+        players: p2 || {}
+    };
+
+    return {
+        ...base,
+        common: enrichedCommon,
+        team1: enrichedTeam1,
+        team2: enrichedTeam2,
+        result: enrichedCommon.result,
+        score: enrichedCommon.score,
+        finished: isMatchConcluded ? 1 : (base.finished ?? 0),
+        isFinished: isMatchConcluded ? true : Boolean(base.isFinished)
+    };
+};
+
 export const subscribeMatch = (matchTitle, callback, customTourneyId) => {
     if (!matchTitle) return () => {};
-    const cleanTitle = String(matchTitle).replace(/^\//, '').split('/').pop();
+    const rawClean = decodeURIComponent(String(matchTitle)).replace(/^\//, '').split('/').pop().trim();
+    const cleanTitle = rawClean;
+
+    const resolveMatchFallback = async (targetKey, cb) => {
+        try {
+            const tourneySnap = await get(ref(database, `Tournaments/${targetKey}`));
+            const tourneyVal = tourneySnap.val();
+            if (tourneyVal) {
+                const normTarget = rawClean.toLowerCase();
+                const normTargetSpaced = normTarget.replace(/[-_]/g, ' ');
+                const finishedMatches = tourneyVal.FixturesData?.finishedMatches || {};
+
+                // 1. Direct key (exact or decoded)
+                let directMatch = tourneyVal[cleanTitle] || tourneyVal[rawClean];
+                if (directMatch) {
+                    const enriched = enrichMatchWithFixturesData(directMatch, finishedMatches, cleanTitle, targetKey);
+                    cb(enriched);
+                    return;
+                }
+
+                // 2. Search children in tournament (matching title, matchId, id, or key)
+                for (const [k, v] of Object.entries(tourneyVal)) {
+                    if (!v || typeof v !== 'object' || k === 'FixturesData' || k === 'LiveData' || k === 'UpcomingMatchData' || k === 'RankingData' || k === 'teamData') continue;
+                    const vTitle = String(v.common?.title || v.title || v.common?.matchId || v.id || k).trim().toLowerCase();
+                    const vTitleSpaced = vTitle.replace(/[-_]/g, ' ');
+                    if (vTitle === normTarget || vTitleSpaced === normTargetSpaced || String(v.id) === String(cleanTitle) || String(v.common?.matchId) === String(cleanTitle)) {
+                        const enriched = enrichMatchWithFixturesData(v, finishedMatches, cleanTitle, targetKey);
+                        cb(enriched);
+                        return;
+                    }
+                }
+
+                // 3. Check FixturesData/finishedMatches directly
+                const enrichedFromFixtures = enrichMatchWithFixturesData(null, finishedMatches, cleanTitle, targetKey);
+                if (enrichedFromFixtures) {
+                    cb(enrichedFromFixtures);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('Error in resolveMatchFallback:', e);
+        }
+
+        const fallbackTourney = getFallbackTournament(targetKey);
+        const rawCleanFallback = decodeURIComponent(cleanTitle).trim();
+        const matchFallback = fallbackTourney?.[cleanTitle] || fallbackTourney?.[rawCleanFallback] || fallbackTourney?.matches?.[cleanTitle] || fallbackTourney?.matches?.[rawCleanFallback] || cachedFallbackData?.[cleanTitle] || null;
+        cb(matchFallback);
+    };
+
+    const setupMatchAndFixturesSubscription = (targetKey, cb) => {
+        let latestMatchData = null;
+        let latestFinishedMatches = null;
+        let matchReceived = false;
+        let fixturesReceived = false;
+
+        const emitUpdated = () => {
+            if (!matchReceived && !fixturesReceived) return;
+
+            let result = enrichMatchWithFixturesData(latestMatchData, latestFinishedMatches, cleanTitle, targetKey);
+            if (result && (result.team1?.players && Object.keys(result.team1.players).length > 0)) {
+                cb(result);
+            } else {
+                resolveMatchFallback(targetKey, cb);
+            }
+        };
+
+        const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
+        const unsubMatch = onValue(matchRef, (snapshot) => {
+            latestMatchData = snapshot.val();
+            matchReceived = true;
+            emitUpdated();
+        }, (error) => {
+            console.warn(`Match [${cleanTitle}] error for ${targetKey}:`, error);
+            matchReceived = true;
+            emitUpdated();
+        });
+
+        const fixturesRef = ref(database, `Tournaments/${targetKey}/FixturesData/finishedMatches`);
+        const unsubFixtures = onValue(fixturesRef, (snapshot) => {
+            latestFinishedMatches = snapshot.val();
+            fixturesReceived = true;
+            emitUpdated();
+        }, (error) => {
+            console.warn(`FixturesData for Match [${cleanTitle}] error for ${targetKey}:`, error);
+            fixturesReceived = true;
+            emitUpdated();
+        });
+
+        return () => {
+            unsubMatch();
+            unsubFixtures();
+        };
+    };
 
     try {
         if (customTourneyId) {
             const targetKey = resolveTournamentKey(customTourneyId);
-            const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
-            const unsub = onValue(matchRef, (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    callback(data);
-                } else {
-                    const fallbackTourney = getFallbackTournament(targetKey);
-                    const matchFallback = fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null;
-                    callback(matchFallback);
-                }
-            }, (error) => {
-                console.warn(`Match [${cleanTitle}] error for ${targetKey}:`, error);
-                const fallbackTourney = getFallbackTournament(targetKey);
-                callback(fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null);
-            });
-            return unsub;
+            return setupMatchAndFixturesSubscription(targetKey, callback);
         }
 
         const activeRef = ref(database, 'activeTournamentId');
@@ -211,26 +630,10 @@ export const subscribeMatch = (matchTitle, callback, customTourneyId) => {
             const targetKey = resolveTournamentKey(activeId);
 
             if (currentUnsub) currentUnsub();
-
-            const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
-            currentUnsub = onValue(matchRef, (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    callback(data);
-                } else {
-                    const fallbackTourney = getFallbackTournament(targetKey);
-                    const matchFallback = fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null;
-                    callback(matchFallback);
-                }
-            }, (error) => {
-                console.warn(`Match [${cleanTitle}] error for ${targetKey}:`, error);
-                const fallbackTourney = getFallbackTournament(targetKey);
-                callback(fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null);
-            });
+            currentUnsub = setupMatchAndFixturesSubscription(targetKey, callback);
         }, () => {
             const targetKey = resolveTournamentKey(currentActiveTournamentId);
-            const fallbackTourney = getFallbackTournament(targetKey);
-            callback(fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null);
+            resolveMatchFallback(targetKey, callback);
         });
 
         return () => {
@@ -240,21 +643,63 @@ export const subscribeMatch = (matchTitle, callback, customTourneyId) => {
     } catch (error) {
         console.error('Error subscribing to match:', error);
         const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
-        const fallbackTourney = getFallbackTournament(targetKey);
-        callback(fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null);
+        resolveMatchFallback(targetKey, callback);
         return () => {};
     }
 };
 
 export const getMatchData = async (matchTitle, customTourneyId) => {
-    const cleanTitle = String(matchTitle || '').replace(/^\//, '').split('/').pop();
+    if (!matchTitle) return null;
+    const cleanTitle = decodeURIComponent(String(matchTitle || '')).replace(/^\//, '').split('/').pop().trim();
     const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
     try {
-        const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
-        const snap = await get(matchRef);
-        if (snap.exists()) {
-            return snap.val();
+        const [matchSnap, fixturesSnap] = await Promise.all([
+            get(ref(database, `Tournaments/${targetKey}/${cleanTitle}`)),
+            get(ref(database, `Tournaments/${targetKey}/FixturesData/finishedMatches`))
+        ]);
+
+        const rawData = matchSnap.exists() ? matchSnap.val() : null;
+        const finishedMatches = fixturesSnap.exists() ? fixturesSnap.val() : {};
+
+        // If direct match snap has full data with players, return enriched
+        if (rawData && rawData.team1?.players && Object.keys(rawData.team1.players).length > 0) {
+            const enriched = enrichMatchWithFixturesData(rawData, finishedMatches, cleanTitle, targetKey);
+            if (enriched) return enriched;
         }
+
+        // Check if cleanTitle was a match ID in finishedMatches and points to a known title
+        for (const [k, f] of Object.entries(finishedMatches)) {
+            if (!f) continue;
+            const fId = String(f.id || k);
+            const fTitle = String(f.title || '').trim();
+            if ((fId === cleanTitle || String(f.id) === cleanTitle) && fTitle && fTitle !== cleanTitle) {
+                const altSnap = await get(ref(database, `Tournaments/${targetKey}/${fTitle}`));
+                if (altSnap.exists()) {
+                    const enriched = enrichMatchWithFixturesData(altSnap.val(), finishedMatches, cleanTitle, targetKey);
+                    if (enriched) return enriched;
+                }
+            }
+        }
+
+        const enriched = enrichMatchWithFixturesData(rawData, finishedMatches, cleanTitle, targetKey);
+        if (enriched && enriched.team1?.players && Object.keys(enriched.team1.players).length > 0) return enriched;
+
+        const tourneySnap = await get(ref(database, `Tournaments/${targetKey}`));
+        const tourneyVal = tourneySnap.val();
+        if (tourneyVal) {
+            const normTarget = String(cleanTitle).trim().toLowerCase();
+            const normTargetSpaced = normTarget.replace(/[-_]/g, ' ');
+            for (const [k, v] of Object.entries(tourneyVal)) {
+                if (!v || typeof v !== 'object') continue;
+                const title = String(v.common?.title || v.title || v.id || k).trim().toLowerCase();
+                const titleSpaced = title.replace(/[-_]/g, ' ');
+                if (title === normTarget || titleSpaced === normTargetSpaced || String(v.id) === String(cleanTitle) || String(v.common?.matchId) === String(cleanTitle)) {
+                    return enrichMatchWithFixturesData(v, finishedMatches, cleanTitle, targetKey);
+                }
+            }
+        }
+        if (enriched) return enriched;
+
         const fallbackTourney = getFallbackTournament(targetKey);
         return fallbackTourney?.[cleanTitle] || fallbackTourney?.matches?.[cleanTitle] || cachedFallbackData?.[cleanTitle] || null;
     } catch (e) {
@@ -275,6 +720,14 @@ export const setMatchData = async (matchTitle, data, customTourneyId) => {
     const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
     const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
     return set(matchRef, data);
+};
+
+export const deleteMatchData = async (matchKey, customTourneyId) => {
+    if (!matchKey) return;
+    const cleanTitle = String(matchKey || '').replace(/^\//, '').split('/').pop();
+    const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
+    const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
+    return remove(matchRef);
 };
 
 /* ==========================================================================
@@ -726,8 +1179,9 @@ export const recordMatchRankings = async (finishedMatchPayload, customTourneyId)
         const t1Entry = findOrCreateTeam(t1Name);
         const t2Entry = findOrCreateTeam(t2Name);
 
-        const t1Won = t1Runs > t2Runs;
-        const t2Won = t2Runs > t1Runs;
+        const outcome = getMatchOutcome(finishedMatchPayload);
+        const t1Won = outcome.winningTeamKey === 'team1';
+        const t2Won = outcome.winningTeamKey === 'team2';
 
         // Team 1 Points Table Update
         const t1PrevPlayed = Number(t1Entry.played || 0);

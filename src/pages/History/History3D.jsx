@@ -499,26 +499,41 @@ const History3D = () => {
 
             {/* Scorecard Modal */}
             {activeScorecardModal && (() => {
-                const modal = activeScorecardModal;
-                const team1 = modal.team1 || {};
-                const team2 = modal.team2 || {};
-                const common = modal.common || {};
+                const modal = activeScorecardModal || {};
+                const team1 = (modal.team1 && typeof modal.team1 === 'object') ? modal.team1
+                    : (modal.teamA && typeof modal.teamA === 'object') ? modal.teamA
+                    : (modal.innings1 && typeof modal.innings1 === 'object') ? modal.innings1
+                    : {};
+                const team2 = (modal.team2 && typeof modal.team2 === 'object') ? modal.team2
+                    : (modal.teamB && typeof modal.teamB === 'object') ? modal.teamB
+                    : (modal.innings2 && typeof modal.innings2 === 'object') ? modal.innings2
+                    : {};
+                const common = (modal.common && typeof modal.common === 'object') ? modal.common
+                    : (modal.matchInfo && typeof modal.matchInfo === 'object') ? modal.matchInfo
+                    : (modal.info && typeof modal.info === 'object') ? modal.info
+                    : {};
+
+                const sanitizeList = (raw) => {
+                    if (!raw) return [];
+                    const list = Array.isArray(raw) ? raw : Object.values(raw);
+                    return list.filter((p) => p && typeof p === 'object');
+                };
 
                 // Innings 1: Team 1 batting, Team 2 bowling
-                const inn1Batters = Object.values(team1.players || {});
-                let inn1Bowlers = Object.values(team2.bowlers || {});
+                const inn1Batters = sanitizeList(team1.players);
+                let inn1Bowlers = sanitizeList(team2.bowlers);
                 let inn1BowlingTeam = team2.name || 'Bowling Attack';
-                if (inn1Bowlers.length === 0 && Object.values(team1.bowlers || {}).length > 0) {
-                    inn1Bowlers = Object.values(team1.bowlers);
+                if (inn1Bowlers.length === 0 && sanitizeList(team1.bowlers).length > 0) {
+                    inn1Bowlers = sanitizeList(team1.bowlers);
                     inn1BowlingTeam = team1.name || 'Bowlers';
                 }
 
                 // Innings 2: Team 2 batting, Team 1 bowling
-                const inn2Batters = Object.values(team2.players || {});
-                let inn2Bowlers = Object.values(team1.bowlers || {});
+                const inn2Batters = sanitizeList(team2.players);
+                let inn2Bowlers = sanitizeList(team1.bowlers);
                 let inn2BowlingTeam = team1.name || 'Bowling Attack';
-                if (inn2Bowlers.length === 0 && Object.values(team2.bowlers || {}).length > 0) {
-                    inn2Bowlers = Object.values(team2.bowlers);
+                if (inn2Bowlers.length === 0 && sanitizeList(team2.bowlers).length > 0) {
+                    inn2Bowlers = sanitizeList(team2.bowlers);
                     inn2BowlingTeam = team2.name || 'Bowlers';
                 }
 
@@ -585,7 +600,7 @@ const History3D = () => {
 
                                 {/* Batting Table */}
                                 <div className="sm-table-subheading">Batting Performance</div>
-                                <div className="table-responsive sm-table-wrap">
+                                <div className="sm-table-wrap">
                                     <table className="sm-table">
                                         <thead>
                                             <tr>
@@ -600,18 +615,18 @@ const History3D = () => {
                                         </thead>
                                         <tbody>
                                             {inn1Batters.map((p, i) => (
-                                                <tr key={p.id || i}>
+                                                <tr key={p?.id || i}>
                                                     <td className="sm-player-name">
-                                                        <strong>{p.name}</strong>
-                                                        <small>{p.role || 'Batter'}</small>
+                                                        <strong>{p?.name || `Player ${i + 1}`}</strong>
+                                                        <small>{p?.role || 'Batter'}</small>
                                                     </td>
-                                                    <td className="sm-dismissal">{p.status || p.dismissal || 'not out'}</td>
-                                                    <td className="sm-runs-cell">{p.runs ?? 0}</td>
-                                                    <td>{p.balls ?? 0}</td>
-                                                    <td>{p.boundaries?.fours ?? 0}</td>
-                                                    <td>{p.boundaries?.sixes ?? 0}</td>
+                                                    <td className="sm-dismissal">{p?.status || p?.dismissal || 'not out'}</td>
+                                                    <td className="sm-runs-cell">{p?.runs ?? 0}</td>
+                                                    <td>{p?.balls ?? 0}</td>
+                                                    <td>{p?.boundaries?.fours ?? 0}</td>
+                                                    <td>{p?.boundaries?.sixes ?? 0}</td>
                                                     <td className="sm-sr-cell">
-                                                        {p.strikeRate ?? (p.balls ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0')}
+                                                        {p?.strikeRate ?? (p?.balls ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0')}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -625,7 +640,7 @@ const History3D = () => {
                                         <div className="sm-table-subheading bowling">
                                             {inn1BowlingTeam} Bowling Figures
                                         </div>
-                                        <div className="table-responsive sm-table-wrap">
+                                        <div className="sm-table-wrap">
                                             <table className="sm-table bowling-table">
                                                 <thead>
                                                     <tr>
@@ -640,19 +655,19 @@ const History3D = () => {
                                                 </thead>
                                                 <tbody>
                                                     {inn1Bowlers.map((b, i) => (
-                                                        <tr key={b.id || i}>
+                                                        <tr key={b?.id || i}>
                                                             <td className="sm-player-name">
-                                                                <strong>{b.name}</strong>
-                                                                <small>{b.role || 'Bowler'}</small>
+                                                                <strong>{b?.name || `Bowler ${i + 1}`}</strong>
+                                                                <small>{b?.role || 'Bowler'}</small>
                                                             </td>
-                                                            <td>{b.overs ?? 0}</td>
-                                                            <td>{b.maidens ?? 0}</td>
-                                                            <td className="sm-runs-cell">{b.runs ?? 0}</td>
-                                                            <td className="sm-wickets-cell">{b.wickets ?? 0}</td>
+                                                            <td>{b?.overs ?? 0}</td>
+                                                            <td>{b?.maidens ?? 0}</td>
+                                                            <td className="sm-runs-cell">{b?.runs ?? 0}</td>
+                                                            <td className="sm-wickets-cell">{b?.wickets ?? 0}</td>
                                                             <td className="sm-econ-cell">
-                                                                {b.economy ?? (b.overs ? (b.runs / Math.max(0.1, b.overs)).toFixed(2) : '0.00')}
+                                                                {b?.economy ?? (b?.overs ? (b.runs / Math.max(0.1, b.overs)).toFixed(2) : '0.00')}
                                                             </td>
-                                                            <td>{b.dots ?? b.dotBalls ?? '-'}</td>
+                                                            <td>{b?.dots ?? b?.dotBalls ?? '-'}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -677,7 +692,7 @@ const History3D = () => {
 
                                 {/* Batting Table */}
                                 <div className="sm-table-subheading">Batting Performance</div>
-                                <div className="table-responsive sm-table-wrap">
+                                <div className="sm-table-wrap">
                                     <table className="sm-table">
                                         <thead>
                                             <tr>
@@ -692,18 +707,18 @@ const History3D = () => {
                                         </thead>
                                         <tbody>
                                             {inn2Batters.map((p, i) => (
-                                                <tr key={p.id || i}>
+                                                <tr key={p?.id || i}>
                                                     <td className="sm-player-name">
-                                                        <strong>{p.name}</strong>
-                                                        <small>{p.role || 'Batter'}</small>
+                                                        <strong>{p?.name || `Player ${i + 1}`}</strong>
+                                                        <small>{p?.role || 'Batter'}</small>
                                                     </td>
-                                                    <td className="sm-dismissal">{p.status || p.dismissal || 'not out'}</td>
-                                                    <td className="sm-runs-cell">{p.runs ?? 0}</td>
-                                                    <td>{p.balls ?? 0}</td>
-                                                    <td>{p.boundaries?.fours ?? 0}</td>
-                                                    <td>{p.boundaries?.sixes ?? 0}</td>
+                                                    <td className="sm-dismissal">{p?.status || p?.dismissal || 'not out'}</td>
+                                                    <td className="sm-runs-cell">{p?.runs ?? 0}</td>
+                                                    <td>{p?.balls ?? 0}</td>
+                                                    <td>{p?.boundaries?.fours ?? 0}</td>
+                                                    <td>{p?.boundaries?.sixes ?? 0}</td>
                                                     <td className="sm-sr-cell">
-                                                        {p.strikeRate ?? (p.balls ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0')}
+                                                        {p?.strikeRate ?? (p?.balls ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0')}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -717,7 +732,7 @@ const History3D = () => {
                                         <div className="sm-table-subheading bowling">
                                             {inn2BowlingTeam} Bowling Figures
                                         </div>
-                                        <div className="table-responsive sm-table-wrap">
+                                        <div className="sm-table-wrap">
                                             <table className="sm-table bowling-table">
                                                 <thead>
                                                     <tr>
@@ -732,19 +747,19 @@ const History3D = () => {
                                                 </thead>
                                                 <tbody>
                                                     {inn2Bowlers.map((b, i) => (
-                                                        <tr key={b.id || i}>
+                                                        <tr key={b?.id || i}>
                                                             <td className="sm-player-name">
-                                                                <strong>{b.name}</strong>
-                                                                <small>{b.role || 'Bowler'}</small>
+                                                                <strong>{b?.name || `Bowler ${i + 1}`}</strong>
+                                                                <small>{b?.role || 'Bowler'}</small>
                                                             </td>
-                                                            <td>{b.overs ?? 0}</td>
-                                                            <td>{b.maidens ?? 0}</td>
-                                                            <td className="sm-runs-cell">{b.runs ?? 0}</td>
-                                                            <td className="sm-wickets-cell">{b.wickets ?? 0}</td>
+                                                            <td>{b?.overs ?? 0}</td>
+                                                            <td>{b?.maidens ?? 0}</td>
+                                                            <td className="sm-runs-cell">{b?.runs ?? 0}</td>
+                                                            <td className="sm-wickets-cell">{b?.wickets ?? 0}</td>
                                                             <td className="sm-econ-cell">
-                                                                {b.economy ?? (b.overs ? (b.runs / Math.max(0.1, b.overs)).toFixed(2) : '0.00')}
+                                                                {b?.economy ?? (b?.overs ? (b.runs / Math.max(0.1, b.overs)).toFixed(2) : '0.00')}
                                                             </td>
-                                                            <td>{b.dots ?? b.dotBalls ?? '-'}</td>
+                                                            <td>{b?.dots ?? b?.dotBalls ?? '-'}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

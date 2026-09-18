@@ -9,7 +9,8 @@ import {
     createTournament,
     updateTournamentInfo,
     deleteTournament,
-    getTournamentEdition
+    getTournamentEdition,
+    updateLiveData
 } from '../../../services/rtdbService';
 import {
     MdEmojiEvents,
@@ -33,11 +34,13 @@ import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import ConfirmationModal from '../../../components/common/ConfirmationModal';
 import PageLoader from '../../../components/common/PageLoader/PageLoader';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
+import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import './TournamentManagement.css';
 
 const TournamentManagement = () => {
     const location = useLocation();
     const { selectTournament } = useAdminTournament();
+    const { withProcessing } = useAdminProcessing();
     const [isLoading, setIsLoading] = useState(true);
     const [tournamentList, setTournamentList] = useState([]);
     const [activeTournament, setActiveTournament] = useState(null);
@@ -215,46 +218,58 @@ const TournamentManagement = () => {
 
     const handleFormSubmitCreate = async (e) => {
         e.preventDefault();
-        try {
-            const createdId = await createTournament(formData);
-            if (formData.setAsActive) {
-                await setActiveTournamentId(createdId);
+        await withProcessing(async () => {
+            try {
+                const createdId = await createTournament(formData);
+                if (formData.setAsActive) {
+                    await setActiveTournamentId(createdId);
+                }
+                showToast(`Tournament ${createdId} created successfully!`);
+                setIsCreateModalOpen(false);
+            } catch (error) {
+                console.error('Create tournament error:', error);
+                showToast('Failed to create tournament. Check console.', 'error');
             }
-            showToast(`Tournament ${createdId} created successfully!`);
-            setIsCreateModalOpen(false);
-        } catch (error) {
-            console.error('Create tournament error:', error);
-            showToast('Failed to create tournament. Check console.', 'error');
-        }
+        }, 'Creating Tournament Edition...', 'Initializing tournament configuration and countdown telemetry...');
     };
 
     const handleFormSubmitEdit = async (e) => {
         e.preventDefault();
-        try {
-            await updateTournamentInfo(editingEditionId, {
-                name: formData.name,
-                title: formData.title,
-                year: formData.year,
-                startDate: formData.startDate,
-                endDate: formData.endDate,
-                venue: formData.venue,
-                organizers: formData.organizers,
-                status: formData.status,
-                champion: formData.champion,
-                runnerUp: formData.runnerUp,
-                description: formData.description
-            });
+        await withProcessing(async () => {
+            try {
+                await updateTournamentInfo(editingEditionId, {
+                    name: formData.name,
+                    title: formData.title,
+                    year: formData.year,
+                    startDate: formData.startDate,
+                    endDate: formData.endDate,
+                    venue: formData.venue,
+                    organizers: formData.organizers,
+                    status: formData.status,
+                    champion: formData.champion,
+                    runnerUp: formData.runnerUp,
+                    description: formData.description
+                });
 
-            if (formData.setAsActive) {
-                await setActiveTournamentId(editingEditionId);
+                if (formData.setAsActive) {
+                    await setActiveTournamentId(editingEditionId);
+                }
+
+                if (formData.status === 'completed' && activeTournament?.activeId === editingEditionId) {
+                    await updateLiveData({
+                        isLive: 0,
+                        currentMatchPath: '',
+                        liveScore: null
+                    });
+                }
+
+                showToast(`Tournament ${editingEditionId} updated successfully!`);
+                setIsEditModalOpen(false);
+            } catch (error) {
+                console.error('Edit tournament error:', error);
+                showToast('Failed to update tournament.', 'error');
             }
-
-            showToast(`Tournament ${editingEditionId} updated successfully!`);
-            setIsEditModalOpen(false);
-        } catch (error) {
-            console.error('Edit tournament error:', error);
-            showToast('Failed to update tournament.', 'error');
-        }
+        }, 'Updating Tournament Details...', 'Saving configuration changes to database...');
     };
 
     const handleRequestSetActive = (tournament) => {
@@ -266,43 +281,61 @@ const TournamentManagement = () => {
 
     const handleConfirmSetActive = async () => {
         if (!setActiveTarget) return;
-        try {
-            await setActiveTournamentId(setActiveTarget.id);
-            selectTournament(setActiveTarget.id);
-            showToast(`Active tournament switched to "${setActiveTarget.name}"!`);
-        } catch (error) {
-            console.error('Set active error:', error);
-            showToast('Failed to switch active tournament.', 'error');
-        } finally {
-            setSetActiveTarget(null);
-        }
+        await withProcessing(async () => {
+            try {
+                await setActiveTournamentId(setActiveTarget.id);
+                selectTournament(setActiveTarget.id);
+                showToast(`Active tournament switched to "${setActiveTarget.name}"!`);
+            } catch (error) {
+                console.error('Set active error:', error);
+                showToast('Failed to switch active tournament.', 'error');
+            } finally {
+                setSetActiveTarget(null);
+            }
+        }, 'Activating Live Tournament...', `Setting "${setActiveTarget.name}" as featured event on website...`);
     };
 
-    // Open Complete Tournament Modal (Auto-detecting champion if available from final match)
-    const handleOpenCompleteModal = (tournament) => {
-        const finishedMap = activeFixturesData?.finishedMatches || activeFixturesData?.matches || {};
-        const matchesList = Object.values(finishedMap);
+    // Open Complete Tournament Modal (Auto-detecting champion if available from final match or edition data)
+    const handleOpenCompleteModal = async (tournament) => {
+        let detectedChampion = tournament.champion || '';
+        let detectedRunnerUp = tournament.runnerUp || '';
+        let matchesList = [];
+
+        if (activeTournament?.activeId === tournament.id && activeFixturesData) {
+            const finishedMap = activeFixturesData?.finishedMatches || activeFixturesData?.matches || {};
+            matchesList = Object.values(finishedMap);
+        } else {
+            try {
+                const editionData = await getTournamentEdition(tournament.id);
+                const fixtures = editionData?.FixturesData?.finishedMatches || editionData?.fixtures || {};
+                matchesList = Object.values(fixtures);
+            } catch (err) {
+                console.warn('Could not fetch edition fixtures for completion detection:', err);
+            }
+        }
 
         // Find final match or last match
         const finalMatch = matchesList.find(m => (m.title || '').toLowerCase().includes('final') && !(m.title || '').toLowerCase().includes('semi')) || matchesList[matchesList.length - 1];
 
-        let detectedChampion = tournament.champion || '';
-        let detectedRunnerUp = tournament.runnerUp || '';
-
         if (finalMatch && finalMatch.result) {
             const wonMatch = finalMatch.result.match(/^([^\s]+)\s+won/i);
             if (wonMatch && wonMatch[1]) {
-                detectedChampion = wonMatch[1];
+                detectedChampion = detectedChampion || wonMatch[1];
                 const [t1, t2] = (finalMatch.teams || '').split(/\s+vs\s+/i);
                 if (t1 && t2) {
-                    detectedRunnerUp = t1.trim() === detectedChampion ? t2.trim() : t1.trim();
+                    detectedRunnerUp = detectedRunnerUp || (t1.trim() === detectedChampion ? t2.trim() : t1.trim());
                 }
             }
         }
 
+        const concludedCount = matchesList.filter(m => m.finished === 1 || (m.result && !m.result.toLowerCase().startsWith('scheduled'))).length;
+
         setCompleteChampion(detectedChampion);
         setCompleteRunnerUp(detectedRunnerUp);
-        setCompleteModalTarget(tournament);
+        setCompleteModalTarget({
+            ...tournament,
+            concludedCount
+        });
     };
 
     // Confirm marking tournament as Completed
@@ -310,19 +343,30 @@ const TournamentManagement = () => {
         if (e) e.preventDefault();
         if (!completeModalTarget) return;
 
-        try {
-            await updateTournamentInfo(completeModalTarget.id, {
-                status: 'completed',
-                champion: completeChampion.trim() || completeModalTarget.champion || '',
-                runnerUp: completeRunnerUp.trim() || completeModalTarget.runnerUp || ''
-            });
+        await withProcessing(async () => {
+            try {
+                await updateTournamentInfo(completeModalTarget.id, {
+                    status: 'completed',
+                    champion: completeChampion.trim() || completeModalTarget.champion || '',
+                    runnerUp: completeRunnerUp.trim() || completeModalTarget.runnerUp || ''
+                });
 
-            showToast(`🏆 Tournament "${completeModalTarget.name || completeModalTarget.id}" marked as Completed!`);
-            setCompleteModalTarget(null);
-        } catch (error) {
-            console.error('Complete tournament error:', error);
-            showToast('Failed to mark tournament as completed.', 'error');
-        }
+                // If this was the active live tournament, also clear live scoring state in LiveData
+                if (activeTournament?.activeId === completeModalTarget.id) {
+                    await updateLiveData({
+                        isLive: 0,
+                        currentMatchPath: '',
+                        liveScore: null
+                    });
+                }
+
+                showToast(`🏆 Tournament "${completeModalTarget.name || completeModalTarget.id}" marked as Completed!`);
+                setCompleteModalTarget(null);
+            } catch (error) {
+                console.error('Complete tournament error:', error);
+                showToast('Failed to mark tournament as completed.', 'error');
+            }
+        }, 'Completing Tournament...', 'Archiving results and crowning champion in Hall of Fame...');
     };
 
     // Handle deep link / navigation query param ?action=complete
@@ -347,15 +391,17 @@ const TournamentManagement = () => {
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
-        try {
-            await deleteTournament(deleteTarget.id);
-            showToast(`Tournament "${deleteTarget.name}" deleted.`);
-        } catch (error) {
-            console.error('Delete tournament error:', error);
-            showToast('Failed to delete tournament.', 'error');
-        } finally {
-            setDeleteTarget(null);
-        }
+        await withProcessing(async () => {
+            try {
+                await deleteTournament(deleteTarget.id);
+                showToast(`Tournament "${deleteTarget.name}" deleted.`);
+            } catch (error) {
+                console.error('Delete tournament error:', error);
+                showToast('Failed to delete tournament.', 'error');
+            } finally {
+                setDeleteTarget(null);
+            }
+        }, 'Deleting Tournament Edition...', `Removing "${deleteTarget.name}" from database...`);
     };
 
     if (isLoading && tournamentList.length === 0) {
@@ -403,89 +449,101 @@ const TournamentManagement = () => {
                 <div className="at-editions-grid">
                     {tournamentList.map((tournament) => {
                         const isActive = activeTournament?.activeId === tournament.id;
-                        const isLiveAndReadyToComplete = isActive && (tournament.status || '').toLowerCase() !== 'completed' && isAllMatchesFinished;
+                        const status = (tournament.status || 'completed').toLowerCase();
+                        const isLiveAndReadyToComplete = isActive && status !== 'completed' && isAllMatchesFinished;
                         const is2K25 = tournament.id === '2K25';
 
                         return (
-                            <div key={tournament.id} className={`at-edition-card ${isActive ? 'is-active-border' : ''} ${isLiveAndReadyToComplete ? 'is-ready-complete-card' : ''} status-accent-${tournament.status || 'completed'}`}>
-
-                                {/* Top bar: badge + status */}
+                            <div
+                                key={tournament.id}
+                                className={`at-edition-card ad-edition-card ${isActive ? 'is-active-tourney is-active-border' : ''} ${isLiveAndReadyToComplete ? 'is-ready-complete-card' : ''}`}
+                            >
+                                {/* Top bar: ID badge + status badges */}
                                 <div className="edition-card-header">
                                     <div className="edition-badge-wrap">
                                         <span className="edition-id-badge">{tournament.id}</span>
                                     </div>
-                                    <div className="edition-status-wrap">
-                                        {isActive && <span className="active-tag"><span className="active-dot" />LIVE</span>}
-                                        {isLiveAndReadyToComplete && (
-                                            <span className="all-matches-finished-tag" title="All matches have finished in this tournament">
-                                                <MdEmojiEvents /> All Matches Finished
+                                    <div className="edition-status-badges">
+                                        {isActive && (
+                                            <span className="badge-active-live">
+                                                <MdCheckCircle /> Active Edition
                                             </span>
                                         )}
-                                        <span className={`status-pill ${tournament.status || 'completed'}`}>
-                                            {tournament.status || 'Completed'}
+                                        {isLiveAndReadyToComplete && (
+                                            <span className="badge-matches-finished" title="All tournament matches have concluded">
+                                                <MdEmojiEvents /> Matches Finished
+                                            </span>
+                                        )}
+                                        <span className={`badge-status status-${status}`}>
+                                            {status === 'completed' ? 'Completed' : status === 'upcoming' ? 'Upcoming' : 'In Progress'}
                                         </span>
                                     </div>
                                 </div>
 
-                                {/* Name & title */}
-                                <div className="edition-name-block">
+                                {/* Card Main Body */}
+                                <div className="edition-card-body">
                                     <h3 className="edition-name">{tournament.name || `E-Legend's Trophy ${tournament.id}`}</h3>
-                                    <p className="edition-title">{tournament.title || 'Prof. A. Thurairajah Memorial Cricket Tournament'}</p>
-                                </div>
+                                    <p className="edition-title">{tournament.title || tournament.info?.title || 'Faculty of Engineering Memorial Trophy'}</p>
 
-                                {/* Info list */}
-                                <div className="edition-info-list">
-                                    <div className="info-item">
-                                        <MdCalendarToday className="info-icon" />
-                                        <span>
-                                            {tournament.startDate ? new Date(tournament.startDate).toLocaleDateString() : 'Dates TBA'}
-                                            {tournament.endDate && ` – ${new Date(tournament.endDate).toLocaleDateString()}`}
-                                        </span>
+                                    {/* Meta list */}
+                                    <div className="edition-meta-list">
+                                        <div className="edition-meta-item">
+                                            <MdCalendarToday className="meta-icon" />
+                                            <span>
+                                                {tournament.startDate
+                                                    ? `${new Date(tournament.startDate).toLocaleDateString()}${tournament.endDate ? ` – ${new Date(tournament.endDate).toLocaleDateString()}` : ''}`
+                                                    : (tournament.year ? `Year ${tournament.year}` : 'Dates TBA')}
+                                            </span>
+                                        </div>
+                                        <div className="edition-meta-item">
+                                            <MdLocationOn className="meta-icon" />
+                                            <span className="truncate-meta">{tournament.venue || tournament.info?.venue || 'Kilinochchi Grounds'}</span>
+                                        </div>
                                     </div>
-                                    <div className="info-item">
-                                        <MdLocationOn className="info-icon" />
-                                        <span>{tournament.venue || 'Kilinochchi Grounds'}</span>
+
+                                    {/* Dashboard Signature Stats Strip */}
+                                    <div className="edition-stats-strip">
+                                        {tournament.champion && (
+                                            <div className="strip-item champion-strip">
+                                                <span className="strip-label">CHAMPION</span>
+                                                <span className="strip-val">{tournament.champion}</span>
+                                            </div>
+                                        )}
+                                        <div className="strip-item">
+                                            <span className="strip-label">TEAMS</span>
+                                            <span className="strip-val">{tournament.teamCount || (tournament.teams ? Object.keys(tournament.teams).length : 4)} Batches</span>
+                                        </div>
+                                        <div className="strip-item">
+                                            <span className="strip-label">MATCHES</span>
+                                            <span className="strip-val">
+                                                {tournament.matchesCount !== undefined
+                                                    ? tournament.matchesCount
+                                                    : (status === 'completed' ? 7 : (tournament.fixtures ? Object.keys(tournament.fixtures).length : 0))}
+                                            </span>
+                                        </div>
                                     </div>
-                                    {tournament.champion && (
-                                        <div className="info-item champ-item">
-                                            <MdEmojiEvents className="info-icon gold" />
-                                            <span>Champion: <strong>{tournament.champion}</strong></span>
+
+                                    {/* Concluded alert banner for live tournament */}
+                                    {isLiveAndReadyToComplete && (
+                                        <div className="edition-ready-complete-alert">
+                                            <div className="ready-complete-icon-wrap">
+                                                <MdEmojiEvents />
+                                            </div>
+                                            <div className="ready-complete-text">
+                                                <strong>All Matches Concluded!</strong>
+                                                <p>Every fixture has finalized results. Ready to mark as completed.</p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Concluded alert banner for live tournament */}
-                                {isLiveAndReadyToComplete && (
-                                    <div className="edition-ready-complete-alert">
-                                        <div className="ready-complete-icon-wrap">
-                                            <MdEmojiEvents />
-                                        </div>
-                                        <div className="ready-complete-text">
-                                            <strong>All Matches Concluded!</strong>
-                                            <p>Every fixture has finalized results. Ready to mark as completed.</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Divider line */}
-                                <div className="edition-card-divider" />
-
                                 {/* Action bar */}
                                 <div className="edition-card-actions">
-
-                                    {/* PRIMARY actions — labelled */}
+                                    {/* PRIMARY actions */}
                                     <div className="actions-primary">
-                                        {isLiveAndReadyToComplete ? (
+                                        {!isActive ? (
                                             <button
-                                                className="action-btn-primary make-completed-btn"
-                                                onClick={() => handleOpenCompleteModal(tournament)}
-                                                title="All matches have concluded! Mark this tournament as Completed"
-                                            >
-                                                <MdEmojiEvents />
-                                                <span>Make as Completed</span>
-                                            </button>
-                                        ) : !isActive ? (
-                                            <button
+                                                type="button"
                                                 className="action-btn-primary set-active-btn"
                                                 onClick={() => handleRequestSetActive(tournament)}
                                                 title="Make this the active tournament on the live site"
@@ -496,11 +554,24 @@ const TournamentManagement = () => {
                                         ) : (
                                             <div className="active-marker">
                                                 <MdCheckCircle />
-                                                <span>Live on Site</span>
+                                                <span>Live Edition</span>
                                             </div>
                                         )}
 
+                                        {status !== 'completed' && (
+                                            <button
+                                                type="button"
+                                                className={`action-btn-primary make-completed-btn ${isLiveAndReadyToComplete ? 'all-finished-glow edition-make-completed-btn' : 'standard-complete-btn'}`}
+                                                onClick={() => handleOpenCompleteModal(tournament)}
+                                                title={isLiveAndReadyToComplete ? "All matches have concluded! Mark this tournament as Completed" : "Mark this tournament as Completed and archive in Hall of Fame"}
+                                            >
+                                                <MdEmojiEvents />
+                                                <span>{isLiveAndReadyToComplete ? 'Make as Completed' : 'Mark Completed'}</span>
+                                            </button>
+                                        )}
+
                                         <button
+                                            type="button"
                                             className="action-btn-primary edit-btn"
                                             onClick={() => handleOpenEditModal(tournament)}
                                             title="Edit tournament details"
@@ -510,9 +581,10 @@ const TournamentManagement = () => {
                                         </button>
                                     </div>
 
-                                    {/* SECONDARY actions — icon only */}
+                                    {/* SECONDARY actions */}
                                     <div className="actions-secondary">
                                         <button
+                                            type="button"
                                             className="action-icon-btn inspect-btn"
                                             onClick={() => handleInspectEdition(tournament.id)}
                                             title="Inspect match data & stories"
@@ -532,6 +604,7 @@ const TournamentManagement = () => {
 
                                         {!is2K25 && !isActive && (
                                             <button
+                                                type="button"
                                                 className="action-icon-btn delete-btn"
                                                 onClick={() => handleDelete(tournament.id, tournament.name)}
                                                 title="Delete this tournament edition"
@@ -1101,7 +1174,11 @@ const TournamentManagement = () => {
                                 <div className="modal-header-text-group">
                                     <h3>Mark Tournament as Completed</h3>
                                     <p className="modal-header-desc">
-                                        All matches in <strong>{completeModalTarget.name || completeModalTarget.id}</strong> have concluded! Finalize results and record the champion for the Hall of Fame.
+                                        {isAllMatchesFinished && activeTournament?.activeId === completeModalTarget.id ? (
+                                            <>All matches in <strong>{completeModalTarget.name || completeModalTarget.id}</strong> have concluded! Finalize results and record the champion for the Hall of Fame.</>
+                                        ) : (
+                                            <>Finalize and mark <strong>{completeModalTarget.name || completeModalTarget.id}</strong> ({completeModalTarget.status || 'Upcoming'}) as Completed. Record the champion and runner-up for the public Hall of Fame.</>
+                                        )}
                                     </p>
                                 </div>
                             </div>
@@ -1116,8 +1193,16 @@ const TournamentManagement = () => {
                                 <div className="summary-match-count">
                                     <MdCheckCircle className="check-icon-gold" />
                                     <div>
-                                        <strong>{Object.keys(activeFixturesData?.finishedMatches || {}).length} Matches Concluded</strong>
-                                        <p>Every match has been played and official results are stored.</p>
+                                        <strong>
+                                            {completeModalTarget.concludedCount > 0
+                                                ? `${completeModalTarget.concludedCount} Matches Concluded`
+                                                : `${(completeModalTarget.status || 'Upcoming').toUpperCase()} Phase`}
+                                        </strong>
+                                        <p>
+                                            {completeModalTarget.concludedCount > 0
+                                                ? 'Official results and match scorecards are ready to archive in the Hall of Fame.'
+                                                : 'Transition this tournament edition to Completed status and archive in the Hall of Fame.'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>

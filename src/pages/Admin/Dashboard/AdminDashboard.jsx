@@ -11,11 +11,6 @@ import {
     resolveTournamentKey
 } from '../../../services/rtdbService';
 import {
-    MdSportsCricket,
-    MdFormatListNumbered,
-    MdNewspaper,
-    MdPeople,
-    MdLiveTv,
     MdArrowForward,
     MdEmojiEvents,
     MdCalendarToday,
@@ -180,9 +175,6 @@ const AdminDashboard = () => {
                                     className={`ad-edition-card ${isLiveActive ? 'is-active-tourney' : ''} ${isCurrentlySelected ? 'is-selected-tourney' : ''}`}
                                 >
                                     <div className="edition-card-header">
-                                        <div className="edition-trophy-badge">
-                                            <MdEmojiEvents />
-                                        </div>
                                         <div className="edition-status-badges">
                                             {isLiveActive && (
                                                 <span className="badge-active-live">
@@ -200,34 +192,36 @@ const AdminDashboard = () => {
                                         </div>
                                     </div>
 
-                                    <h3 className="edition-name">{t.name || t.id}</h3>
-                                    <p className="edition-title">{t.title || t.info?.title || 'Faculty of Engineering Memorial Trophy'}</p>
+                                    <div className="edition-card-actions2" style={{ flexDirection: 'column' }}>
+                                        <h3 className="edition-name">{t.name || t.id}</h3>
+                                        <p className="edition-title">{t.title || t.info?.title || 'Faculty of Engineering Memorial Trophy'}</p>
 
-                                    <div className="edition-meta-list">
-                                        <div className="edition-meta-item">
-                                            <MdCalendarToday className="meta-icon" />
-                                            <span>{t.year ? `Year ${t.year}` : 'Annual Edition'}</span>
-                                        </div>
-                                        <div className="edition-meta-item">
-                                            <MdLocationOn className="meta-icon" />
-                                            <span className="truncate-meta">{t.venue || t.info?.venue || 'Kilinochchi Grounds'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="edition-stats-strip">
-                                        {t.champion && (
-                                            <div className="strip-item champion-strip">
-                                                <span className="strip-label">CHAMPION</span>
-                                                <span className="strip-val">{t.champion}</span>
+                                        <div className="edition-meta-list">
+                                            <div className="edition-meta-item">
+                                                <MdCalendarToday className="meta-icon" />
+                                                <span>{t.year ? `Year ${t.year}` : 'Annual Edition'}</span>
                                             </div>
-                                        )}
-                                        <div className="strip-item">
-                                            <span className="strip-label">TEAMS</span>
-                                            <span className="strip-val">{t.teamCount || 4} Batches</span>
+                                            <div className="edition-meta-item">
+                                                <MdLocationOn className="meta-icon" />
+                                                <span className="truncate-meta">{t.venue || t.info?.venue || 'Kilinochchi Grounds'}</span>
+                                            </div>
                                         </div>
-                                        <div className="strip-item">
-                                            <span className="strip-label">MATCHES</span>
-                                            <span className="strip-val">{t.matchesCount !== undefined ? t.matchesCount : (status === 'completed' ? 7 : 0)}</span>
+
+                                        <div className="edition-stats-strip">
+                                            {t.champion && (
+                                                <div className="strip-item champion-strip">
+                                                    <span className="strip-label">CHAMPION</span>
+                                                    <span className="strip-val">{t.champion}</span>
+                                                </div>
+                                            )}
+                                            <div className="strip-item">
+                                                <span className="strip-label">TEAMS</span>
+                                                <span className="strip-val">{t.teamCount || 4} Batches</span>
+                                            </div>
+                                            <div className="strip-item">
+                                                <span className="strip-label">MATCHES</span>
+                                                <span className="strip-val">{t.matchesCount !== undefined ? t.matchesCount : (status === 'completed' ? 7 : 0)}</span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -242,7 +236,7 @@ const AdminDashboard = () => {
                                                 className="edition-make-completed-btn"
                                                 title="All matches have finished. Click to mark tournament as completed"
                                             >
-                                                <MdEmojiEvents /> Make as Completed
+                                                Make as Completed
                                             </button>
                                         )}
                                         <button
@@ -252,15 +246,6 @@ const AdminDashboard = () => {
                                         >
                                             {isCurrentlySelected ? 'Selected in Console' : 'Switch Console to This Edition'}
                                         </button>
-                                        <Link
-                                            to={status === 'completed' ? `/history/${t.editionId || '2K25'}` : '/'}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="edition-public-link"
-                                            title="Preview public view in new tab"
-                                        >
-                                            User View
-                                        </Link>
                                     </div>
                                 </div>
                             );
@@ -299,16 +284,13 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Control Modules for the Selected Tournament */}
-                <h2 className="ad-section-heading">
+                <h2 className="ad-section-heading" style={{ marginBottom: '15px' }}>
                     {selectedTournamentId ? `Management Modules for ${selectedTournamentId}` : 'Management Modules Overview'}
                 </h2>
                 <div className="ad-actions-grid">
                     {/* Live Scoring */}
                     <TiltCard className="ad-action-card highlight" maxTilt={8}>
                         <div className="ad-card-top">
-                            <div className="ad-icon-box live-icon-bg">
-                                <MdSportsCricket />
-                            </div>
                             <span className="ad-module-badge primary">REAL-TIME ENGINE</span>
                         </div>
                         <h3>Live Match Scoring</h3>
@@ -323,9 +305,6 @@ const AdminDashboard = () => {
                     {/* Tournament Editions & Archives */}
                     <TiltCard className="ad-action-card" maxTilt={8}>
                         <div className="ad-card-top">
-                            <div className="ad-icon-box sky-icon-bg">
-                                <MdEmojiEvents />
-                            </div>
                             <span className="ad-module-badge">EDITIONS & ARCHIVES</span>
                         </div>
                         <h3>Tournament Editions</h3>
@@ -340,9 +319,6 @@ const AdminDashboard = () => {
                     {/* Draw Management */}
                     <TiltCard className="ad-action-card" maxTilt={8}>
                         <div className="ad-card-top">
-                            <div className="ad-icon-box cyan-icon-bg">
-                                <MdFormatListNumbered />
-                            </div>
                             <span className="ad-module-badge">SCHEDULING</span>
                         </div>
                         <h3>Draw & Fixtures Management</h3>
@@ -357,9 +333,6 @@ const AdminDashboard = () => {
                     {/* Team Management */}
                     <TiltCard className="ad-action-card" maxTilt={8}>
                         <div className="ad-card-top">
-                            <div className="ad-icon-box emerald-icon-bg">
-                                <MdPeople />
-                            </div>
                             <span className="ad-module-badge">ROSTERS</span>
                         </div>
                         <h3>Faculty Team Management</h3>
@@ -374,9 +347,6 @@ const AdminDashboard = () => {
                     {/* Stories Management */}
                     <TiltCard className="ad-action-card" maxTilt={8}>
                         <div className="ad-card-top">
-                            <div className="ad-icon-box purple-icon-bg">
-                                <MdNewspaper />
-                            </div>
                             <span className="ad-module-badge">BROADCAST</span>
                         </div>
                         <h3>Stories & Match Highlights</h3>
@@ -391,9 +361,6 @@ const AdminDashboard = () => {
                     {/* Live Match Center Audience View */}
                     <TiltCard className="ad-action-card" maxTilt={8}>
                         <div className="ad-card-top">
-                            <div className="ad-icon-box indigo-icon-bg">
-                                <MdLiveTv />
-                            </div>
                             <span className="ad-module-badge">AUDIENCE VIEW</span>
                         </div>
                         <h3>Live Match Center</h3>

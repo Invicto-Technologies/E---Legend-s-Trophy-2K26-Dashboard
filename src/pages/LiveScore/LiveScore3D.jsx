@@ -67,7 +67,15 @@ const LiveScore3D = () => {
         return () => unsubTeams();
     }, []);
 
-    // 3. Subscribe to LiveData to resolve default active match if not passed via URL
+    // 3a. Sync route title into activeMatchTitle if passed via URL
+    useEffect(() => {
+        if (routeMatchTitle) {
+            setActiveMatchTitle(routeMatchTitle);
+            setUserSelectedInningsTab(null);
+        }
+    }, [routeMatchTitle]);
+
+    // 3b. Subscribe to LiveData to resolve default active match if not passed via URL
     useEffect(() => {
         const unsubLive = subscribeLiveData((data) => {
             setLiveData(data);
@@ -97,11 +105,35 @@ const LiveScore3D = () => {
         return () => unsubMatch();
     }, [routeMatchTitle, activeMatchTitle]);
 
+    // 5. Reset over filter when user selects a different innings
+    useEffect(() => {
+        setSelectedOverFilter('all');
+    }, [userSelectedInningsTab]);
+
     const labels = resolveTournamentLabels(activeTournament);
-    const activeClean = (activeMatchTitle || '').toLowerCase();
+
+    // Check if the current match being viewed is finished/concluded
+    const isCurrentMatchFinished = Boolean(
+        matchData?.common?.finished === 1 ||
+        matchData?.common?.finished === true ||
+        matchData?.common?.isFinished ||
+        matchData?.finished === 1 ||
+        matchData?.finished === true ||
+        matchData?.isFinished ||
+        (matchData?.common?.result && !['scheduled', 'match scheduled', 'tbd', 'live', 'draw pending'].includes(String(matchData.common.result).trim().toLowerCase())) ||
+        (matchData?.result && !['scheduled', 'match scheduled', 'tbd', 'live', 'draw pending'].includes(String(matchData.result).trim().toLowerCase()))
+    );
+
+    const currentTarget = (routeMatchTitle || activeMatchTitle || '').trim();
+    const currentClean = currentTarget.toLowerCase();
     const livePathClean = (liveData?.currentMatchPath || '').split('/').pop().toLowerCase();
     const liveTitleClean = (liveData?.liveScore?.matchTitle || '').split('/').pop().toLowerCase();
-    const isLive = Boolean(liveData?.isLive && activeClean && (activeClean === livePathClean || activeClean === liveTitleClean));
+    const isLive = Boolean(
+        !isCurrentMatchFinished &&
+        liveData?.isLive &&
+        currentClean &&
+        (currentClean === livePathClean || currentClean === liveTitleClean)
+    );
 
     // Helper to format authentic cricket broadcast commentary (Smart Non-Repeating System)
     const formatRealCommentary = (commItem) => {
@@ -340,8 +372,44 @@ const LiveScore3D = () => {
 
     const { common = {}, team1 = {}, team2 = {} } = matchData || {};
 
-    const t1Name = team1.name || liveData?.liveScore?.team1?.name || 'Team 1';
-    const t2Name = team2.name || liveData?.liveScore?.team2?.name || 'Team 2';
+    // Helper to parse score string (e.g. "E21 29/3 (2.4) • E24 0/0 (0)" or "Team 1 145/6 (15.0) • Team 2 130/8 (14.2)")
+    const parseScoreString = (scoreStr) => {
+        if (!scoreStr || typeof scoreStr !== 'string') return null;
+        const parts = scoreStr.split(' • ');
+        const parsePart = (p) => {
+            if (!p) return null;
+            // Match pattern "runs/wickets (overs)" or "runs/wickets" with boundary so team names with numbers like "E21" aren't matched as runs
+            let match = p.match(/(?:^|\s)(\d+)\/(\d+)(?:\s*\(([\d.]+)\))?/);
+            if (match) {
+                return {
+                    runs: parseInt(match[1], 10) || 0,
+                    wickets: parseInt(match[2], 10) || 0,
+                    overs: match[3] ? parseFloat(match[3]) : 0
+                };
+            }
+            match = p.match(/(?:^|\s)(\d+)(?:\s*\(([\d.]+)\))/);
+            if (match) {
+                return {
+                    runs: parseInt(match[1], 10) || 0,
+                    wickets: 0,
+                    overs: match[2] ? parseFloat(match[2]) : 0
+                };
+            }
+            return null;
+        };
+
+        return {
+            part1: parsePart(parts[0]),
+            part2: parts[1] ? parsePart(parts[1]) : null
+        };
+    };
+
+    const fallbackScores = parseScoreString(common.score || matchData?.score);
+    const parsedT1 = fallbackScores?.part1;
+    const parsedT2 = fallbackScores?.part2;
+
+    const t1Name = team1.name || (isCurrentMatchFinished && common.teams ? common.teams.split(' vs ')[0]?.trim() : '') || (!isCurrentMatchFinished && isLive ? liveData?.liveScore?.team1?.name : '') || 'Team 1';
+    const t2Name = team2.name || (isCurrentMatchFinished && common.teams ? common.teams.split(' vs ')[1]?.trim() : '') || (!isCurrentMatchFinished && isLive ? liveData?.liveScore?.team2?.name : '') || 'Team 2';
 
     // Helper to find team data from master teams registry by name/key/id
     const findTeamData = (teamIdentifier) => {
@@ -363,6 +431,25 @@ const LiveScore3D = () => {
     const t1Logo = t1Obj.logo || t1Obj.logoUrl || t1Obj.crest;
     const t2Logo = t2Obj.logo || t2Obj.logoUrl || t2Obj.crest;
 
+    const t1Score = (team1.totalRuns !== undefined && team1.totalRuns !== null && Number(team1.totalRuns) > 0)
+        ? Number(team1.totalRuns)
+        : (isCurrentMatchFinished && parsedT1 ? parsedT1.runs : Number(team1.totalRuns || 0));
+    const t2Score = (team2.totalRuns !== undefined && team2.totalRuns !== null && Number(team2.totalRuns) > 0)
+        ? Number(team2.totalRuns)
+        : (isCurrentMatchFinished && parsedT2 ? parsedT2.runs : Number(team2.totalRuns || 0));
+    const t1Wickets = (team1.totalWickets !== undefined && team1.totalWickets !== null && Number(team1.totalWickets) > 0)
+        ? Number(team1.totalWickets)
+        : (isCurrentMatchFinished && parsedT1 ? parsedT1.wickets : Number(team1.totalWickets || 0));
+    const t2Wickets = (team2.totalWickets !== undefined && team2.totalWickets !== null && Number(team2.totalWickets) > 0)
+        ? Number(team2.totalWickets)
+        : (isCurrentMatchFinished && parsedT2 ? parsedT2.wickets : Number(team2.totalWickets || 0));
+    const t1Overs = (team1.overs !== undefined && team1.overs !== null && Number(team1.overs) > 0)
+        ? Number(team1.overs)
+        : (isCurrentMatchFinished && parsedT1 ? parsedT1.overs : Number(team1.overs || 0));
+    const t2Overs = (team2.overs !== undefined && team2.overs !== null && Number(team2.overs) > 0)
+        ? Number(team2.overs)
+        : (isCurrentMatchFinished && parsedT2 ? parsedT2.overs : Number(team2.overs || 0));
+
     // Resolve 1st batting team vs 2nd batting team keys based on matchData.common.firstBat
     const firstBatTeamKey = common.firstBat === 2 ? 'team2' : 'team1';
     const secondBatTeamKey = common.firstBat === 2 ? 'team1' : 'team2';
@@ -370,6 +457,14 @@ const LiveScore3D = () => {
     const secondBatTeamData = secondBatTeamKey === 'team1' ? team1 : team2;
     const firstBatName = firstBatTeamData.name || (firstBatTeamKey === 'team1' ? t1Name : t2Name);
     const secondBatName = secondBatTeamData.name || (secondBatTeamKey === 'team1' ? t1Name : t2Name);
+
+    const firstBatRuns = firstBatTeamKey === 'team1' ? t1Score : t2Score;
+    const firstBatWickets = firstBatTeamKey === 'team1' ? t1Wickets : t2Wickets;
+    const firstBatOvers = firstBatTeamKey === 'team1' ? t1Overs : t2Overs;
+
+    const secondBatRuns = secondBatTeamKey === 'team1' ? t1Score : t2Score;
+    const secondBatWickets = secondBatTeamKey === 'team1' ? t1Wickets : t2Wickets;
+    const secondBatOvers = secondBatTeamKey === 'team1' ? t1Overs : t2Overs;
 
     // Live Match True Batting & Bowling Teams (Fixed to current live innings; does NOT shift on scorecard tab changes)
     const activeInningsNumber = common.activeInnings || 1;
@@ -380,16 +475,15 @@ const LiveScore3D = () => {
     const liveBowlingTeam = liveBowlingTeamKey === 'team1' ? team1 : team2;
 
     // Active Innings Tab (defaults to current live batting team; user can choose to view 1st / 2nd innings scorecard)
-    const activeInningsTab = userSelectedInningsTab || liveBattingTeamKey;
+    const activeInningsTab = userSelectedInningsTab || (isCurrentMatchFinished ? firstBatTeamKey : liveBattingTeamKey);
     const isTabTeam1Batting = activeInningsTab === 'team1';
     const tabBattingTeam = isTabTeam1Batting ? team1 : team2;
     const tabBowlingTeam = isTabTeam1Batting ? team2 : team1;
 
-    // Calculate match equations and run rates
-    const t1Overs = Number(team1.overs) || 0;
-    const t2Overs = Number(team2.overs) || 0;
-    const t1Score = Number(team1.totalRuns) || 0;
-    const t2Score = Number(team2.totalRuns) || 0;
+    const tabBatRuns = isTabTeam1Batting ? t1Score : t2Score;
+    const tabBatWickets = isTabTeam1Batting ? t1Wickets : t2Wickets;
+    const tabBatOvers = isTabTeam1Batting ? t1Overs : t2Overs;
+
     const overLimit = Number(common.overLimit) || 15;
 
     const t1Crr = t1Overs > 0 ? (t1Score / t1Overs).toFixed(2) : '0.00';
@@ -673,7 +767,7 @@ const LiveScore3D = () => {
         if (item?.over && !isNaN(item.over)) return Number(item.over) * 1000;
         return 0;
     };
-    const commentaryList = matchData?.commentary
+    const allCommentaryList = matchData?.commentary
         ? Object.entries(matchData.commentary)
             .map(([key, val]) => ({ ...val, _id: val.id || key }))
             .sort((a, b) => {
@@ -682,6 +776,52 @@ const LiveScore3D = () => {
                 return scoreB - scoreA;
             })
         : [];
+
+    // Helper to determine if delivery belongs to the specified batting team / innings
+    const isDeliveryForBattingTeam = (c, targetBattingTeamKey) => {
+        if (!c) return false;
+        // 1. Explicit battingTeam key match
+        if (c.battingTeam) {
+            return c.battingTeam === targetBattingTeamKey;
+        }
+        // 2. Explicit innings number match (1st innings vs 2nd innings)
+        if (c.innings) {
+            const targetInningsNum = targetBattingTeamKey === firstBatTeamKey ? 1 : 2;
+            return Number(c.innings) === targetInningsNum;
+        }
+        // 3. Match batsman against squad roster
+        const t1Players = Object.values(team1?.players || {});
+        const t2Players = Object.values(team2?.players || {});
+        const cBatsman = String(c.batsman || '').trim().toLowerCase();
+        if (cBatsman) {
+            const isT1Batter = t1Players.some(p => String(p?.name || '').trim().toLowerCase() === cBatsman);
+            const isT2Batter = t2Players.some(p => String(p?.name || '').trim().toLowerCase() === cBatsman);
+            if (isT1Batter && !isT2Batter) return targetBattingTeamKey === 'team1';
+            if (isT2Batter && !isT1Batter) return targetBattingTeamKey === 'team2';
+        }
+        // 4. Match bowler against opponent squad / bowlers roster
+        const cBowler = String(c.bowler || '').trim().toLowerCase();
+        if (cBowler) {
+            const isT1Bowler = (team1?.bowlers && Object.values(team1.bowlers).some(b => String(b?.name || '').trim().toLowerCase() === cBowler)) ||
+                t1Players.some(p => String(p?.name || '').trim().toLowerCase() === cBowler);
+            const isT2Bowler = (team2?.bowlers && Object.values(team2.bowlers).some(b => String(b?.name || '').trim().toLowerCase() === cBowler)) ||
+                t2Players.some(p => String(p?.name || '').trim().toLowerCase() === cBowler);
+            if (isT1Bowler && !isT2Bowler) return targetBattingTeamKey === 'team2';
+            if (isT2Bowler && !isT1Bowler) return targetBattingTeamKey === 'team1';
+        }
+        return true;
+    };
+
+    // Innings-specific commentary list for the currently viewed scorecard tab
+    const tabBattingTeamCommentary = tabBattingTeam?.commentary
+        ? Object.entries(tabBattingTeam.commentary)
+            .map(([key, val]) => ({ ...val, _id: val.id || key }))
+            .sort((a, b) => (parseDeliveryScore(b) || Number(b._id) || 0) - (parseDeliveryScore(a) || Number(a._id) || 0))
+        : null;
+
+    const commentaryList = (tabBattingTeamCommentary && tabBattingTeamCommentary.length > 0)
+        ? tabBattingTeamCommentary
+        : allCommentaryList.filter(c => isDeliveryForBattingTeam(c, activeInningsTab));
 
     // Helper to extract 1-indexed over number from delivery
     const getDeliveryOverNum = (c) => {
@@ -700,7 +840,7 @@ const LiveScore3D = () => {
         return !isNaN(num) ? num : null;
     };
 
-    // Extract unique overs present in commentaryList (sorted ascending)
+    // Extract unique overs present in the selected innings commentaryList (sorted ascending)
     const availableOvers = Array.from(
         new Set(
             commentaryList
@@ -715,20 +855,21 @@ const LiveScore3D = () => {
         ? commentaryList.filter((c) => getDeliveryOverNum(c) === Number(selectedOverFilter))
         : commentaryList;
 
-    // Recent deliveries (last 8 balls in chronological bowling order: oldest -> latest)
-    const recentDeliveries = [...commentaryList].slice(0, 8).reverse();
+    // Live crease recent deliveries (always represents active live innings)
+    const liveInningsDeliveries = allCommentaryList.filter(c => isDeliveryForBattingTeam(c, liveBattingTeamKey));
+    const recentDeliveries = (liveInningsDeliveries.length > 0 ? liveInningsDeliveries : allCommentaryList).slice(0, 8).reverse();
 
     // Top Performers for Concluded Matches
     const allBatters = [
         ...Object.values(team1.players || {}),
         ...Object.values(team2.players || {})
-    ];
+    ].filter(p => p && typeof p === 'object' && p.name);
     const topBatter = allBatters.sort((a, b) => (Number(b.runs) || 0) - (Number(a.runs) || 0))[0];
 
     const allBowlers = [
         ...Object.values(team1.bowlers || {}),
         ...Object.values(team2.bowlers || {})
-    ];
+    ].filter(b => b && typeof b === 'object' && b.name);
     const topBowler = allBowlers.sort((a, b) => (Number(b.wickets) || 0) - (Number(a.wickets) || 0))[0];
 
     // Extract or synthesize Wagon Wheel shots from recorded player shots / boundaries
@@ -773,8 +914,8 @@ const LiveScore3D = () => {
             }
 
             // Fallback: Synthesize shots from player's recorded boundaries & runs
-            const sixes = b.boundaries?.sixes || 0;
-            const fours = b.boundaries?.fours || 0;
+            const sixes = b.boundaries?.sixes ?? b.sixes ?? 0;
+            const fours = b.boundaries?.fours ?? b.fours ?? 0;
             const singles = b.boundaries?.singles || Math.max(0, (b.runs || 0) - (sixes * 6 + fours * 4));
 
             for (let i = 0; i < sixes; i++) shots.push({ runs: 6, zone: ['Cover', 'Mid-wicket', 'Square Leg', 'Third Man'][i % 4] });
@@ -799,7 +940,7 @@ const LiveScore3D = () => {
                             </span>
                         ) : (
                             <span className="ls-standby-pill">
-                                <MdCheckCircle className="ls-check-icon" /> MATCH FINISHED
+                                <MdCheckCircle className="ls-check-icon" /> COMPLETED MATCH • FULL SCORECARD
                             </span>
                         )}
                     </div>
@@ -868,12 +1009,12 @@ const LiveScore3D = () => {
                                                     </div>
                                                 </div>
                                                 <div className="sb-score-big">
-                                                    <span className="score-runs">{firstBatTeamData.totalRuns ?? 0}</span>
+                                                    <span className="score-runs">{firstBatRuns}</span>
                                                     <span className="score-sep">/</span>
-                                                    <span className="score-wickets">{firstBatTeamData.totalWickets ?? 0}</span>
+                                                    <span className="score-wickets">{firstBatWickets}</span>
                                                 </div>
                                                 <div className="sb-overs-pill">
-                                                    <span>Overs <strong>{firstBatTeamData.overs ?? 0}</strong>/{overLimit}</span>
+                                                    <span>Overs <strong>{firstBatOvers}</strong>/{overLimit}</span>
                                                     <span className="sb-crr-dot">•</span>
                                                     <span>CRR <strong>{firstBatTeamKey === 'team1' ? t1Crr : t2Crr}</strong></span>
                                                 </div>
@@ -954,12 +1095,12 @@ const LiveScore3D = () => {
                                                     </div>
                                                 </div>
                                                 <div className="sb-score-big">
-                                                    <span className="score-runs">{secondBatTeamData.totalRuns ?? 0}</span>
+                                                    <span className="score-runs">{secondBatRuns}</span>
                                                     <span className="score-sep">/</span>
-                                                    <span className="score-wickets">{secondBatTeamData.totalWickets ?? 0}</span>
+                                                    <span className="score-wickets">{secondBatWickets}</span>
                                                 </div>
                                                 <div className="sb-overs-pill">
-                                                    <span>Overs <strong>{secondBatTeamData.overs ?? 0}</strong>/{isChasing && isDls ? effectiveOvers : overLimit}</span>
+                                                    <span>Overs <strong>{secondBatOvers}</strong>/{isChasing && isDls ? effectiveOvers : overLimit}</span>
                                                     <span className="sb-crr-dot">•</span>
                                                     <span>CRR <strong>{secondBatTeamKey === 'team1' ? t1Crr : t2Crr}</strong></span>
                                                 </div>
@@ -992,18 +1133,18 @@ const LiveScore3D = () => {
                                         {/* Innings Switcher Toggle Bar */}
                                         <div className="innings-switcher-bar">
                                             <button
-                                                className={`innings-switch-btn ${activeInningsTab === firstBatTeamKey ? '' : 'active'}`}
+                                                className={`innings-switch-btn ${activeInningsTab === firstBatTeamKey ? 'active' : ''}`}
                                                 onClick={() => setUserSelectedInningsTab(firstBatTeamKey)}
                                             >
-                                                <span className="col-full">1st Innings: <strong>{firstBatName}</strong> ({firstBatTeamData.totalRuns ?? 0}/{firstBatTeamData.totalWickets ?? 0} in {firstBatTeamData.overs ?? 0} ov)</span>
-                                                <span className="col-short">1st: <strong>{firstBatName}</strong> ({firstBatTeamData.totalRuns ?? 0}/{firstBatTeamData.totalWickets ?? 0})</span>
+                                                <span className="col-full">1st Innings: <strong>{firstBatName}</strong> ({firstBatRuns}/{firstBatWickets} in {firstBatOvers} ov)</span>
+                                                <span className="col-short">1st: <strong>{firstBatName}</strong> ({firstBatRuns}/{firstBatWickets})</span>
                                             </button>
                                             <button
-                                                className={`innings-switch-btn ${activeInningsTab === secondBatTeamKey ? '' : 'active'}`}
+                                                className={`innings-switch-btn ${activeInningsTab === secondBatTeamKey ? 'active' : ''}`}
                                                 onClick={() => setUserSelectedInningsTab(secondBatTeamKey)}
                                             >
-                                                <span className="col-full">2nd Innings: <strong>{secondBatName}</strong> ({secondBatTeamData.totalRuns ?? 0}/{secondBatTeamData.totalWickets ?? 0} in {secondBatTeamData.overs ?? 0} ov)</span>
-                                                <span className="col-short">2nd: <strong>{secondBatName}</strong> ({secondBatTeamData.totalRuns ?? 0}/{secondBatTeamData.totalWickets ?? 0})</span>
+                                                <span className="col-full">2nd Innings: <strong>{secondBatName}</strong> ({secondBatRuns}/{secondBatWickets} in {secondBatOvers} ov)</span>
+                                                <span className="col-short">2nd: <strong>{secondBatName}</strong> ({secondBatRuns}/{secondBatWickets})</span>
                                             </button>
                                         </div>
 
@@ -1011,63 +1152,77 @@ const LiveScore3D = () => {
                                         <div className="scorecard-block">
                                             <div className="block-header-bar">
                                                 <h3 className="block-title">Batting • {tabBattingTeam.name || 'Team'}</h3>
-                                                <span className="block-total-pill">
-                                                    Total: <strong>{tabBattingTeam.totalRuns ?? 0}/{tabBattingTeam.totalWickets ?? 0}</strong> ({tabBattingTeam.overs ?? 0} ov)
-                                                </span>
+                                                <div className="block-header-right">
+                                                    <span className="block-total-pill">
+                                                        Total: <strong>{tabBatRuns}/{tabBatWickets}</strong> ({tabBatOvers} ov)
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="table-responsive">
-                                                <table className="score-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Batter</th>
-                                                            <th>Dismissal</th>
-                                                            <th>R</th>
-                                                            <th>B</th>
-                                                            <th>4s</th>
-                                                            <th>6s</th>
-                                                            <th>SR</th>
-                                                            <th>Wagon</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {battersList.map((p, idx) => (
-                                                            <tr key={p.id || idx}>
-                                                                <td className="player-name-cell">
-                                                                    <div className="p-cell-wrap">
-                                                                        <strong>{p.name}</strong>
-                                                                        {p.role && <span className="player-role-sub">{p.role}</span>}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="dismissal-cell">
-                                                                    {p.dismissal ? (
-                                                                        <span className="dismissal-out">{p.dismissal}</span>
-                                                                    ) : (
-                                                                        <span className="dismissal-notout">{p.runs > 0 || p.balls > 0 ? 'not out' : 'yet to bat'}</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="runs-cell">{p.runs ?? 0}</td>
-                                                                <td className="balls-cell">{p.balls ?? 0}</td>
-                                                                <td>{p.boundaries?.fours || 0}</td>
-                                                                <td>{p.boundaries?.sixes || 0}</td>
-                                                                <td className="sr-cell">
-                                                                    {p.strikeRate || ((Number(p.runs || 0) / Math.max(1, Number(p.balls || 1))) * 100).toFixed(1)}
-                                                                </td>
-                                                                <td>
-                                                                    <button
-                                                                        className="table-wagon-btn"
-                                                                        onClick={() => {
-                                                                            setSelectedBatsmanForWagon(p);
-                                                                            setShowWagonWheel(true);
-                                                                        }}
-                                                                        title="View Wagon Wheel"
-                                                                    >
-                                                                        <MdPieChart />
-                                                                    </button>
-                                                                </td>
+                                            <div className="table-responsive-wrapper">
+                                                <div className="table-scroll-guide">
+                                                    <span>⇄ Scroll horizontally to view full batting stats</span>
+                                                </div>
+                                                <div className="table-responsive batting-table-responsive has-scroll-hint">
+                                                    <table className="score-table batting-score-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th className="th-batter">Batter</th>
+                                                                <th className="th-dismissal">Dismissal</th>
+                                                                <th className="th-num" style={{ textAlign: 'center' }}>R</th>
+                                                                <th className="th-num" style={{ textAlign: 'center' }}>B</th>
+                                                                <th className="th-num" style={{ textAlign: 'center' }}>4s</th>
+                                                                <th className="th-num" style={{ textAlign: 'center' }}>6s</th>
+                                                                <th className="th-num" style={{ textAlign: 'center' }}>SR</th>
+                                                                <th className="th-wagon" style={{ textAlign: 'center' }}>Wagon</th>
                                                             </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
+                                                        </thead>
+                                                        <tbody>
+                                                            {battersList.map((p, idx) => (
+                                                                <tr key={p.id || idx}>
+                                                                    <td className="player-name-cell">
+                                                                        <div className="p-cell-wrap">
+                                                                            <strong>{p.name}</strong>
+                                                                            {p.role && <span className="player-role-sub">{p.role}</span>}
+                                                                            <span className="mobile-dismissal-sub">
+                                                                                {p.dismissal ? (
+                                                                                    <span className="dismissal-out">{p.dismissal}</span>
+                                                                                ) : (
+                                                                                    <span className="dismissal-notout">{p.runs > 0 || p.balls > 0 ? 'not out' : 'yet to bat'}</span>
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="dismissal-cell desktop-dismissal">
+                                                                        {p.dismissal ? (
+                                                                            <span className="dismissal-out">{p.dismissal}</span>
+                                                                        ) : (
+                                                                            <span className="dismissal-notout">{p.runs > 0 || p.balls > 0 ? 'not out' : 'yet to bat'}</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="runs-cell" style={{ textAlign: 'center' }}>{p.runs ?? 0}</td>
+                                                                    <td className="balls-cell" style={{ textAlign: 'center' }}>{p.balls ?? 0}</td>
+                                                                    <td className="fours-cell" style={{ textAlign: 'center' }}>{p.boundaries?.fours ?? p.fours ?? 0}</td>
+                                                                    <td className="sixes-cell" style={{ textAlign: 'center' }}>{p.boundaries?.sixes ?? p.sixes ?? 0}</td>
+                                                                    <td className="sr-cell" style={{ textAlign: 'center' }}>
+                                                                        {p.strikeRate || ((Number(p.runs || 0) / Math.max(1, Number(p.balls || 1))) * 100).toFixed(1)}
+                                                                    </td>
+                                                                    <td className="wagon-cell" style={{ textAlign: 'center' }}>
+                                                                        <button
+                                                                            className="table-wagon-btn"
+                                                                            onClick={() => {
+                                                                                setSelectedBatsmanForWagon(p);
+                                                                                setShowWagonWheel(true);
+                                                                            }}
+                                                                            title="View Wagon Wheel"
+                                                                        >
+                                                                            <MdPieChart />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
 
                                             {/* Extras & Total summary bar */}
@@ -1087,8 +1242,8 @@ const LiveScore3D = () => {
                                                         </div>
                                                         <div className="innings-total-summary">
                                                             <span>Innings Total:</span>
-                                                            <strong className="total-highlight">{tabBattingTeam.totalRuns ?? 0}/{tabBattingTeam.totalWickets ?? 0}</strong>
-                                                            <span className="total-ov">({tabBattingTeam.overs ?? 0} Overs, RR: {(Number(tabBattingTeam.overs) > 0 ? (Number(tabBattingTeam.totalRuns) / Number(tabBattingTeam.overs)).toFixed(2) : '0.00')})</span>
+                                                            <strong className="total-highlight">{tabBatRuns}/{tabBatWickets}</strong>
+                                                            <span className="total-ov">({tabBatOvers} Overs, RR: {(Number(tabBatOvers) > 0 ? (Number(tabBatRuns) / Number(tabBatOvers)).toFixed(2) : '0.00')})</span>
                                                         </div>
                                                     </div>
                                                 );
@@ -1189,33 +1344,32 @@ const LiveScore3D = () => {
                                                         <table className="score-table partnerships-table">
                                                             <thead>
                                                                 <tr>
-                                                                    <th><span className="col-full">Wicket</span><span className="col-short">W</span></th>
-                                                                    <th><span className="col-full">Runs (Balls)</span><span className="col-short">R</span></th>
-                                                                    <th><span className="col-full">Overs</span><span className="col-short">O</span></th>
-                                                                    <th><span className="col-full">Batters Breakdown</span><span className="col-short">B</span></th>
-                                                                    <th><span className="col-full">Extras</span><span className="col-short">E</span></th>
-                                                                    <th><span className="col-full">End Score</span><span className="col-short">S</span></th>
+                                                                    <th style={{ textAlign: 'left' }}><span className="col-full">Wicket</span><span className="col-short">W</span></th>
+                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Runs (Balls)</span><span className="col-short">R</span></th>
+                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Overs</span><span className="col-short">O</span></th>
+                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Batters Breakdown</span><span className="col-short">B</span></th>
+                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Extras</span><span className="col-short">E</span></th>
+                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">End Score</span><span className="col-short">S</span></th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 {partnershipsList.map((p, idx) => (
                                                                     <tr key={p.id || idx} className={p?.isUnbroken ? 'unbroken-partnership-row' : ''}>
-                                                                        <td className="wkt-cell">
+                                                                        <td className="wkt-cell" style={{ textAlign: 'left' }}>
                                                                             <strong>{p.wicketLabel || `${p.wicketNumber || idx + 1}${idx === 0 ? 'st' : idx === 1 ? 'nd' : idx === 2 ? 'rd' : 'th'} Wicket`}</strong>
                                                                             {p?.isUnbroken && <span className="unbroken-badge">Not Out</span>}
                                                                         </td>
-                                                                        <td className="runs-cell">
+                                                                        <td className="runs-cell" style={{ textAlign: 'center' }}>
                                                                             <span className="part-runs-bold">{p.runs}</span> <span className="text-muted">({p.balls}b)</span>
                                                                         </td>
-                                                                        <td>{p.overs || `${Math.floor((p.balls || 0) / 6)}.${(p.balls || 0) % 6}`}</td>
-                                                                        <td className="part-batters-cell">
+                                                                        <td style={{ textAlign: 'center' }}>{p.overs || `${Math.floor((p.balls || 0) / 6)}.${(p.balls || 0) % 6}`}</td>
+                                                                        <td className="part-batters-cell" style={{ textAlign: 'center' }}>
                                                                             <span className="part-b-seg">
                                                                                 {renderPlayerAvatar(p.batsman1, currentBatTeamName, 'sm')}
                                                                                 <span className="part-b-info">
                                                                                     {p.batsman1?.name}: <strong>{p.batsman1Runs || 0}</strong> <small>({p.batsman1Balls || 0}b)</small>
                                                                                 </span>
                                                                             </span>
-                                                                            <span className="part-b-sep">•</span>
                                                                             <span className="part-b-seg">
                                                                                 {renderPlayerAvatar(p.batsman2, currentBatTeamName, 'sm')}
                                                                                 <span className="part-b-info">
@@ -1223,8 +1377,8 @@ const LiveScore3D = () => {
                                                                                 </span>
                                                                             </span>
                                                                         </td>
-                                                                        <td>{p.extras ?? Math.max(0, p.runs - ((p.batsman1Runs || 0) + (p.batsman2Runs || 0)))}</td>
-                                                                        <td className="end-score-cell">{p.endScore || '-'}</td>
+                                                                        <td style={{ textAlign: 'center' }}>{p.extras ?? Math.max(0, p.runs - ((p.batsman1Runs || 0) + (p.batsman2Runs || 0)))}</td>
+                                                                        <td className="end-score-cell" style={{ textAlign: 'center' }}>{p.endScore || '-'}</td>
                                                                     </tr>
                                                                 ))}
                                                             </tbody>
@@ -1427,8 +1581,8 @@ const LiveScore3D = () => {
                                                                         </span>
                                                                     </div>
                                                                     <div className="cbm-stats-row">
-                                                                        <span>4s: <strong>{activeStriker.boundaries?.fours || 0}</strong></span>
-                                                                        <span>6s: <strong>{activeStriker.boundaries?.sixes || 0}</strong></span>
+                                                                        <span>4s: <strong>{activeStriker.boundaries?.fours ?? activeStriker.fours ?? 0}</strong></span>
+                                                                        <span>6s: <strong>{activeStriker.boundaries?.sixes ?? activeStriker.sixes ?? 0}</strong></span>
                                                                         <span>SR: <strong>{activeStriker.strikeRate || ((Number(activeStriker.runs || 0) / Math.max(1, Number(activeStriker.balls || 1))) * 100).toFixed(1)}</strong></span>
                                                                     </div>
                                                                 </div>
@@ -1462,8 +1616,8 @@ const LiveScore3D = () => {
                                                                         </span>
                                                                     </div>
                                                                     <div className="cbm-stats-row">
-                                                                        <span>4s: <strong>{activeNonStriker.boundaries?.fours || 0}</strong></span>
-                                                                        <span>6s: <strong>{activeNonStriker.boundaries?.sixes || 0}</strong></span>
+                                                                        <span>4s: <strong>{activeNonStriker.boundaries?.fours ?? activeNonStriker.fours ?? 0}</strong></span>
+                                                                        <span>6s: <strong>{activeNonStriker.boundaries?.sixes ?? activeNonStriker.sixes ?? 0}</strong></span>
                                                                         <span>SR: <strong>{activeNonStriker.strikeRate || ((Number(activeNonStriker.runs || 0) / Math.max(1, Number(activeNonStriker.balls || 1))) * 100).toFixed(1)}</strong></span>
                                                                     </div>
                                                                 </div>
@@ -1544,39 +1698,39 @@ const LiveScore3D = () => {
                             </section>
 
                             {/* 2. Bowling Scorecard Block (Rendered at same horizontal level as Batter table) */}
-                            <div className="scorecard-block right-col-bowling-block">
+                            <div className="scorecard-block right-col-bowling-block" style={isLive ? { marginTop: 185 } : { marginTop: 60 }}>
                                 <div className="block-header-bar">
                                     <h3 className="block-title">Bowling • {tabBowlingTeam.name || 'Opponent'}</h3>
                                     <span className="block-total-pill">
-                                        Overs: <strong>{tabBattingTeam.overs ?? 0}</strong> ({tabBattingTeam.totalWickets ?? 0} Wkts)
+                                        Overs: <strong>{tabBatOvers}</strong> ({tabBatWickets} Wkts)
                                     </span>
                                 </div>
-                                <div className="table-responsive">
-                                    <table className="score-table">
+                                <div className="table-responsive bowling-table-responsive">
+                                    <table className="score-table bowling-score-table">
                                         <thead>
                                             <tr>
-                                                <th>Bowler</th>
-                                                <th>O</th>
-                                                <th>M</th>
-                                                <th>R</th>
-                                                <th>W</th>
-                                                <th>Econ</th>
-                                                <th>Dots</th>
+                                                <th className="th-bowler">Bowler</th>
+                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>O</th>
+                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>M</th>
+                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>R</th>
+                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>W</th>
+                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>Econ</th>
+                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>Dots</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {bowlersList.length > 0 ? (
                                                 bowlersList.map((b, idx) => (
                                                     <tr key={b.id || idx}>
-                                                        <td className="player-name-cell">
+                                                        <td className="player-name-cell bowler-name-cell">
                                                             <strong>{b.name}</strong>
                                                         </td>
-                                                        <td>{b.overs ?? 0}</td>
-                                                        <td>{b.maidens ?? 0}</td>
-                                                        <td className="runs-cell">{b.runs ?? 0}</td>
-                                                        <td className="wicket-highlight">{b.wickets ?? 0}</td>
-                                                        <td>{b.economy ?? (b.overs ? (b.runs / b.overs).toFixed(2) : '0.00')}</td>
-                                                        <td>{b.dots ?? 0}</td>
+                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.overs ?? 0}</td>
+                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.maidens ?? 0}</td>
+                                                        <td className="bowl-stat-cell runs-cell" style={{ textAlign: 'center' }}>{b.runs ?? 0}</td>
+                                                        <td className="bowl-stat-cell wicket-highlight" style={{ textAlign: 'center' }}>{b.wickets ?? 0}</td>
+                                                        <td className="bowl-stat-cell econ-cell" style={{ textAlign: 'center' }}>{b.economy ?? (b.overs ? (b.runs / b.overs).toFixed(2) : '0.00')}</td>
+                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.dots ?? 0}</td>
                                                     </tr>
                                                 ))
                                             ) : (
@@ -1609,7 +1763,7 @@ const LiveScore3D = () => {
                             <div className="commentary-full-card">
                                 <div className="comm-top-header">
                                     <h3 className="comm-header-title">
-                                        <MdTimeline /> Ball by Ball Live Commentary
+                                        <MdTimeline /> Ball by Ball Live Commentary • <span style={{ color: '#00e5ff', fontWeight: 600 }}>{activeInningsTab === firstBatTeamKey ? '1st Innings' : '2nd Innings'} ({tabBattingTeam.name || 'Batting Side'})</span>
                                     </h3>
                                     <span className="comm-count-tag">
                                         {filteredCommentary.length} {filteredCommentary.length === 1 ? 'Delivery' : 'Deliveries'}

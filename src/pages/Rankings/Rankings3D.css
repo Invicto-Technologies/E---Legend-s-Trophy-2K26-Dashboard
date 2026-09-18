@@ -780,14 +780,20 @@
     }
 
     .podium-name {
-        font-size: 0.75rem !important;
-        line-height: 1.15 !important;
-        margin: 0 auto 2px auto !important;
-        max-width: 95px !important;
+        font-size: 0.74rem !important;
+        line-height: 1.25 !important;
+        margin: 0 auto 3px auto !important;
+        width: 100% !important;
+        max-width: 105px !important;
+        white-space: normal !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
-        white-space: nowrap !important;
         text-align: center !important;
+        word-break: break-word !important;
+        height: 2.5em !important;
     }
 
     .podium-team-sub {
@@ -915,6 +921,12 @@
 }
 
 @media (max-width: 480px) {
+    .podium-name {
+        font-size: 0.70rem !important;
+        line-height: 1.2 !important;
+        max-width: 92px !important;
+        height: 2.4em !important;
+    }
 
     .rankings-table th,
     .rankings-table td {

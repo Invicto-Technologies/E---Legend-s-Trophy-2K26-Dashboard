@@ -1364,27 +1364,51 @@
     }
 
     .feature-tilt-card {
-        padding: 14px 12px !important;
-        gap: 8px !important;
+        padding: 16px 14px !important;
+        gap: 10px !important;
         border-radius: 14px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+
+    .feature-tilt-card .tilt-card-inner {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        gap: 10px !important;
     }
 
     .feat-icon-box {
-        width: 36px !important;
-        height: 36px !important;
-        font-size: 1.15rem !important;
-        border-radius: 10px !important;
+        width: 42px !important;
+        height: 42px !important;
+        font-size: 1.3rem !important;
+        border-radius: 12px !important;
+        margin: 0 auto !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
     .feature-tilt-card h3 {
         font-size: 0.95rem !important;
         margin: 0 !important;
+        text-align: center !important;
+        width: 100% !important;
     }
 
     .feature-tilt-card p {
         font-size: 0.78rem !important;
         line-height: 1.4 !important;
         margin: 0 !important;
+        text-align: center !important;
+        width: 100% !important;
     }
 
     /* Privacy & Policy Section */

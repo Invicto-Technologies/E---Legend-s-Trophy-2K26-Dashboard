@@ -832,16 +832,25 @@
     height: 0;
 }
 
-/* Also hide scrollbar on table wrappers inside the scorecard modal */
+/* Table wrappers inside scorecard modal: support smooth horizontal scrolling */
 .scorecard-modal-card .sm-table-wrap {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 240, 255, 0.4) transparent;
 }
 
 .scorecard-modal-card .sm-table-wrap::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
+    display: block;
+    height: 5px;
+}
+
+.scorecard-modal-card .sm-table-wrap::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+
+.scorecard-modal-card .sm-table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.35);
+    border-radius: 4px;
 }
 
 .scorecard-modal-close {
@@ -1233,6 +1242,53 @@
         font-size: 0.68rem !important;
     }
 
+    /* Series Honors & Awards scaling on mobile */
+    .awards-column {
+        margin-top: 14px !important;
+    }
+
+    .awards-col-title {
+        font-size: 1.02rem !important;
+        gap: 6px !important;
+        margin: 0 0 10px 0 !important;
+    }
+
+    .awards-grid {
+        gap: 8px !important;
+    }
+
+    .award-item-card {
+        padding: 8px 12px !important;
+        border-radius: 13px !important;
+        gap: 10px !important;
+    }
+
+    .award-icon-box {
+        width: 36px !important;
+        height: 36px !important;
+        border-radius: 10px !important;
+        font-size: 1.2rem !important;
+    }
+
+    .award-name {
+        font-size: 0.68rem !important;
+    }
+
+    .award-winner {
+        font-size: 0.88rem !important;
+        margin: 1px 0 2px 0 !important;
+    }
+
+    .award-stat {
+        font-size: 0.74rem !important;
+    }
+
+    .award-pill-tag {
+        font-size: 0.64rem !important;
+        padding: 2px 7px !important;
+        border-radius: 8px !important;
+    }
+
     .history-matches-grid {
         grid-template-columns: 1fr;
     }
@@ -1383,7 +1439,7 @@
         font-size: 1.15rem !important;
     }
 
-    .table-responsive {
+    .table-responsive:not(.sm-table-wrap) {
         width: 100% !important;
         overflow-x: hidden !important;
     }
@@ -1535,6 +1591,16 @@
 
     .sm-table-wrap {
         border-radius: 10px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+
+    .sm-table {
+        min-width: 520px !important;
+        width: 100% !important;
     }
 
     .sm-table th,
@@ -1554,6 +1620,40 @@
     .champ-stats-row {
         grid-template-columns: repeat(3, 1fr) !important;
         gap: 4px !important;
+    }
+
+    .awards-grid {
+        gap: 6px !important;
+    }
+
+    .award-item-card {
+        padding: 6px 10px !important;
+        gap: 8px !important;
+        border-radius: 11px !important;
+    }
+
+    .award-icon-box {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 1.05rem !important;
+        border-radius: 8px !important;
+    }
+
+    .award-name {
+        font-size: 0.64rem !important;
+    }
+
+    .award-winner {
+        font-size: 0.82rem !important;
+    }
+
+    .award-stat {
+        font-size: 0.70rem !important;
+    }
+
+    .award-pill-tag {
+        font-size: 0.60rem !important;
+        padding: 2px 5px !important;
     }
 
     .scorecard-modal-card {

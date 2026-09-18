@@ -4,6 +4,7 @@ import { ref, onValue, set, update, get } from 'firebase/database';
 import { database } from '../../components/firebase';
 import './LiveMatch.css';
 import { TeamDetails } from '../../components/TeamDetails';
+import { calculateMatchResult } from '../../utils/cricketEngine';
 
 const LiveMatch = () => {
     const [isLive, setIsLive] = useState(0);
@@ -1507,23 +1508,11 @@ const LiveMatch = () => {
         const team1Overs = matchData.team1.overs || 0;
         const team2Overs = matchData.team2.overs || 0;
 
-        let result = "";
+        const result = calculateMatchResult(matchData);
         const score = `${matchData.team1.name} ${team1Runs}/${team1Wickets} (${team1Overs}) • ${matchData.team2.name} ${team2Runs}/${team2Wickets} (${team2Overs})`;
         let winningTeam = "";
-
-        if (team1Runs > team2Runs) {
-            const margin = team1Runs - team2Runs;
-            result = `${matchData.team1.name} won by ${margin} ${margin === 1 ? 'run' : 'runs'}`;
-            winningTeam = team1Name;
-        }
-        else if (team2Runs > team1Runs) {
-            const wicketsLeft = 10 - team2Wickets;
-            result = `${matchData.team2.name} won by ${wicketsLeft} ${wicketsLeft === 1 ? 'wicket' : 'wickets'}`;
-            winningTeam = team2Name;
-        }
-        else {
-            result = "Match tied";
-        }
+        if (result.includes(team1Name)) winningTeam = team1Name;
+        else if (result.includes(team2Name)) winningTeam = team2Name;
 
         // Get current date and time in the required format
         const now = new Date();

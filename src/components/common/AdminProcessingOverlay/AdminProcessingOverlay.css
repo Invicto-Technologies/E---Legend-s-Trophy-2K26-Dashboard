@@ -1,0 +1,348 @@
+/* Admin Processing Overlay Container */
+.admin-processing-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 10, 24, 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    animation: adminProcFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    padding: 20px;
+    pointer-events: all;
+    user-select: none;
+}
+
+@keyframes adminProcFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Ambient Glow Auras */
+.admin-processing-aura-gold,
+.admin-processing-aura-cyan {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+    opacity: 0.35;
+}
+
+.admin-processing-aura-gold {
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.6) 0%, transparent 70%);
+    top: 35%;
+    left: 45%;
+    transform: translate(-50%, -50%);
+    animation: auraFloatGold 6s ease-in-out infinite alternate;
+}
+
+.admin-processing-aura-cyan {
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.6) 0%, transparent 70%);
+    top: 55%;
+    left: 55%;
+    transform: translate(-50%, -50%);
+    animation: auraFloatCyan 6s ease-in-out infinite alternate;
+}
+
+@keyframes auraFloatGold {
+    0% { transform: translate(-55%, -45%) scale(0.9); }
+    100% { transform: translate(-45%, -55%) scale(1.1); }
+}
+
+@keyframes auraFloatCyan {
+    0% { transform: translate(-45%, -55%) scale(1.1); }
+    100% { transform: translate(-55%, -45%) scale(0.9); }
+}
+
+/* Central Card */
+.admin-processing-card {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(10, 15, 30, 0.96) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    box-shadow:
+        0 20px 50px -10px rgba(0, 0, 0, 0.7),
+        0 0 35px rgba(245, 158, 11, 0.2),
+        inset 0 0 20px rgba(245, 158, 11, 0.05);
+    border-radius: 20px;
+    padding: 36px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    overflow: hidden;
+    animation: adminProcCardIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes adminProcCardIn {
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* 3D Visual Stage with Rotating Rings */
+.admin-proc-stage {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+}
+
+.proc-ring {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* Outer Ring (Gold / Amber dashed) */
+.proc-ring-outer {
+    inset: 0;
+    border: 2px dashed rgba(245, 158, 11, 0.7);
+    animation: spinClockwise 9s linear infinite;
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+}
+
+/* Middle Ring (Cyan solid with gap) */
+.proc-ring-middle {
+    inset: 12px;
+    border: 2px solid transparent;
+    border-top: 2px solid #06b6d4;
+    border-bottom: 2px solid #06b6d4;
+    animation: spinCounterClockwise 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.6));
+}
+
+/* Inner Ring (Gold pulse) */
+.proc-ring-inner {
+    inset: 22px;
+    border: 1.5px dotted rgba(245, 158, 11, 0.85);
+    animation: spinClockwise 3s linear infinite;
+}
+
+/* Radar Wave */
+.proc-radar-wave {
+    position: absolute;
+    inset: 24px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, transparent 70%);
+    animation: radarPing 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes radarPing {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}
+
+/* Center Core Icons */
+.proc-center-core {
+    position: relative;
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(6, 182, 212, 0.25));
+    border: 1px solid rgba(245, 158, 11, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+}
+
+.proc-core-cricket {
+    font-size: 1.5rem;
+    color: #fbbf24;
+    animation: pulseCricket 2s ease-in-out infinite;
+}
+
+@keyframes pulseCricket {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px #fbbf24); }
+    50% { transform: scale(1.15) rotate(6deg); filter: drop-shadow(0 0 10px #f59e0b); }
+}
+
+.proc-sync-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #0f172a;
+    border: 1.5px solid #06b6d4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+}
+
+.proc-sync-spin {
+    font-size: 0.85rem;
+    color: #22d3ee;
+    animation: spinClockwise 1.2s linear infinite;
+}
+
+@keyframes spinClockwise {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes spinCounterClockwise {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+}
+
+/* Badge */
+.admin-proc-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    color: #fbbf24;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+.proc-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fbbf24;
+    box-shadow: 0 0 6px #fbbf24;
+    animation: blinkDot 1.2s ease-in-out infinite;
+}
+
+@keyframes blinkDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.7); }
+}
+
+/* Titles */
+.admin-proc-title {
+    margin: 0 0 8px;
+    font-size: 1.18rem;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.2px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.admin-proc-subtitle {
+    margin: 0 0 22px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.45;
+    min-height: 22px;
+    transition: opacity 0.25s ease;
+}
+
+/* Progress Beam */
+.admin-proc-track {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.admin-proc-beam {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 45%;
+    background: linear-gradient(90deg, transparent, #fbbf24, #06b6d4, transparent);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+    animation: procBeamScan 1.5s ease-in-out infinite;
+}
+
+@keyframes procBeamScan {
+    0% { left: -50%; }
+    100% { left: 100%; }
+}
+
+/* Light Theme Support */
+[data-theme="light"] .admin-processing-backdrop {
+    background: rgba(241, 245, 249, 0.8);
+}
+
+[data-theme="light"] .admin-processing-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
+    border-color: rgba(217, 119, 6, 0.4);
+    box-shadow:
+        0 20px 45px -10px rgba(15, 23, 42, 0.2),
+        0 0 25px rgba(245, 158, 11, 0.2);
+}
+
+[data-theme="light"] .admin-proc-title {
+    color: #0f172a;
+    text-shadow: none;
+}
+
+[data-theme="light"] .admin-proc-subtitle {
+    color: #475569;
+}
+
+[data-theme="light"] .proc-center-core {
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+}
+
+[data-theme="light"] .proc-sync-badge {
+    background: #ffffff;
+}
+
+[data-theme="light"] .admin-proc-track {
+    background: rgba(15, 23, 42, 0.08);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+    .admin-processing-card {
+        padding: 28px 20px 22px;
+        max-width: 320px;
+    }
+
+    .admin-proc-stage {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 16px;
+    }
+
+    .admin-proc-title {
+        font-size: 1.05rem;
+    }
+
+    .admin-proc-subtitle {
+        font-size: 0.8rem;
+    }
+}

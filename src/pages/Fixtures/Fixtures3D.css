@@ -954,21 +954,38 @@
     }
 
     .fixtures-tab-nav {
-        display: flex;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        width: 100%;
-        box-sizing: border-box;
-        padding: 4px;
-        gap: 6px;
-        justify-content: center !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 4px !important;
+        gap: 5px !important;
+        justify-content: space-between !important;
         margin: 0 auto !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+
+    .fixtures-tab-nav::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
     }
 
     .f-tab-btn {
-        flex-shrink: 0;
-        padding: 8px 14px;
-        font-size: 0.85rem;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        white-space: nowrap !important;
+        padding: 8px 4px !important;
+        font-size: 0.76rem !important;
+        gap: 4px !important;
+        justify-content: center !important;
+        text-align: center !important;
+        letter-spacing: -0.01em !important;
     }
 
     .fixture-live-card {
@@ -1002,6 +1019,13 @@
     .f-empty-btn {
         width: 100%;
         justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .f-tab-btn {
+        padding: 7px 3px !important;
+        font-size: 0.72rem !important;
     }
 }
 

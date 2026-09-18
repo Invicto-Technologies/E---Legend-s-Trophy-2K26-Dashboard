@@ -221,7 +221,22 @@ export function generateSmartCommentary({
         if (dType.includes('bowled')) pool = WICKET_TEMPLATES.bowled;
         else if (dType.includes('caught')) pool = WICKET_TEMPLATES.caught;
         else if (dType.includes('lbw')) pool = WICKET_TEMPLATES.lbw;
-        else if (dType.includes('run out')) pool = WICKET_TEMPLATES.runout;
+        else if (dType.includes('run out')) {
+            if (runs > 0) {
+                const runOutRunsPool = [
+                    `RUN OUT! Completed ${runs} run${runs > 1 ? 's' : ''}, but looking for more! {fielder} gathers quickly and breaks the stumps! {batsman} is run out!`,
+                    `OUT! Scampers through for ${runs} run${runs > 1 ? 's' : ''}, but {fielder} fires in a lethal throw! Run out after completing ${runs} run${runs > 1 ? 's' : ''}!`,
+                    `RUN OUT! Pushed towards {zone} for ${runs} run${runs > 1 ? 's' : ''}, hesitation on the next attempt and {fielder} hits the target! {batsman} departs!`
+                ];
+                const idx = getNextNonRepeatingIndex('runout_runs', runOutRunsPool.length);
+                return runOutRunsPool[idx]
+                    .replace('{batsman}', striker)
+                    .replace('{bowler}', bowler)
+                    .replace('{fielder}', dismissalFielder || 'the fielder')
+                    .replace('{zone}', zone);
+            }
+            pool = WICKET_TEMPLATES.runout;
+        }
         else if (dType.includes('stump')) pool = WICKET_TEMPLATES.stumped;
         else if (dType.includes('retired')) pool = WICKET_TEMPLATES.retired;
         else if (dType.includes('hit wicket')) pool = WICKET_TEMPLATES.hitwicket;

@@ -213,69 +213,51 @@
 
 .at-editions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 22px;
+    align-items: stretch;
 }
 
-/* ── Card ── */
+/* ── Card (Styled to match Admin Dashboard ad-edition-card) ── */
 .at-edition-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-glass);
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 0;
-    box-shadow: var(--shadow-sm);
-    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     position: relative;
-    overflow: hidden;
-}
-
-/* Left status accent bar */
-.at-edition-card::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    border-radius: 20px 0 0 20px;
-    background: var(--border-glass);
-}
-
-.at-edition-card.status-accent-active::before {
-    background: linear-gradient(to bottom, #10b981, #00f0ff);
-}
-
-.at-edition-card.status-accent-upcoming::before {
-    background: linear-gradient(to bottom, #818cf8, #6366f1);
-}
-
-.at-edition-card.status-accent-completed::before {
-    background: linear-gradient(to bottom, #475569, #334155);
-}
-
-.at-edition-card.is-active-border::before {
-    background: linear-gradient(to bottom, #10b981, #00f0ff);
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(16px);
 }
 
 .at-edition-card:hover {
+    border-color: rgba(0, 240, 255, 0.4);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
     transform: translateY(-3px);
-    border-color: var(--border-glass-hover);
-    box-shadow: var(--shadow-lg);
 }
 
+.at-edition-card.is-active-tourney,
 .at-edition-card.is-active-border {
-    border-color: rgba(16, 185, 129, 0.5);
-    box-shadow: 0 8px 30px rgba(16, 185, 129, 0.12);
+    border-color: rgba(0, 240, 255, 0.45);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(0, 240, 255, 0.05) 100%);
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
 }
 
-/* Card inner padding */
+.at-edition-card.is-ready-complete-card {
+    border-color: rgba(245, 158, 11, 0.5);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.18);
+}
+
+/* Card Header */
 .edition-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 18px 20px 14px 24px;
+    margin-bottom: 16px;
+    padding: 0;
+    gap: 12px;
 }
 
 .edition-badge-wrap {
@@ -287,145 +269,182 @@
 .edition-id-badge {
     font-size: 0.88rem;
     font-weight: 900;
-    padding: 3px 10px;
-    border-radius: 6px;
+    padding: 4px 12px;
+    border-radius: 8px;
     background: rgba(0, 240, 255, 0.12);
-    color: var(--accent-cyan);
-    font-family: var(--font-display);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #00f0ff;
+    font-family: var(--font-display, inherit);
+    letter-spacing: 0.05em;
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.1);
+}
+
+.edition-status-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.badge-active-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid rgba(0, 240, 255, 0.45);
+    color: #00f0ff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
     letter-spacing: 0.04em;
 }
 
-.edition-year {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    font-weight: 700;
-}
-
-.edition-status-wrap {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* LIVE active tag with pulsing dot */
-.active-tag {
+.badge-matches-finished {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    color: #fbbf24;
+}
+
+.badge-status {
+    padding: 4px 10px;
     border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.badge-status.status-completed {
     background: rgba(16, 185, 129, 0.15);
     border: 1px solid rgba(16, 185, 129, 0.4);
     color: #10b981;
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
 }
 
-.active-dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #10b981;
-    animation: livePulse 1.4s infinite;
-    flex-shrink: 0;
+.badge-status.status-upcoming {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: #a5b4fc;
 }
 
-.status-pill {
-    padding: 3px 10px;
-    border-radius: 9999px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: capitalize;
+.badge-status.status-active,
+.badge-status.status-in-progress,
+.badge-status.status-in\ progress {
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
 }
 
-.status-pill.upcoming {
-    background: rgba(99, 102, 241, 0.14);
-    color: #818cf8;
-    border: 1px solid rgba(99, 102, 241, 0.3);
-}
-
-.status-pill.active {
-    background: rgba(16, 185, 129, 0.14);
-    color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.status-pill.completed {
-    background: rgba(148, 163, 184, 0.1);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-glass);
-}
-
-/* Name block */
-.edition-name-block {
-    padding: 0 20px 14px 24px;
+/* Card Main Body */
+.edition-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
 }
 
 .edition-name {
-    font-size: 1.2rem;
+    font-size: 1.35rem;
     font-weight: 800;
-    margin: 0 0 4px 0;
-    line-height: 1.3;
-    color: var(--text-main);
+    color: #f8fafc;
+    margin: 0 0 6px 0;
+    line-height: 1.35;
 }
 
 .edition-title {
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    line-height: 1.45;
-    margin: 0;
+    font-size: 0.88rem;
+    color: #94a3b8;
+    margin: 0 0 16px 0;
+    line-height: 1.4;
 }
 
-/* Info list */
-.edition-info-list {
+.edition-meta-list {
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding: 12px 20px 14px 24px;
-    border-top: 1px solid var(--border-glass);
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.info-item {
+.edition-meta-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.83rem;
-    color: var(--text-secondary);
+    font-size: 0.85rem;
+    color: #cbd5e1;
 }
 
-.info-icon {
-    font-size: 0.95rem;
-    color: var(--accent-cyan);
+.edition-meta-item .meta-icon {
+    font-size: 1rem;
+    color: #64748b;
     flex-shrink: 0;
-    opacity: 0.8;
 }
 
-.info-icon.gold {
-    color: #f59e0b;
-    opacity: 1;
+.truncate-meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.champ-item strong {
-    color: var(--text-main);
+/* Dashboard Signature Stats Strip */
+.edition-stats-strip {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.strip-item {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.strip-item.champion-strip {
+    flex: 1.4;
+}
+
+.strip-label {
+    font-size: 0.65rem;
     font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.06em;
 }
 
-/* Divider before actions */
-.edition-card-divider {
-    height: 1px;
-    background: var(--border-glass);
-    margin: 0;
+.strip-val {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #00f0ff;
+    margin-top: 2px;
 }
 
-/* ── Action bar ── */
+.champion-strip .strip-val {
+    color: #10b981;
+}
+
+/* Action bar docked cleanly to bottom */
 .edition-card-actions {
+    margin-top: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 12px 16px 14px 20px;
+    gap: 10px;
+    padding: 0;
+    background: transparent;
 }
 
 /* Primary actions group */
@@ -434,46 +453,105 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    flex: 1;
 }
 
 /* Secondary (icon-only) actions group */
 .actions-secondary {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex-shrink: 0;
 }
 
-/* Primary action buttons — labelled, full style */
+/* Primary action buttons */
 .action-btn-primary {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 8px 14px;
+    padding: 0 14px;
+    height: 38px;
+    box-sizing: border-box;
     border-radius: 10px;
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
     text-decoration: none;
     white-space: nowrap;
 }
 
 .action-btn-primary.set-active-btn {
-    background: rgba(16, 185, 129, 0.12);
-    border-color: rgba(16, 185, 129, 0.4);
-    color: #10b981;
+    background: rgba(0, 240, 255, 0.12);
+    border-color: rgba(0, 240, 255, 0.35);
+    color: #00f0ff;
 }
 
 .action-btn-primary.set-active-btn:hover {
-    background: rgba(16, 185, 129, 0.22);
-    border-color: #10b981;
-    box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+    background: #00f0ff;
+    color: #070a13;
+    box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+    transform: translateY(-1px);
+}
+
+.active-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    height: 38px;
+    box-sizing: border-box;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #10b981;
+}
+
+.action-btn-primary.edit-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+}
+
+.action-btn-primary.edit-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    transform: translateY(-1px);
 }
 
 /* "Make as Completed" Button */
 .action-btn-primary.make-completed-btn {
+    border-radius: 10px;
+    font-size: 0.84rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Standard Complete Button (for upcoming or live tournaments) */
+.action-btn-primary.make-completed-btn.standard-complete-btn {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    color: #fbbf24;
+    font-weight: 700;
+    box-shadow: none;
+    animation: none;
+}
+
+.action-btn-primary.make-completed-btn.standard-complete-btn:hover {
+    background: rgba(245, 158, 11, 0.22);
+    border-color: #f59e0b;
+    color: #fef08a;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.35);
+    transform: translateY(-1px);
+}
+
+/* Prominent Pulsing Button (when all matches are finished) */
+.action-btn-primary.make-completed-btn.all-finished-glow {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(16, 185, 129, 0.25));
     border: 1px solid rgba(245, 158, 11, 0.65);
     color: #fbbf24;
@@ -482,7 +560,7 @@
     animation: makeCompletedGlow 2.5s infinite;
 }
 
-.action-btn-primary.make-completed-btn:hover {
+.action-btn-primary.make-completed-btn.all-finished-glow:hover {
     background: linear-gradient(135deg, #f59e0b, #10b981);
     border-color: #f59e0b;
     color: #0f172a;
@@ -506,7 +584,7 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 10px;
+    padding: 4px 12px;
     border-radius: 20px;
     font-size: 0.72rem;
     font-weight: 800;
@@ -521,8 +599,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
-    margin-top: 14px;
+    padding: 12px 16px;
+    margin: 12px 24px 16px 24px;
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(16, 185, 129, 0.1));
     border: 1px solid rgba(245, 158, 11, 0.35);
     border-radius: 12px;
@@ -660,11 +738,14 @@
 .active-marker {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 8px 14px;
+    padding: 0 14px;
+    height: 38px;
+    box-sizing: border-box;
     border-radius: 10px;
     background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border: 1px solid rgba(16, 185, 129, 0.35);
     color: #10b981;
     font-size: 0.82rem;
     font-weight: 800;
@@ -676,12 +757,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 9px;
-    font-size: 1.05rem;
+    width: 38px;
+    height: 38px;
+    box-sizing: border-box;
+    border-radius: 10px;
+    font-size: 1.1rem;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid var(--border-glass);
     background: rgba(255, 255, 255, 0.04);
     color: var(--text-secondary);
@@ -751,14 +833,28 @@
     color: #0284c7;
 }
 
-[data-theme="light"] .action-btn-primary.make-completed-btn {
+[data-theme="light"] .action-btn-primary.make-completed-btn.standard-complete-btn {
+    background: rgba(217, 119, 6, 0.08);
+    border-color: rgba(217, 119, 6, 0.35);
+    color: #b45309;
+    box-shadow: none;
+}
+
+[data-theme="light"] .action-btn-primary.make-completed-btn.standard-complete-btn:hover {
+    background: rgba(217, 119, 6, 0.16);
+    border-color: #d97706;
+    color: #92400e;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
+}
+
+[data-theme="light"] .action-btn-primary.make-completed-btn.all-finished-glow {
     background: linear-gradient(135deg, #fef3c7, #ecfdf5);
     border-color: #d97706;
     color: #b45309;
     box-shadow: 0 2px 8px rgba(217, 119, 6, 0.2);
 }
 
-[data-theme="light"] .action-btn-primary.make-completed-btn:hover {
+[data-theme="light"] .action-btn-primary.make-completed-btn.all-finished-glow:hover {
     background: linear-gradient(135deg, #f59e0b, #10b981);
     color: #ffffff;
     border-color: #d97706;
@@ -1297,6 +1393,103 @@
     gap: 8px;
     font-size: 0.98rem;
     padding: 12px 28px;
+}
+
+/* Light Theme Overrides for Tournament Cards (matching Admin Dashboard) */
+[data-theme="light"] .at-edition-card {
+    background: #ffffff;
+    border-color: rgba(148, 163, 184, 0.3);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .at-edition-card:hover {
+    border-color: rgba(2, 132, 199, 0.5);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .at-edition-card.is-active-tourney,
+[data-theme="light"] .at-edition-card.is-active-border {
+    border-color: rgba(2, 132, 199, 0.45);
+    background: linear-gradient(180deg, #ffffff 0%, rgba(2, 132, 199, 0.04) 100%);
+    box-shadow: 0 2px 12px rgba(2, 132, 199, 0.12);
+}
+
+[data-theme="light"] .badge-active-live {
+    background: rgba(2, 132, 199, 0.12);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+[data-theme="light"] .badge-status.status-completed {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #059669;
+}
+
+[data-theme="light"] .badge-status.status-upcoming {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #4f46e5;
+}
+
+[data-theme="light"] .edition-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .edition-title {
+    color: #475569;
+}
+
+[data-theme="light"] .edition-meta-list {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .edition-meta-item {
+    color: #334155;
+}
+
+[data-theme="light"] .edition-meta-item .meta-icon {
+    color: #64748b;
+}
+
+[data-theme="light"] .edition-stats-strip {
+    background: #f1f5f9;
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+[data-theme="light"] .strip-label {
+    color: #64748b;
+}
+
+[data-theme="light"] .strip-val {
+    color: #0284c7;
+}
+
+[data-theme="light"] .champion-strip .strip-val {
+    color: #059669;
+}
+
+[data-theme="light"] .action-btn-primary.set-active-btn {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+[data-theme="light"] .action-btn-primary.set-active-btn:hover {
+    background: #0284c7;
+    color: #ffffff;
+}
+
+[data-theme="light"] .action-btn-primary.edit-btn {
+    background: rgba(15, 23, 42, 0.05);
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #334155;
+}
+
+[data-theme="light"] .action-icon-btn {
+    background: rgba(15, 23, 42, 0.04);
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #64748b;
 }
 
 /* Light Theme Overrides for Pro Modal */

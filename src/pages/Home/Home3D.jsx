@@ -788,6 +788,7 @@ const Home3D = () => {
                                                     alt={story.topic || 'Story Cover'}
                                                     className="story-card-cover-img"
                                                     loading="lazy"
+                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
                                                 <div className="story-card-cover-gradient" />
                                             </div>
@@ -1001,6 +1002,7 @@ const Home3D = () => {
                                 src={activeStoryModal.ImageURL || activeStoryModal.imageUrl || activeStoryModal.image || activeStoryModal.coverImage}
                                 alt={activeStoryModal.topic}
                                 className="modal-story-img"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
                             />
                         )}
                         <p className="modal-story-body">{activeStoryModal.description || activeStoryModal.content}</p>

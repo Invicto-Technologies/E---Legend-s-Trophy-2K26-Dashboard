@@ -4,11 +4,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 // Theme Context and 3D Transition Engine
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AdminTournamentProvider } from './contexts/AdminTournamentContext';
+import { AdminProcessingProvider } from './contexts/AdminProcessingContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Theme3DTransition from './components/3D/Theme3DTransition';
 import CustomTooltip from './components/common/Tooltip/CustomTooltip';
 import PageTransition from './components/common/PageTransition/PageTransition';
 import PageLoader from './components/common/PageLoader/PageLoader';
+import AdminProcessingOverlay from './components/common/AdminProcessingOverlay/AdminProcessingOverlay';
 import { subscribeActiveTournament, resolveTournamentLabels, recordWebView } from './services/rtdbService';
 
 // Navigation Headers
@@ -198,7 +200,10 @@ function App() {
                 <AuthProvider>
                     <ScrollToTop />
                     <AdminTournamentProvider>
-                        <AppLayout />
+                        <AdminProcessingProvider>
+                            <AdminProcessingOverlay />
+                            <AppLayout />
+                        </AdminProcessingProvider>
                     </AdminTournamentProvider>
                 </AuthProvider>
             </Router>

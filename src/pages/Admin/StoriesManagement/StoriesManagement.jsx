@@ -7,6 +7,7 @@ import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import ImageCropModal from '../../../components/common/ImageCropModal/ImageCropModal';
 import { uploadToCloudinary } from '../../../services/cloudinaryService';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
+import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import {
     subscribeStories,
     saveStory,
@@ -23,37 +24,104 @@ import {
     MdCheckCircle,
     MdCloudUpload,
     MdSync,
-    MdEmojiEvents,
-    MdSportsCricket,
-    MdBolt,
-    MdFlashOn,
-    MdGroups,
-    MdStadium,
-    MdAdsClick,
-    MdHandshake,
-    MdCloudQueue,
-    MdWhatshot,
     MdAdd,
-    MdCrop
+    MdCrop,
+    MdSportsCricket,
+    MdCheck
 } from 'react-icons/md';
 import './StoriesManagement.css';
 
-const MATCH_SITUATION_PRESETS = [
-    { title: 'Trophy & Champions', icon: MdEmojiEvents, url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&auto=format&fit=crop', hint: 'Final win & celebration' },
-    { title: 'Match Action', icon: MdSportsCricket, url: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&auto=format&fit=crop', hint: 'Live play & batting/bowling' },
-    { title: 'Boundary Blitz', icon: MdBolt, url: 'https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?w=800&auto=format&fit=crop', hint: 'Sixes & power hitting' },
-    { title: 'Wicket Strike', icon: MdFlashOn, url: 'https://images.unsplash.com/photo-1589487391730-58f20eb2c308?w=800&auto=format&fit=crop', hint: 'Dismissal & stumps flying' },
-    { title: 'Team Huddle', icon: MdGroups, url: 'https://images.unsplash.com/photo-1569517282132-25d22f4573e6?w=800&auto=format&fit=crop', hint: 'Team spirit & victory roar' },
-    { title: 'Stadium Night', icon: MdStadium, url: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop', hint: 'Floodlights & ground atmosphere' },
-    { title: 'Thrilling Finish', icon: MdAdsClick, url: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&auto=format&fit=crop', hint: 'Super over & nail-biter' },
-    { title: 'Toss & Matchday', icon: MdHandshake, url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop', hint: 'Captains handshake & toss' },
-    { title: 'Weather & Delay', icon: MdCloudQueue, url: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=800&auto=format&fit=crop', hint: 'Rain delay & pitch inspection' },
-    { title: 'High Derby Clash', icon: MdWhatshot, url: 'https://images.unsplash.com/photo-1516796181074-bf453fbfa3e6?w=800&auto=format&fit=crop', hint: 'Intense batch rivalry clash' }
+export const CRICKET_BACKGROUND_PRESETS = [
+    {
+        id: 'cricket-stadium-night',
+        title: 'Night Floodlit Stadium',
+        category: 'Stadium',
+        url: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-arena-sunset',
+        title: 'Golden Sunset Stadium',
+        category: 'Stadium',
+        url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-arena-lights',
+        title: 'Grand Arena Floodlights',
+        category: 'Stadium',
+        url: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-ball-pitch',
+        title: 'Red Leather Cricket Ball',
+        category: 'Equipment',
+        url: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-equipment-gear',
+        title: 'Cricket Bat & Leather Ball',
+        category: 'Equipment',
+        url: 'https://images.unsplash.com/photo-1589801258579-18e091f4ca26?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1589801258579-18e091f4ca26?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-batsman-shot',
+        title: 'Batsman Power Shot',
+        category: 'Action',
+        url: 'https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-player-action',
+        title: 'Match Day Action',
+        category: 'Action',
+        url: 'https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-stumps-wickets',
+        title: 'Wickets & Pitch Bails',
+        category: 'Field',
+        url: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-green-turf',
+        title: 'Lush Match Outfield',
+        category: 'Field',
+        url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-trophy-victory',
+        title: 'Championship Trophy',
+        category: 'Victory',
+        url: 'https://images.unsplash.com/photo-1578269174936-2709b6aeb913?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1578269174936-2709b6aeb913?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-team-celebration',
+        title: 'Team Victory Celebration',
+        category: 'Victory',
+        url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=300&q=75'
+    },
+    {
+        id: 'cricket-golden-cup',
+        title: 'Golden Champions Cup',
+        category: 'Victory',
+        url: 'https://images.unsplash.com/photo-1563299796-17596ed6b017?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1563299796-17596ed6b017?auto=format&fit=crop&w=300&q=75'
+    }
 ];
 
 const StoriesManagement = () => {
     const toastRef = useRef(null);
     const { selectedTournamentId } = useAdminTournament();
+    const { withProcessing } = useAdminProcessing();
 
     const [stories, setStories] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
@@ -69,28 +137,33 @@ const StoriesManagement = () => {
 
     const [cropModalOpen, setCropModalOpen] = useState(false);
     const [cropImageSrc, setCropImageSrc] = useState('');
+    const [selectedPresetCat, setSelectedPresetCat] = useState('All');
+
 
     useEffect(() => {
         const unsub = subscribeStories((data) => {
             if (data) {
-                const list = Object.entries(data).map(([id, s]) => ({ id, ...s }));
-                setStories(list.reverse());
+                const arr = Object.keys(data).map(k => ({
+                    id: k,
+                    ...data[k]
+                }));
+                // Sort by ID descending (most recent first)
+                arr.sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+                setStories(arr);
             } else {
                 setStories([]);
             }
         }, selectedTournamentId);
-
         return () => unsub();
     }, [selectedTournamentId]);
 
     const formatCurrentTime = () => {
         const now = new Date();
-        const date = now.toISOString().split('T')[0];
-        let hours = now.getHours();
-        const minutes = now.getMinutes().toString().padStart(2, '0');
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12 || 12;
-        return `${date} ${hours}:${minutes} ${ampm}`;
+        const hrs = now.getHours();
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const ampm = hrs >= 12 ? 'PM' : 'AM';
+        const h12 = hrs % 12 || 12;
+        return `${h12}:${mins} ${ampm}`;
     };
 
     const handleOpenCreate = () => {
@@ -111,18 +184,30 @@ const StoriesManagement = () => {
         setModalOpen(true);
     };
 
-    const handleFileSelect = (e) => {
-        const file = e.target.files[0];
+    const filteredPresets = selectedPresetCat === 'All'
+        ? CRICKET_BACKGROUND_PRESETS
+        : CRICKET_BACKGROUND_PRESETS.filter(p => p.category === selectedPresetCat);
+
+    const handleSelectCricketPreset = (preset) => {
+        if (imageUrl === preset.url) {
+            setImageUrl('');
+        } else {
+            setImageUrl(preset.url);
+        }
+    };
+
+    const handlePickFile = (e) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
-            toastRef.current?.showToast('error', 'Please select a valid image file (JPG, PNG, WebP).');
+            toastRef.current?.showToast('error', 'Please select a valid image file.');
             return;
         }
 
         const reader = new FileReader();
-        reader.onload = (event) => {
-            setCropImageSrc(event.target.result);
+        reader.onload = () => {
+            setCropImageSrc(reader.result);
             setCropModalOpen(true);
         };
         reader.readAsDataURL(file);
@@ -132,17 +217,19 @@ const StoriesManagement = () => {
     const handleCropComplete = async (croppedBase64) => {
         setCropModalOpen(false);
         setIsUploading(true);
-        try {
-            const uploadedUrl = await uploadToCloudinary(croppedBase64);
-            setImageUrl(uploadedUrl);
-            toastRef.current?.showToast('success', 'Image cropped and uploaded successfully!');
-        } catch (error) {
-            console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
-            setImageUrl(croppedBase64);
-            toastRef.current?.showToast('info', 'Cropped image applied successfully.');
-        } finally {
-            setIsUploading(false);
-        }
+        await withProcessing(async () => {
+            try {
+                const uploadedUrl = await uploadToCloudinary(croppedBase64);
+                setImageUrl(uploadedUrl);
+                toastRef.current?.showToast('success', 'Image cropped and uploaded successfully!');
+            } catch (error) {
+                console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
+                setImageUrl(croppedBase64);
+                toastRef.current?.showToast('info', 'Cropped image applied successfully.');
+            } finally {
+                setIsUploading(false);
+            }
+        }, 'Uploading Image...', 'Storing cropped image in Cloudinary...');
     };
 
     const handleOpenCropForCurrent = () => {
@@ -162,35 +249,39 @@ const StoriesManagement = () => {
             return;
         }
 
-        try {
-            const storyData = {
-                id: editingStory ? editingStory.id : `story_${Date.now()}`,
-                topic: topic.trim(),
-                description: description.trim(),
-                ImageURL: imageUrl.trim(),
-                time: timeStr.trim() || formatCurrentTime()
-            };
+        await withProcessing(async () => {
+            try {
+                const storyData = {
+                    id: editingStory ? editingStory.id : `story_${Date.now()}`,
+                    topic: topic.trim(),
+                    description: description.trim(),
+                    ImageURL: imageUrl.trim(),
+                    time: timeStr.trim() || formatCurrentTime()
+                };
 
-            await saveStory(storyData, selectedTournamentId);
-            setModalOpen(false);
-            setEditingStory(null);
-            toastRef.current?.showToast('success', `Story ${editingStory ? 'updated' : 'published'} successfully!`);
-        } catch (error) {
-            console.error('Error saving story:', error);
-            toastRef.current?.showToast('error', 'Failed to save story.');
-        }
+                await saveStory(storyData, selectedTournamentId);
+                setModalOpen(false);
+                setEditingStory(null);
+                toastRef.current?.showToast('success', `Story ${editingStory ? 'updated' : 'published'} successfully!`);
+            } catch (error) {
+                console.error('Error saving story:', error);
+                toastRef.current?.showToast('error', 'Failed to save story.');
+            }
+        }, 'Saving Story...', 'Publishing tournament announcement to database...');
     };
 
     const handleConfirmDelete = async () => {
         if (!deleteTargetId) return;
-        try {
-            await deleteStory(deleteTargetId, selectedTournamentId);
-            setDeleteTargetId(null);
-            toastRef.current?.showToast('success', 'Story bulletin removed successfully.');
-        } catch (error) {
-            console.error('Error deleting story:', error);
-            toastRef.current?.showToast('error', 'Failed to delete story.');
-        }
+        await withProcessing(async () => {
+            try {
+                await deleteStory(deleteTargetId, selectedTournamentId);
+                setDeleteTargetId(null);
+                toastRef.current?.showToast('success', 'Story bulletin removed successfully.');
+            } catch (error) {
+                console.error('Error deleting story:', error);
+                toastRef.current?.showToast('error', 'Failed to delete story.');
+            }
+        }, 'Deleting Story...', 'Removing story from database...');
     };
 
     return (
@@ -259,7 +350,12 @@ const StoriesManagement = () => {
                                 </div>
 
                                 {story.ImageURL && (
-                                    <img src={story.ImageURL} alt={story.topic} className="smc-thumb" />
+                                    <img
+                                        src={story.ImageURL}
+                                        alt={story.topic}
+                                        className="smc-thumb"
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
                                 )}
 
                                 <h3 className="smc-topic">{story.topic}</h3>
@@ -349,23 +445,96 @@ const StoriesManagement = () => {
                                     <span className="sm-section-step">2</span>
                                     <div>
                                         <h4>Story Hero Cover Image (Optional)</h4>
-                                        <p className="sm-section-desc">Add visual flair with a custom upload, crop adjustment, or match preset banner.</p>
+                                        <p className="sm-section-desc">Select an authentic cricket manner background from the web, upload your own photo, or enter a custom image URL.</p>
                                     </div>
                                 </div>
 
-                                <div className="sm-form-group">
+                                {/* Cricket Manner Background Presets from Internet */}
+                                <div className="sm-cricket-presets-section">
+                                    <div className="sm-preset-header-bar">
+                                        <div className="sm-preset-title-wrap">
+                                            <div className="sm-preset-icon-badge">
+                                                <MdSportsCricket />
+                                            </div>
+                                            <div>
+                                                <span className="sm-preset-title">Cricket Manner Backgrounds (Web Presets)</span>
+                                                <span className="sm-preset-subtitle">Click any thumbnail below to instantly set this story's background banner</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="sm-preset-filter-pills">
+                                            {['All', 'Stadium', 'Action', 'Equipment', 'Victory', 'Field'].map((cat) => (
+                                                <button
+                                                    key={cat}
+                                                    type="button"
+                                                    className={`sm-preset-cat-btn ${selectedPresetCat === cat ? 'active' : ''}`}
+                                                    onClick={() => setSelectedPresetCat(cat)}
+                                                >
+                                                    {cat}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="sm-presets-grid">
+                                        {filteredPresets.map((preset) => {
+                                            const isSelected = imageUrl === preset.url;
+                                            return (
+                                                <div
+                                                    key={preset.id}
+                                                    className={`sm-preset-card ${isSelected ? 'selected' : ''}`}
+                                                    onClick={() => handleSelectCricketPreset(preset)}
+                                                    title={`Use "${preset.title}" as story cover`}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                >
+                                                    <div className="sm-preset-thumb-wrap">
+                                                        <img
+                                                            src={preset.thumb}
+                                                            alt={preset.title}
+                                                            loading="lazy"
+                                                            onError={(e) => {
+                                                                e.currentTarget.onerror = null;
+                                                                e.currentTarget.src = 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=300&q=75';
+                                                            }}
+                                                        />
+                                                        <span className="sm-preset-tag">{preset.category}</span>
+                                                        {isSelected && (
+                                                            <div className="sm-preset-active-check">
+                                                                <MdCheck />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="sm-preset-name">{preset.title}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="sm-form-group sm-custom-img-group">
                                     <div className="sm-label-row">
-                                        <label><MdImage /> Cover Image Source</label>
+                                        <label><MdImage /> Or Custom Image URL / Upload</label>
                                         <div className="sm-image-action-btns">
                                             {imageUrl && (
-                                                <button
-                                                    type="button"
-                                                    className="sm-crop-header-btn"
-                                                    onClick={handleOpenCropForCurrent}
-                                                    title="Crop or reframe visible image area"
-                                                >
-                                                    <MdCrop /> Crop Image
-                                                </button>
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        className="sm-clear-btn"
+                                                        onClick={() => setImageUrl('')}
+                                                        title="Clear selected image"
+                                                    >
+                                                        <MdClose /> Clear Image
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="sm-crop-header-btn"
+                                                        onClick={handleOpenCropForCurrent}
+                                                        title="Crop or reframe visible image area"
+                                                    >
+                                                        <MdCrop /> Crop Image
+                                                    </button>
+                                                </>
                                             )}
                                             <button
                                                 type="button"
@@ -385,30 +554,16 @@ const StoriesManagement = () => {
                                             ref={fileInputRef}
                                             style={{ display: 'none' }}
                                             accept="image/*"
-                                            onChange={handleFileSelect}
+                                            onChange={handlePickFile}
                                         />
                                     </div>
                                     <input
                                         type="url"
                                         className="sm-input"
-                                        placeholder="Cloudinary image URL or https://..."
+                                        placeholder="Cloudinary image URL, Unsplash URL, or https://..."
                                         value={imageUrl}
                                         onChange={(e) => setImageUrl(e.target.value)}
                                     />
-                                    <div className="sm-preset-chips">
-                                        <span className="sm-presets-label">Matchday Presets:</span>
-                                        {MATCH_SITUATION_PRESETS.map((preset, idx) => (
-                                            <button
-                                                key={idx}
-                                                type="button"
-                                                className={`sm-preset-btn ${imageUrl === preset.url ? 'active' : ''}`}
-                                                onClick={() => setImageUrl(preset.url)}
-                                                title={preset.hint}
-                                            >
-                                                <span>{preset.title}</span>
-                                            </button>
-                                        ))}
-                                    </div>
                                 </div>
 
                                 {imageUrl && (

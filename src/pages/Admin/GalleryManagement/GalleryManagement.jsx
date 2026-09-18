@@ -6,6 +6,7 @@ import Footer from '../../../components/common/Footer/Footer';
 import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import ImageCropModal from '../../../components/common/ImageCropModal/ImageCropModal';
 import { uploadToCloudinary } from '../../../services/cloudinaryService';
+import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import {
     subscribeCommonGallery,
     saveCommonGalleryPhoto,
@@ -68,6 +69,7 @@ export const resolvePhotoUrl = (url) => {
 
 const GalleryManagement = () => {
     const toastRef = useRef(null);
+    const { withProcessing } = useAdminProcessing();
 
     // Gallery Data
     const [photos, setPhotos] = useState([]);
@@ -175,17 +177,19 @@ const GalleryManagement = () => {
     const handleCropComplete = async (croppedBase64) => {
         setCropModalOpen(false);
         setIsUploading(true);
-        try {
-            const uploadedUrl = await uploadToCloudinary(croppedBase64);
-            setFormImageUrl(uploadedUrl);
-            toastRef.current?.showToast('success', 'Image framed and uploaded successfully!');
-        } catch (error) {
-            console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
-            setFormImageUrl(croppedBase64);
-            toastRef.current?.showToast('info', 'Cropped image applied successfully.');
-        } finally {
-            setIsUploading(false);
-        }
+        await withProcessing(async () => {
+            try {
+                const uploadedUrl = await uploadToCloudinary(croppedBase64);
+                setFormImageUrl(uploadedUrl);
+                toastRef.current?.showToast('success', 'Image framed and uploaded successfully!');
+            } catch (error) {
+                console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
+                setFormImageUrl(croppedBase64);
+                toastRef.current?.showToast('info', 'Cropped image applied successfully.');
+            } finally {
+                setIsUploading(false);
+            }
+        }, 'Uploading Photo...', 'Optimizing and storing photograph in Cloudinary...');
     };
 
     // Re-crop existing image URL
@@ -207,39 +211,43 @@ const GalleryManagement = () => {
             return;
         }
 
-        try {
-            const photoData = {
-                id: editingPhoto ? editingPhoto.id : `photo_${Date.now()}`,
-                title: formTitle.trim(),
-                tournamentId: formTournament.trim() || "E-Legend's Trophy 2K26",
-                category: formCategory,
-                caption: formCaption.trim(),
-                imageUrl: formImageUrl.trim(),
-                uploadedAt: editingPhoto?.uploadedAt || new Date().toISOString().split('T')[0],
-                timestamp: editingPhoto?.timestamp || Date.now()
-            };
+        await withProcessing(async () => {
+            try {
+                const photoData = {
+                    id: editingPhoto ? editingPhoto.id : `photo_${Date.now()}`,
+                    title: formTitle.trim(),
+                    tournamentId: formTournament.trim() || "E-Legend's Trophy 2K26",
+                    category: formCategory,
+                    caption: formCaption.trim(),
+                    imageUrl: formImageUrl.trim(),
+                    uploadedAt: editingPhoto?.uploadedAt || new Date().toISOString().split('T')[0],
+                    timestamp: editingPhoto?.timestamp || Date.now()
+                };
 
-            await saveCommonGalleryPhoto(photoData);
-            setModalOpen(false);
-            setEditingPhoto(null);
-            toastRef.current?.showToast('success', `Photo ${editingPhoto ? 'updated' : 'added'} successfully!`);
-        } catch (error) {
-            console.error('Error saving gallery photo:', error);
-            toastRef.current?.showToast('error', 'Failed to save gallery photo.');
-        }
+                await saveCommonGalleryPhoto(photoData);
+                setModalOpen(false);
+                setEditingPhoto(null);
+                toastRef.current?.showToast('success', `Photo ${editingPhoto ? 'updated' : 'added'} successfully!`);
+            } catch (error) {
+                console.error('Error saving gallery photo:', error);
+                toastRef.current?.showToast('error', 'Failed to save gallery photo.');
+            }
+        }, 'Saving Photo...', 'Updating central tournament gallery repository in Firebase...');
     };
 
     // Confirm Delete Photo
     const handleConfirmDelete = async () => {
         if (!deleteTargetId) return;
-        try {
-            await deleteCommonGalleryPhoto(deleteTargetId);
-            setDeleteTargetId(null);
-            toastRef.current?.showToast('success', 'Photo removed from gallery.');
-        } catch (error) {
-            console.error('Error deleting photo:', error);
-            toastRef.current?.showToast('error', 'Failed to delete photo.');
-        }
+        await withProcessing(async () => {
+            try {
+                await deleteCommonGalleryPhoto(deleteTargetId);
+                setDeleteTargetId(null);
+                toastRef.current?.showToast('success', 'Photo removed from gallery.');
+            } catch (error) {
+                console.error('Error deleting photo:', error);
+                toastRef.current?.showToast('error', 'Failed to delete photo.');
+            }
+        }, 'Deleting Photo...', 'Removing photo from gallery database...');
     };
 
     // Filter and search logic

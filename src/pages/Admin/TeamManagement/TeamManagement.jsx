@@ -26,6 +26,7 @@ import ImageCropModal from '../../../components/common/ImageCropModal/ImageCropM
 import { uploadToCloudinary, isCloudinaryConfigured } from '../../../services/cloudinaryService';
 import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
+import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import './TeamManagement.css';
 
 const renderRoleIcon = (role) => {
@@ -47,6 +48,7 @@ const TEAM_LOGO_PRESETS = [
 const TeamManagement = () => {
     const toastRef = useRef();
     const { selectedTournamentId } = useAdminTournament();
+    const { withProcessing } = useAdminProcessing();
     const [teamsData, setTeamsData] = useState({});
     const [selectedTeamKey, setSelectedTeamKey] = useState('');
     const [editingPlayer, setEditingPlayer] = useState(null);
@@ -171,33 +173,35 @@ const TeamManagement = () => {
         }
 
         setIsUploadingMedia(true);
-        try {
-            const folder = (cropTarget === 'player' || cropTarget === 'editPlayer')
-                ? 'elegends_2k26/players'
-                : 'elegends_2k26/teams';
+        await withProcessing(async () => {
+            try {
+                const folder = (cropTarget === 'player' || cropTarget === 'editPlayer')
+                    ? 'elegends_2k26/players'
+                    : 'elegends_2k26/teams';
 
-            const result = await uploadToCloudinary(croppedBlob, { folder });
-            const uploadedUrl = result.secure_url;
+                const result = await uploadToCloudinary(croppedBlob, { folder });
+                const uploadedUrl = result.secure_url;
 
-            if (cropTarget === 'logo') {
-                setEditTeamLogo(uploadedUrl);
-                toastRef.current?.showToast('success', 'Batch crest logo cropped & uploaded to Cloudinary! Click Save Changes to apply.');
-            } else if (cropTarget === 'newLogo') {
-                setNewTeamLogo(uploadedUrl);
-                toastRef.current?.showToast('success', 'Batch crest logo cropped & uploaded to Cloudinary!');
-            } else if (cropTarget === 'editPlayer') {
-                setEditPlayerImageUrl(uploadedUrl);
-                toastRef.current?.showToast('success', 'Player photo cropped & uploaded to Cloudinary! Click Save Profile to apply.');
-            } else if (cropTarget === 'player') {
-                setNewPlayerImageUrl(uploadedUrl);
-                toastRef.current?.showToast('success', 'Player photo cropped & uploaded to Cloudinary!');
+                if (cropTarget === 'logo') {
+                    setEditTeamLogo(uploadedUrl);
+                    toastRef.current?.showToast('success', 'Batch crest logo cropped & uploaded to Cloudinary! Click Save Changes to apply.');
+                } else if (cropTarget === 'newLogo') {
+                    setNewTeamLogo(uploadedUrl);
+                    toastRef.current?.showToast('success', 'Batch crest logo cropped & uploaded to Cloudinary!');
+                } else if (cropTarget === 'editPlayer') {
+                    setEditPlayerImageUrl(uploadedUrl);
+                    toastRef.current?.showToast('success', 'Player photo cropped & uploaded to Cloudinary! Click Save Profile to apply.');
+                } else if (cropTarget === 'player') {
+                    setNewPlayerImageUrl(uploadedUrl);
+                    toastRef.current?.showToast('success', 'Player photo cropped & uploaded to Cloudinary!');
+                }
+            } catch (err) {
+                console.error('Error uploading cropped image:', err);
+                toastRef.current?.showToast('error', err.message || 'Failed to upload cropped image to Cloudinary.');
+            } finally {
+                setIsUploadingMedia(false);
             }
-        } catch (err) {
-            console.error('Error uploading cropped image:', err);
-            toastRef.current?.showToast('error', err.message || 'Failed to upload cropped image to Cloudinary.');
-        } finally {
-            setIsUploadingMedia(false);
-        }
+        }, 'Uploading Media...', 'Optimizing and storing image asset in Cloudinary...');
     };
 
     // Save Player Edits
@@ -205,78 +209,82 @@ const TeamManagement = () => {
         e.preventDefault();
         if (!editingPlayer || !selectedTeamKey) return;
 
-        try {
-            const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
-            updatedTeam.players = updatedTeam.players || {};
-            updatedTeam.extraPlayers = updatedTeam.extraPlayers || {};
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
+                updatedTeam.players = updatedTeam.players || {};
+                updatedTeam.extraPlayers = updatedTeam.extraPlayers || {};
 
-            const wasInSquad = Boolean(updatedTeam.players[editingPlayer.id]);
-            const playerObj = wasInSquad
-                ? updatedTeam.players[editingPlayer.id]
-                : updatedTeam.extraPlayers[editingPlayer.id] || { id: editingPlayer.id };
+                const wasInSquad = Boolean(updatedTeam.players[editingPlayer.id]);
+                const playerObj = wasInSquad
+                    ? updatedTeam.players[editingPlayer.id]
+                    : updatedTeam.extraPlayers[editingPlayer.id] || { id: editingPlayer.id };
 
-            playerObj.name = editPlayerName.trim();
-            playerObj.role = editPlayerRole;
-            playerObj.icon = editPlayerIcon;
-            playerObj.imageUrl = editPlayerImageUrl || '';
+                playerObj.name = editPlayerName.trim();
+                playerObj.role = editPlayerRole;
+                playerObj.icon = editPlayerIcon;
+                playerObj.imageUrl = editPlayerImageUrl || '';
 
-            if (wasInSquad) updatedTeam.players[editingPlayer.id] = playerObj;
-            else updatedTeam.extraPlayers[editingPlayer.id] = playerObj;
+                if (wasInSquad) updatedTeam.players[editingPlayer.id] = playerObj;
+                else updatedTeam.extraPlayers[editingPlayer.id] = playerObj;
 
-            await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
-            setEditingPlayer(null);
-            toastRef.current?.showToast('success', 'Player profile updated!');
-        } catch (error) {
-            console.error('Error updating player:', error);
-            toastRef.current?.showToast('error', 'Failed to update player.');
-        }
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                setEditingPlayer(null);
+                toastRef.current?.showToast('success', 'Player profile updated!');
+            } catch (error) {
+                console.error('Error updating player:', error);
+                toastRef.current?.showToast('error', 'Failed to update player.');
+            }
+        }, 'Updating Player Profile...', 'Saving player changes to squad in Firebase...');
     };
 
     // Atomic 1-to-1 swap between Playing XI and Bench/Reserves
     const handleExecuteTeamSwap = async () => {
         if (!swapModalTarget || !swapSelectedReplacementId || !selectedTeamKey) return;
-        try {
-            const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
-            updatedTeam.players = updatedTeam.players || {};
-            updatedTeam.extraPlayers = updatedTeam.extraPlayers || {};
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
+                updatedTeam.players = updatedTeam.players || {};
+                updatedTeam.extraPlayers = updatedTeam.extraPlayers || {};
 
-            let xiPlayer, reservePlayer;
-            if (swapModalTarget.from === 'xi') {
-                xiPlayer = updatedTeam.players[swapModalTarget.player.id] || { ...swapModalTarget.player };
-                reservePlayer = updatedTeam.extraPlayers[swapSelectedReplacementId];
-            } else {
-                reservePlayer = updatedTeam.extraPlayers[swapModalTarget.player.id] || { ...swapModalTarget.player };
-                xiPlayer = updatedTeam.players[swapSelectedReplacementId];
+                let xiPlayer, reservePlayer;
+                if (swapModalTarget.from === 'xi') {
+                    xiPlayer = updatedTeam.players[swapModalTarget.player.id] || { ...swapModalTarget.player };
+                    reservePlayer = updatedTeam.extraPlayers[swapSelectedReplacementId];
+                } else {
+                    reservePlayer = updatedTeam.extraPlayers[swapModalTarget.player.id] || { ...swapModalTarget.player };
+                    xiPlayer = updatedTeam.players[swapSelectedReplacementId];
+                }
+
+                if (!xiPlayer || !reservePlayer) {
+                    toastRef.current?.showToast('error', 'Selected player for swap could not be found.');
+                    return;
+                }
+
+                if (activeTeam.captain === xiPlayer.name) {
+                    toastRef.current?.showToast('warning', 'Team Captain cannot be moved to Reserve. Reassign captaincy first.');
+                    return;
+                }
+
+                // Atomic swap
+                xiPlayer.type = 'Reserve';
+                reservePlayer.type = 'Playing XI';
+
+                delete updatedTeam.players[xiPlayer.id];
+                updatedTeam.extraPlayers[xiPlayer.id] = xiPlayer;
+
+                delete updatedTeam.extraPlayers[reservePlayer.id];
+                updatedTeam.players[reservePlayer.id] = reservePlayer;
+
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                toastRef.current?.showToast('success', `Swapped ${xiPlayer.name} with ${reservePlayer.name} successfully! Playing XI count preserved.`);
+                setSwapModalTarget(null);
+                setSwapSelectedReplacementId('');
+            } catch (error) {
+                console.error('Error executing 1-to-1 swap:', error);
+                toastRef.current?.showToast('error', 'Failed to swap players.');
             }
-
-            if (!xiPlayer || !reservePlayer) {
-                toastRef.current?.showToast('error', 'Selected player for swap could not be found.');
-                return;
-            }
-
-            if (activeTeam.captain === xiPlayer.name) {
-                toastRef.current?.showToast('warning', 'Team Captain cannot be moved to Reserve. Reassign captaincy first.');
-                return;
-            }
-
-            // Atomic swap
-            xiPlayer.type = 'Reserve';
-            reservePlayer.type = 'Playing XI';
-
-            delete updatedTeam.players[xiPlayer.id];
-            updatedTeam.extraPlayers[xiPlayer.id] = xiPlayer;
-
-            delete updatedTeam.extraPlayers[reservePlayer.id];
-            updatedTeam.players[reservePlayer.id] = reservePlayer;
-
-            await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
-            toastRef.current?.showToast('success', `Swapped ${xiPlayer.name} with ${reservePlayer.name} successfully! Playing XI count preserved.`);
-            setSwapModalTarget(null);
-            setSwapSelectedReplacementId('');
-        } catch (error) {
-            console.error('Error executing 1-to-1 swap:', error);
-            toastRef.current?.showToast('error', 'Failed to swap players.');
-        }
+        }, 'Swapping Roster Slots...', 'Updating Playing XI and Reserve squad allocations...');
     };
 
     // Add New Player
@@ -284,72 +292,78 @@ const TeamManagement = () => {
         e.preventDefault();
         if (!newPlayerName.trim() || !selectedTeamKey) return;
 
-        try {
-            const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
-            const newId = Date.now();
-            const playerObj = {
-                id: newId,
-                name: newPlayerName.trim(),
-                role: newPlayerRole,
-                icon: newPlayerRole === 'Bowler' ? 'ball' : newPlayerRole === 'Batter' ? 'bat' : 'all-rounder',
-                imageUrl: newPlayerImageUrl || '',
-                runs: 0,
-                balls: 0
-            };
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
+                const newId = Date.now();
+                const playerObj = {
+                    id: newId,
+                    name: newPlayerName.trim(),
+                    role: newPlayerRole,
+                    icon: newPlayerRole === 'Bowler' ? 'ball' : newPlayerRole === 'Batter' ? 'bat' : 'all-rounder',
+                    imageUrl: newPlayerImageUrl || '',
+                    runs: 0,
+                    balls: 0
+                };
 
-            if (isExtraPlayer) {
-                updatedTeam.extraPlayers = updatedTeam.extraPlayers || {};
-                updatedTeam.extraPlayers[newId] = playerObj;
-            } else {
-                updatedTeam.players = updatedTeam.players || {};
-                updatedTeam.players[newId] = playerObj;
+                if (isExtraPlayer) {
+                    updatedTeam.extraPlayers = updatedTeam.extraPlayers || {};
+                    updatedTeam.extraPlayers[newId] = playerObj;
+                } else {
+                    updatedTeam.players = updatedTeam.players || {};
+                    updatedTeam.players[newId] = playerObj;
+                }
+
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                setAddModalOpen(false);
+                setNewPlayerName('');
+                setNewPlayerImageUrl('');
+                toastRef.current.showToast('success', `Added ${newPlayerName} to ${selectedTeamKey}!`);
+            } catch (error) {
+                console.error('Error adding player:', error);
+                toastRef.current.showToast('error', 'Failed to add player.');
             }
-
-            await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
-            setAddModalOpen(false);
-            setNewPlayerName('');
-            setNewPlayerImageUrl('');
-            toastRef.current.showToast('success', `Added ${newPlayerName} to ${selectedTeamKey}!`);
-        } catch (error) {
-            console.error('Error adding player:', error);
-            toastRef.current.showToast('error', 'Failed to add player.');
-        }
+        }, 'Adding Player...', `Registering ${newPlayerName.trim()} to ${selectedTeamKey}...`);
     };
 
     // Set player as team captain
     const handleSetCaptain = async (playerName) => {
-        try {
-            const updatedTeam = {
-                ...activeTeam,
-                captain: playerName
-            };
-            await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
-            toastRef.current.showToast('success', `${playerName} is now appointed Captain of ${selectedTeamKey}!`);
-        } catch (error) {
-            console.error('Error setting captain:', error);
-            toastRef.current.showToast('error', 'Failed to appoint captain.');
-        }
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = {
+                    ...activeTeam,
+                    captain: playerName
+                };
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                toastRef.current.showToast('success', `${playerName} is now appointed Captain of ${selectedTeamKey}!`);
+            } catch (error) {
+                console.error('Error setting captain:', error);
+                toastRef.current.showToast('error', 'Failed to appoint captain.');
+            }
+        }, 'Appointing Captain...', `Assigning ${playerName} as Captain of ${selectedTeamKey}...`);
     };
 
     // Confirm remove player
     const handleConfirmDeletePlayer = async () => {
         if (!deletePlayerTarget || !selectedTeamKey) return;
 
-        try {
-            const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
-            if (deletePlayerTarget.isSquad) {
-                delete updatedTeam.players[deletePlayerTarget.id];
-            } else {
-                delete updatedTeam.extraPlayers[deletePlayerTarget.id];
-            }
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
+                if (deletePlayerTarget.isSquad) {
+                    delete updatedTeam.players[deletePlayerTarget.id];
+                } else {
+                    delete updatedTeam.extraPlayers[deletePlayerTarget.id];
+                }
 
-            await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
-            toastRef.current.showToast('info', `Removed ${deletePlayerTarget.name} from squad.`);
-            setDeletePlayerTarget(null);
-        } catch (error) {
-            console.error('Error removing player:', error);
-            toastRef.current.showToast('error', 'Failed to remove player.');
-        }
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                toastRef.current.showToast('info', `Removed ${deletePlayerTarget.name} from squad.`);
+                setDeletePlayerTarget(null);
+            } catch (error) {
+                console.error('Error removing player:', error);
+                toastRef.current.showToast('error', 'Failed to remove player.');
+            }
+        }, 'Removing Player...', `Deleting ${deletePlayerTarget.name} from squad roster...`);
     };
 
 
@@ -367,22 +381,24 @@ const TeamManagement = () => {
         e.preventDefault();
         if (!selectedTeamKey || !editTeamName.trim()) return;
 
-        try {
-            const updatedTeam = {
-                ...activeTeam,
-                name: editTeamName.trim(),
-                captain: editTeamCaptain.trim() || activeTeam.captain || 'Not Appointed',
-                logo: editTeamLogo.trim(),
-                logoUrl: editTeamLogo.trim()
-            };
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = {
+                    ...activeTeam,
+                    name: editTeamName.trim(),
+                    captain: editTeamCaptain.trim() || activeTeam.captain || 'Not Appointed',
+                    logo: editTeamLogo.trim(),
+                    logoUrl: editTeamLogo.trim()
+                };
 
-            await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
-            setEditTeamModalOpen(false);
-            toastRef.current.showToast('success', `Team details and crest for ${selectedTeamKey} updated!`);
-        } catch (error) {
-            console.error('Error updating team:', error);
-            toastRef.current.showToast('error', 'Failed to update team details.');
-        }
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                setEditTeamModalOpen(false);
+                toastRef.current.showToast('success', `Team details and crest for ${selectedTeamKey} updated!`);
+            } catch (error) {
+                console.error('Error updating team:', error);
+                toastRef.current.showToast('error', 'Failed to update team details.');
+            }
+        }, 'Updating Team Details...', `Saving team name, captain and crest for ${selectedTeamKey}...`);
     };
 
     // Create New Team with Logo
@@ -404,59 +420,63 @@ const TeamManagement = () => {
             return;
         }
 
-        try {
-            const initialPlayers = {};
-            if (includeCaptainInSquad && newTeamCaptain.trim()) {
-                const capId = Date.now();
-                initialPlayers[capId] = {
-                    id: capId,
-                    name: newTeamCaptain.trim(),
-                    role: 'All Rounder',
-                    icon: 'all-rounder',
-                    runs: 0,
-                    balls: 0
+        await withProcessing(async () => {
+            try {
+                const initialPlayers = {};
+                if (includeCaptainInSquad && newTeamCaptain.trim()) {
+                    const capId = Date.now();
+                    initialPlayers[capId] = {
+                        id: capId,
+                        name: newTeamCaptain.trim(),
+                        role: 'All Rounder',
+                        icon: 'all-rounder',
+                        runs: 0,
+                        balls: 0
+                    };
+                }
+
+                const newTeamObj = {
+                    id: Date.now(),
+                    name: newTeamName.trim(),
+                    captain: newTeamCaptain.trim() || 'Not Appointed',
+                    logo: newTeamLogo.trim() || '',
+                    logoUrl: newTeamLogo.trim() || '',
+                    players: initialPlayers,
+                    extraPlayers: {}
                 };
+
+                await createNewTeam(cleanKey, newTeamObj, selectedTournamentId);
+                setAddTeamModalOpen(false);
+                setNewTeamKey('');
+                setNewTeamName('');
+                setNewTeamCaptain('');
+                setNewTeamLogo('');
+                setSelectedTeamKey(cleanKey);
+                toastRef.current.showToast('success', `Team "${cleanKey} - ${newTeamName.trim()}" created successfully!`);
+            } catch (error) {
+                console.error('Error creating team:', error);
+                toastRef.current.showToast('error', 'Failed to create new team.');
             }
-
-            const newTeamObj = {
-                id: Date.now(),
-                name: newTeamName.trim(),
-                captain: newTeamCaptain.trim() || 'Not Appointed',
-                logo: newTeamLogo.trim() || '',
-                logoUrl: newTeamLogo.trim() || '',
-                players: initialPlayers,
-                extraPlayers: {}
-            };
-
-            await createNewTeam(cleanKey, newTeamObj, selectedTournamentId);
-            setAddTeamModalOpen(false);
-            setNewTeamKey('');
-            setNewTeamName('');
-            setNewTeamCaptain('');
-            setNewTeamLogo('');
-            setSelectedTeamKey(cleanKey);
-            toastRef.current.showToast('success', `Team "${cleanKey} - ${newTeamName.trim()}" created successfully!`);
-        } catch (error) {
-            console.error('Error creating team:', error);
-            toastRef.current.showToast('error', 'Failed to create new team.');
-        }
+        }, 'Registering Team...', `Creating "${cleanKey} - ${newTeamName.trim()}" and initializing squad...`);
     };
 
     // Delete Entire Team
     const handleConfirmDeleteTeam = async () => {
         if (!deleteTeamTarget) return;
 
-        try {
-            const teamToDelete = deleteTeamTarget;
-            await deleteTeam(teamToDelete, selectedTournamentId);
-            const remainingKeys = Object.keys(teamsData).filter(k => k !== teamToDelete);
-            setSelectedTeamKey(remainingKeys.length > 0 ? remainingKeys[0] : '');
-            setDeleteTeamTarget(null);
-            toastRef.current.showToast('info', `Team "${teamToDelete}" has been completely removed.`);
-        } catch (error) {
-            console.error('Error deleting team:', error);
-            toastRef.current.showToast('error', 'Failed to delete team.');
-        }
+        await withProcessing(async () => {
+            try {
+                const teamToDelete = deleteTeamTarget;
+                await deleteTeam(teamToDelete, selectedTournamentId);
+                const remainingKeys = Object.keys(teamsData).filter(k => k !== teamToDelete);
+                setSelectedTeamKey(remainingKeys.length > 0 ? remainingKeys[0] : '');
+                setDeleteTeamTarget(null);
+                toastRef.current.showToast('info', `Team "${teamToDelete}" has been completely removed.`);
+            } catch (error) {
+                console.error('Error deleting team:', error);
+                toastRef.current.showToast('error', 'Failed to delete team.');
+            }
+        }, 'Deleting Team...', `Removing "${deleteTeamTarget}" and linked squads from database...`);
     };
 
     const hasTeams = Object.keys(teamsData).length > 0;
