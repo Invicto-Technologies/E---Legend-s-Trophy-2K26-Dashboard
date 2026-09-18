@@ -65,13 +65,18 @@ export const uploadToCloudinary = async (file, options = {}) => {
             throw new Error(errorMessage);
         }
 
+        const secureUrl = data.secure_url || data.url;
+
         return {
             url: data.url,
-            secure_url: data.secure_url || data.url,
+            secure_url: secureUrl,
             public_id: data.public_id,
             width: data.width,
             height: data.height,
-            format: data.format
+            format: data.format,
+            toString() {
+                return secureUrl;
+            }
         };
     } catch (error) {
         console.error('Cloudinary upload error:', error);

@@ -522,19 +522,6 @@ const TournamentManagement = () => {
                                             </span>
                                         </div>
                                     </div>
-
-                                    {/* Concluded alert banner for live tournament */}
-                                    {isLiveAndReadyToComplete && (
-                                        <div className="edition-ready-complete-alert">
-                                            <div className="ready-complete-icon-wrap">
-                                                <MdEmojiEvents />
-                                            </div>
-                                            <div className="ready-complete-text">
-                                                <strong>All Matches Concluded!</strong>
-                                                <p>Every fixture has finalized results. Ready to mark as completed.</p>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Action bar */}

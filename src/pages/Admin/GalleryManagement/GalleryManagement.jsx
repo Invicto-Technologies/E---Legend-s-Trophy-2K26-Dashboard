@@ -94,6 +94,7 @@ const GalleryManagement = () => {
     const [formImageUrl, setFormImageUrl] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef(null);
+    const directFileInputRef = useRef(null);
 
     // Crop Modal & Preview
     const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -173,23 +174,57 @@ const GalleryManagement = () => {
         e.target.value = '';
     };
 
-    // Handle completed crop (croppedBase64)
-    const handleCropComplete = async (croppedBase64) => {
+    // Handle completed crop (croppedBlob, croppedDataUrl)
+    const handleCropComplete = async (croppedBlob, croppedDataUrl) => {
         setCropModalOpen(false);
         setIsUploading(true);
         await withProcessing(async () => {
             try {
-                const uploadedUrl = await uploadToCloudinary(croppedBase64);
+                const uploadPayload = croppedBlob || croppedDataUrl;
+                const result = await uploadToCloudinary(uploadPayload, {
+                    folder: 'elegends_2k26/gallery'
+                });
+                const uploadedUrl = typeof result === 'string' ? result : (result.secure_url || result.url);
                 setFormImageUrl(uploadedUrl);
-                toastRef.current?.showToast('success', 'Image framed and uploaded successfully!');
+                setImageLoadError(false);
+                toastRef.current?.showToast('success', 'Photo framed and uploaded to Cloudinary successfully!');
             } catch (error) {
-                console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
-                setFormImageUrl(croppedBase64);
-                toastRef.current?.showToast('info', 'Cropped image applied successfully.');
+                console.error('Cloudinary upload error:', error);
+                toastRef.current?.showToast('error', `Cloudinary upload failed: ${error.message || 'Please check configuration'}`);
             } finally {
                 setIsUploading(false);
             }
         }, 'Uploading Photo...', 'Optimizing and storing photograph in Cloudinary...');
+    };
+
+    // Direct upload without cropping
+    const handleDirectUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toastRef.current?.showToast('error', 'Please select a valid image file (JPG, PNG, WebP).');
+            return;
+        }
+
+        setIsUploading(true);
+        await withProcessing(async () => {
+            try {
+                const result = await uploadToCloudinary(file, {
+                    folder: 'elegends_2k26/gallery'
+                });
+                const uploadedUrl = typeof result === 'string' ? result : (result.secure_url || result.url);
+                setFormImageUrl(uploadedUrl);
+                setImageLoadError(false);
+                toastRef.current?.showToast('success', 'Photo uploaded directly to Cloudinary!');
+            } catch (error) {
+                console.error('Cloudinary direct upload error:', error);
+                toastRef.current?.showToast('error', `Cloudinary upload failed: ${error.message || 'Please check configuration'}`);
+            } finally {
+                setIsUploading(false);
+            }
+        }, 'Uploading Photo...', 'Sending original photograph directly to Cloudinary...');
+        e.target.value = '';
     };
 
     // Re-crop existing image URL
@@ -602,14 +637,24 @@ const GalleryManagement = () => {
                                             )}
                                             <button
                                                 type="button"
+                                                className="gm-upload-btn gm-upload-btn-secondary"
+                                                onClick={() => directFileInputRef.current?.click()}
+                                                disabled={isUploading}
+                                                title="Directly upload original photo to Cloudinary without cropping"
+                                            >
+                                                <MdCloudUpload /> Direct Upload
+                                            </button>
+                                            <button
+                                                type="button"
                                                 className="gm-upload-btn"
                                                 onClick={() => fileInputRef.current?.click()}
                                                 disabled={isUploading}
+                                                title="Frame and crop 16:9 aspect ratio before uploading to Cloudinary"
                                             >
                                                 {isUploading ? (
                                                     <><MdSync className="spin-icon" /> Uploading...</>
                                                 ) : (
-                                                    <><MdCloudUpload /> Upload & Crop Photo</>
+                                                    <><MdCrop /> Upload & Crop (16:9)</>
                                                 )}
                                             </button>
                                         </div>
@@ -619,6 +664,13 @@ const GalleryManagement = () => {
                                             style={{ display: 'none' }}
                                             accept="image/*"
                                             onChange={handleFileSelect}
+                                        />
+                                        <input
+                                            type="file"
+                                            ref={directFileInputRef}
+                                            style={{ display: 'none' }}
+                                            accept="image/*"
+                                            onChange={handleDirectUpload}
                                         />
                                     </div>
                                     <input

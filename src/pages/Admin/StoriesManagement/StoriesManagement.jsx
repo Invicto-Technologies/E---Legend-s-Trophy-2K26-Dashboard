@@ -214,18 +214,21 @@ const StoriesManagement = () => {
         e.target.value = '';
     };
 
-    const handleCropComplete = async (croppedBase64) => {
+    const handleCropComplete = async (croppedBlob, croppedDataUrl) => {
         setCropModalOpen(false);
         setIsUploading(true);
         await withProcessing(async () => {
             try {
-                const uploadedUrl = await uploadToCloudinary(croppedBase64);
+                const uploadPayload = croppedBlob || croppedDataUrl;
+                const result = await uploadToCloudinary(uploadPayload, {
+                    folder: 'elegends_2k26/stories'
+                });
+                const uploadedUrl = typeof result === 'string' ? result : (result.secure_url || result.url);
                 setImageUrl(uploadedUrl);
                 toastRef.current?.showToast('success', 'Image cropped and uploaded successfully!');
             } catch (error) {
-                console.warn('Cloudinary upload warning, using cropped data URI directly:', error);
-                setImageUrl(croppedBase64);
-                toastRef.current?.showToast('info', 'Cropped image applied successfully.');
+                console.error('Cloudinary upload error in stories:', error);
+                toastRef.current?.showToast('error', `Cloudinary upload failed: ${error.message || 'Please check configuration'}`);
             } finally {
                 setIsUploading(false);
             }
