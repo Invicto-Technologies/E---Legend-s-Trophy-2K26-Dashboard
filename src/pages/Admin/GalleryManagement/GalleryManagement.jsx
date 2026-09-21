@@ -10,6 +10,7 @@ import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import {
     subscribeCommonGallery,
     saveCommonGalleryPhoto,
+    saveGalleryPhotosOrder,
     deleteCommonGalleryPhoto,
     subscribeTournamentIndex
 } from '../../../services/rtdbService';
@@ -28,7 +29,16 @@ import {
     MdCrop,
     MdCheckCircle,
     MdOpenInNew,
-    MdEmojiEvents
+    MdEmojiEvents,
+    MdSwapVert,
+    MdDragIndicator,
+    MdFirstPage,
+    MdLastPage,
+    MdChevronLeft,
+    MdChevronRight,
+    MdHistory,
+    MdCheck,
+    MdFormatListNumbered
 } from 'react-icons/md';
 import './GalleryManagement.css';
 
@@ -80,6 +90,14 @@ const GalleryManagement = () => {
     const [categoryFilter, setCategoryFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Reorder Mode States
+    const [isReorderMode, setIsReorderMode] = useState(false);
+    const [reorderedList, setReorderedList] = useState([]);
+    const [hasUnsavedReorder, setHasUnsavedReorder] = useState(false);
+    const [isSavingOrder, setIsSavingOrder] = useState(false);
+    const [draggedIndex, setDraggedIndex] = useState(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
+
     // Modal & Operations
     const [modalOpen, setModalOpen] = useState(false);
     const [editingPhoto, setEditingPhoto] = useState(null);
@@ -92,6 +110,7 @@ const GalleryManagement = () => {
     const [formCategory, setFormCategory] = useState('Match Action');
     const [formCaption, setFormCaption] = useState('');
     const [formImageUrl, setFormImageUrl] = useState('');
+    const [formOrder, setFormOrder] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef(null);
     const directFileInputRef = useRef(null);
@@ -139,6 +158,7 @@ const GalleryManagement = () => {
         setFormCategory('Match Action');
         setFormCaption('');
         setFormImageUrl('');
+        setFormOrder('');
         setImageLoadError(false);
         setModalOpen(true);
     };
@@ -151,6 +171,7 @@ const GalleryManagement = () => {
         setFormCategory(photo.category || 'Match Action');
         setFormCaption(photo.caption || '');
         setFormImageUrl(photo.imageUrl || '');
+        setFormOrder(photo.order !== undefined ? String(photo.order + 1) : '');
         setImageLoadError(false);
         setModalOpen(true);
     };
@@ -256,7 +277,8 @@ const GalleryManagement = () => {
                     caption: formCaption.trim(),
                     imageUrl: formImageUrl.trim(),
                     uploadedAt: editingPhoto?.uploadedAt || new Date().toISOString().split('T')[0],
-                    timestamp: editingPhoto?.timestamp || Date.now()
+                    timestamp: editingPhoto?.timestamp || Date.now(),
+                    order: formOrder.trim() ? Math.max(0, parseInt(formOrder, 10) - 1) : (editingPhoto?.order ?? undefined)
                 };
 
                 await saveCommonGalleryPhoto(photoData);
@@ -296,6 +318,149 @@ const GalleryManagement = () => {
         return matchesTournament && matchesCategory && matchesSearch;
     });
 
+    const displayedPhotos = isReorderMode ? reorderedList : filteredPhotos;
+
+    // Toggle Reorder Mode
+    const handleToggleReorderMode = () => {
+        if (!isReorderMode) {
+            if (filteredPhotos.length === 0) {
+                toastRef.current?.showToast('warning', 'No photos in current view to reorder.');
+                return;
+            }
+            setReorderedList([...filteredPhotos]);
+            setHasUnsavedReorder(false);
+            setIsReorderMode(true);
+            toastRef.current?.showToast('info', 'Reorder Mode Active. Drag cards or use the buttons to arrange photos.');
+        } else {
+            if (hasUnsavedReorder) {
+                if (window.confirm('You have unsaved photo order changes. Discard changes?')) {
+                    handleCancelReorder();
+                }
+            } else {
+                handleCancelReorder();
+            }
+        }
+    };
+
+    // Move photo within reorderedList
+    const handleMovePhoto = (fromIndex, toIndex) => {
+        if (toIndex < 0 || toIndex >= reorderedList.length) return;
+        setReorderedList((prev) => {
+            const updated = [...prev];
+            const [movedItem] = updated.splice(fromIndex, 1);
+            updated.splice(toIndex, 0, movedItem);
+            return updated;
+        });
+        setHasUnsavedReorder(true);
+    };
+
+    // Drag and Drop handlers
+    const handleDragStart = (e, index) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index.toString());
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragOverIndex !== index) {
+            setDragOverIndex(index);
+        }
+    };
+
+    const handleDrop = async (e, targetIndex) => {
+        e.preventDefault();
+        const sourceIndex = draggedIndex;
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+
+        if (sourceIndex === null || sourceIndex === targetIndex) {
+            return;
+        }
+
+        if (isReorderMode) {
+            handleMovePhoto(sourceIndex, targetIndex);
+        } else {
+            // Drag and drop in normal view: reorder and auto-save immediately to Firebase
+            const currentList = [...filteredPhotos];
+            const [movedItem] = currentList.splice(sourceIndex, 1);
+            currentList.splice(targetIndex, 0, movedItem);
+
+            await withProcessing(async () => {
+                try {
+                    await saveGalleryPhotosOrder(currentList, photos);
+                    toastRef.current?.showToast('success', `Moved "${movedItem.title || 'Photo'}" to position #${targetIndex + 1} in Official Gallery!`);
+                } catch (err) {
+                    console.error('Error saving drag and drop order:', err);
+                    toastRef.current?.showToast('error', 'Failed to update photo order.');
+                }
+            }, 'Updating Order...', 'Applying new photo sequence to Official Gallery...');
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
+    // Quick shift in normal view
+    const handleQuickShift = async (photo, direction) => {
+        const currentList = [...filteredPhotos];
+        const curIdx = currentList.findIndex((p) => p.id === photo.id);
+        if (curIdx === -1) return;
+        const targetIdx = direction === 'earlier' ? curIdx - 1 : curIdx + 1;
+        if (targetIdx < 0 || targetIdx >= currentList.length) return;
+
+        const [item] = currentList.splice(curIdx, 1);
+        currentList.splice(targetIdx, 0, item);
+
+        await withProcessing(async () => {
+            try {
+                await saveGalleryPhotosOrder(currentList, photos);
+                toastRef.current?.showToast('success', `Moved "${photo.title || 'Photo'}" ${direction === 'earlier' ? 'earlier' : 'later'} in Official Gallery.`);
+            } catch (err) {
+                console.error('Failed to quick shift photo:', err);
+                toastRef.current?.showToast('error', 'Failed to update photo order.');
+            }
+        }, 'Updating Order...', 'Persisting new photo position...');
+    };
+
+    // Save reordered sequence to Firebase RTDB
+    const handleSaveReorderedList = async () => {
+        setIsSavingOrder(true);
+        await withProcessing(async () => {
+            try {
+                await saveGalleryPhotosOrder(reorderedList, photos);
+                setHasUnsavedReorder(false);
+                setIsReorderMode(false);
+                toastRef.current?.showToast('success', 'Official Tournament Gallery photo order saved successfully!');
+            } catch (error) {
+                console.error('Error saving gallery order:', error);
+                toastRef.current?.showToast('error', 'Failed to save photo order.');
+            } finally {
+                setIsSavingOrder(false);
+            }
+        }, 'Saving Order...', 'Applying new display sequence to Official Tournament Gallery...');
+    };
+
+    // Reset to newest first
+    const handleResetToNewest = () => {
+        const reset = [...reorderedList].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setReorderedList(reset);
+        setHasUnsavedReorder(true);
+        toastRef.current?.showToast('info', 'Photos ordered by newest first. Click "Save Order" to apply to Official Gallery.');
+    };
+
+    // Cancel reorder
+    const handleCancelReorder = () => {
+        setIsReorderMode(false);
+        setReorderedList([]);
+        setHasUnsavedReorder(false);
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
     return (
         <div className="gallery-mgmt-page">
             <AdminSubNav />
@@ -316,6 +481,15 @@ const GalleryManagement = () => {
                     </div>
 
                     <div className="gm-header-actions">
+                        <button
+                            type="button"
+                            className={`gm-btn-reorder ${isReorderMode ? 'active' : ''}`}
+                            onClick={handleToggleReorderMode}
+                            title="Toggle Drag & Drop Reordering Mode"
+                        >
+                            <MdSwapVert />
+                            <span>{isReorderMode ? 'Exit Reorder' : 'Reorder Photos'}</span>
+                        </button>
                         <button
                             type="button"
                             className="cx-btn-primary"
@@ -405,8 +579,56 @@ const GalleryManagement = () => {
                     </div>
                 </div>
 
+                {/* Reorder Mode Banner */}
+                {isReorderMode && (
+                    <div className="gm-reorder-banner">
+                        <div className="gm-reorder-banner-info">
+                            <div className="gm-reorder-icon-badge">
+                                <MdSwapVert />
+                            </div>
+                            <div>
+                                <h3>Photo Reordering Active — {displayedPhotos.length} Photos</h3>
+                                <p>
+                                    Drag and drop cards or use the <strong>Earlier (◀)</strong> and <strong>Later (▶)</strong> buttons to set the sequence in the Official Tournament Gallery.
+                                    {hasUnsavedReorder && <span className="gm-unsaved-dot"> • Unsaved changes</span>}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="gm-reorder-banner-actions">
+                            <button
+                                type="button"
+                                className="gm-btn-secondary"
+                                onClick={handleResetToNewest}
+                                title="Sort photos by newest upload date first"
+                            >
+                                <MdHistory /> Newest First
+                            </button>
+                            <button
+                                type="button"
+                                className="gm-btn-cancel-reorder"
+                                onClick={handleCancelReorder}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="cx-btn-confirm primary gm-btn-save-order"
+                                onClick={handleSaveReorderedList}
+                                disabled={isSavingOrder}
+                            >
+                                {isSavingOrder ? (
+                                    <><MdSync className="spin-icon" /> Saving...</>
+                                ) : (
+                                    <><MdCheck /> Save Gallery Order</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Photos Grid */}
-                {filteredPhotos.length === 0 ? (
+                {displayedPhotos.length === 0 ? (
                     <div className="gm-empty-card">
                         <div className="gm-empty-icon-circle">
                             <MdPhotoLibrary />
@@ -436,79 +658,191 @@ const GalleryManagement = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="gm-photos-grid">
-                        {filteredPhotos.map((photo) => (
-                            <TiltCard key={photo.id} className="gm-photo-card" maxTilt={6}>
-                                <div
-                                    className="gm-photo-thumb-wrap"
-                                    onClick={() => setLightboxPhoto(photo)}
-                                    title="Click to preview full-size photo"
+                    <div className={`gm-photos-grid ${isReorderMode ? 'in-reorder-mode' : ''}`}>
+                        {displayedPhotos.map((photo, index) => {
+                            const isFirst = index === 0;
+                            const isLast = index === displayedPhotos.length - 1;
+                            const isDragging = draggedIndex === index;
+                            const isDragOver = dragOverIndex === index;
+
+                            return (
+                                <TiltCard
+                                    key={photo.id}
+                                    className={`gm-photo-card ${isReorderMode ? 'reorder-mode' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                                    maxTilt={isDragging || isDragOver ? 0 : 5}
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={(e) => handleDragOver(e, index)}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onDragEnd={handleDragEnd}
                                 >
-                                    <img
-                                        src={resolvePhotoUrl(photo.imageUrl)}
-                                        alt={photo.title || 'Tournament photo'}
-                                        className="gm-photo-thumb"
-                                        loading="lazy"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop';
-                                        }}
-                                    />
-                                    <div className="gm-photo-overlay">
-                                        <button
-                                            type="button"
-                                            className="gm-photo-action-btn view"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setLightboxPhoto(photo);
-                                            }}
-                                            title="View Full Resolution"
-                                        >
-                                            <MdVisibility />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="gm-photo-action-btn edit"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleOpenEdit(photo);
-                                            }}
-                                            title="Edit Photo Details"
-                                        >
-                                            <MdEdit />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="gm-photo-action-btn delete"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setDeleteTargetId(photo.id);
-                                            }}
-                                            title="Delete Photo"
-                                        >
-                                            <MdDelete />
-                                        </button>
+                                    <div className="gm-drag-handle-bar" title="Drag and drop this card to reposition in the Official Gallery">
+                                        <MdDragIndicator className="gm-drag-icon" />
+                                        <span>Drag to Reorder</span>
                                     </div>
-                                    <div className="gm-thumb-badges">
-                                        <span className="gm-thumb-tournament-pill">
-                                            {photo.tournamentId || "E-Legend's Trophy"}
-                                        </span>
-                                        {photo.category && (
-                                            <span className="gm-thumb-category-pill">{photo.category}</span>
+
+                                    <div
+                                        className="gm-photo-thumb-wrap"
+                                        onClick={() => !isReorderMode && setLightboxPhoto(photo)}
+                                        title="Click to preview full-size photo or drag to reorder"
+                                    >
+                                        <img
+                                            src={resolvePhotoUrl(photo.imageUrl)}
+                                            alt={photo.title || 'Tournament photo'}
+                                            className="gm-photo-thumb"
+                                            loading="lazy"
+                                            draggable={false}
+                                            onDragStart={(e) => e.preventDefault()}
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.src = 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop';
+                                            }}
+                                        />
+
+                                        {/* Order Badge on Thumbnail */}
+                                        <div className="gm-order-badge" title={`Display Sequence Position: #${index + 1}`}>
+                                            <span className="gm-order-hash">#</span>
+                                            <span className="gm-order-num">{index + 1}</span>
+                                        </div>
+
+                                        {!isReorderMode && (
+                                            <div className="gm-photo-overlay">
+                                                <button
+                                                    type="button"
+                                                    className="gm-photo-action-btn view"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setLightboxPhoto(photo);
+                                                    }}
+                                                    title="View Full Resolution"
+                                                >
+                                                    <MdVisibility />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="gm-photo-action-btn edit"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenEdit(photo);
+                                                    }}
+                                                    title="Edit Photo Details"
+                                                >
+                                                    <MdEdit />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="gm-photo-action-btn delete"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDeleteTargetId(photo.id);
+                                                    }}
+                                                    title="Delete Photo"
+                                                >
+                                                    <MdDelete />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <div className="gm-thumb-badges">
+                                            <span className="gm-thumb-tournament-pill">
+                                                {photo.tournamentId || "E-Legend's Trophy"}
+                                            </span>
+                                            {photo.category && (
+                                                <span className="gm-thumb-category-pill">{photo.category}</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="gm-card-body">
+                                        <h4
+                                            className="gm-card-title"
+                                            onClick={() => !isReorderMode && setLightboxPhoto(photo)}
+                                        >
+                                            {photo.title || 'Untitled Moment'}
+                                        </h4>
+                                        {photo.caption && (
+                                            <p className="gm-card-caption">{photo.caption}</p>
                                         )}
                                     </div>
-                                </div>
 
-                                <div className="gm-card-body">
-                                    <h4 className="gm-card-title" onClick={() => setLightboxPhoto(photo)}>
-                                        {photo.title || 'Untitled Moment'}
-                                    </h4>
-                                    {photo.caption && (
-                                        <p className="gm-card-caption">{photo.caption}</p>
+                                    {/* Reorder Stepper Controls (When in Reorder Mode) */}
+                                    {isReorderMode ? (
+                                        <div className="gm-card-reorder-bar">
+                                            <button
+                                                type="button"
+                                                className="gm-step-btn"
+                                                onClick={() => handleMovePhoto(index, 0)}
+                                                disabled={isFirst}
+                                                title="Move to First Position"
+                                            >
+                                                <MdFirstPage />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="gm-step-btn step-arrow"
+                                                onClick={() => handleMovePhoto(index, index - 1)}
+                                                disabled={isFirst}
+                                                title="Move Earlier (Left / Up)"
+                                            >
+                                                <MdChevronLeft /> Earlier
+                                            </button>
+                                            <span className="gm-pos-indicator">Pos {index + 1}</span>
+                                            <button
+                                                type="button"
+                                                className="gm-step-btn step-arrow"
+                                                onClick={() => handleMovePhoto(index, index + 1)}
+                                                disabled={isLast}
+                                                title="Move Later (Right / Down)"
+                                            >
+                                                Later <MdChevronRight />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="gm-step-btn"
+                                                onClick={() => handleMovePhoto(index, displayedPhotos.length - 1)}
+                                                disabled={isLast}
+                                                title="Move to Last Position"
+                                            >
+                                                <MdLastPage />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        /* Card Footer in Normal View with Quick Nudge */
+                                        <div className="gm-card-footer">
+                                            <span className="gm-card-pos-tag" title="Sequence in Official Tournament Gallery">
+                                                <MdFormatListNumbered /> Official Gallery #{index + 1}
+                                            </span>
+                                            <div className="gm-quick-shift-btns">
+                                                <button
+                                                    type="button"
+                                                    className="gm-nudge-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleQuickShift(photo, 'earlier');
+                                                    }}
+                                                    disabled={isFirst}
+                                                    title="Nudge 1 position earlier in Official Gallery"
+                                                >
+                                                    <MdChevronLeft />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="gm-nudge-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleQuickShift(photo, 'later');
+                                                    }}
+                                                    disabled={isLast}
+                                                    title="Nudge 1 position later in Official Gallery"
+                                                >
+                                                    <MdChevronRight />
+                                                </button>
+                                            </div>
+                                        </div>
                                     )}
-                                </div>
-                            </TiltCard>
-                        ))}
+                                </TiltCard>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -597,6 +931,19 @@ const GalleryManagement = () => {
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+
+                                <div className="gm-form-group">
+                                    <label><MdFormatListNumbered /> Display Sequence Position (Optional)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="gm-input"
+                                        placeholder="e.g. 1 to display first in Official Gallery"
+                                        value={formOrder}
+                                        onChange={(e) => setFormOrder(e.target.value)}
+                                    />
+                                    <span className="gm-field-hint">Lower numbers appear first in the Official Tournament Gallery. Leave empty to retain default order.</span>
                                 </div>
 
                                 <div className="gm-form-group">

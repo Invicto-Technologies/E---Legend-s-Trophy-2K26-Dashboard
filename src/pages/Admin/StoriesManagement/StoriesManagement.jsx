@@ -40,25 +40,25 @@ export const CRICKET_BACKGROUND_PRESETS = [
         thumb: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-arena-sunset',
-        title: 'Golden Sunset Stadium',
+        id: 'cricket-stadium-spectators',
+        title: 'Grand Stadium Night Crowd',
         category: 'Stadium',
-        url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1750716413756-b66624b64ce4?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1750716413756-b66624b64ce4?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-arena-lights',
-        title: 'Grand Arena Floodlights',
+        id: 'cricket-ground-pavilion',
+        title: 'Cricket Ground & Pavilion',
         category: 'Stadium',
-        url: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1749655048283-691b921b8889?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1749655048283-691b921b8889?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-ball-pitch',
-        title: 'Red Leather Cricket Ball',
+        id: 'cricket-pitch-bat-ball',
+        title: 'Match Bat & Leather Ball',
         category: 'Equipment',
-        url: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1674986778924-7a33c1531443?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1674986778924-7a33c1531443?auto=format&fit=crop&w=300&q=75'
     },
     {
         id: 'cricket-equipment-gear',
@@ -75,11 +75,11 @@ export const CRICKET_BACKGROUND_PRESETS = [
         thumb: 'https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-player-action',
-        title: 'Match Day Action',
+        id: 'cricket-batsman-swing',
+        title: 'Batsman Boundary Stroke',
         category: 'Action',
-        url: 'https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1757396392425-97c1662a5122?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1757396392425-97c1662a5122?auto=format&fit=crop&w=300&q=75'
     },
     {
         id: 'cricket-stumps-wickets',
@@ -89,11 +89,11 @@ export const CRICKET_BACKGROUND_PRESETS = [
         thumb: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-green-turf',
-        title: 'Lush Match Outfield',
+        id: 'cricket-match-in-progress',
+        title: 'Live Match Pitch Action',
         category: 'Field',
-        url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1779623283546-2f337cf24c85?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1779623283546-2f337cf24c85?auto=format&fit=crop&w=300&q=75'
     },
     {
         id: 'cricket-trophy-victory',
@@ -103,18 +103,18 @@ export const CRICKET_BACKGROUND_PRESETS = [
         thumb: 'https://images.unsplash.com/photo-1578269174936-2709b6aeb913?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-team-celebration',
-        title: 'Team Victory Celebration',
+        id: 'cricket-team-competing',
+        title: 'Team Match Competition',
         category: 'Victory',
-        url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1745180266635-9d345b51f976?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1745180266635-9d345b51f976?auto=format&fit=crop&w=300&q=75'
     },
     {
-        id: 'cricket-golden-cup',
-        title: 'Golden Champions Cup',
+        id: 'cricketer-in-white-gear',
+        title: 'Cricketer in Match Whites',
         category: 'Victory',
-        url: 'https://images.unsplash.com/photo-1563299796-17596ed6b017?auto=format&fit=crop&w=1200&q=80',
-        thumb: 'https://images.unsplash.com/photo-1563299796-17596ed6b017?auto=format&fit=crop&w=300&q=75'
+        url: 'https://images.unsplash.com/photo-1785906359458-a03460ad7073?auto=format&fit=crop&w=1200&q=80',
+        thumb: 'https://images.unsplash.com/photo-1785906359458-a03460ad7073?auto=format&fit=crop&w=300&q=75'
     }
 ];
 

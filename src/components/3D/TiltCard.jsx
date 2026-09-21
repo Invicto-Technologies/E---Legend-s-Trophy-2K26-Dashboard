@@ -9,14 +9,15 @@ const TiltCard = ({
     glare = true,
     scale = 1.02,
     onClick,
-    style = {}
+    style = {},
+    ...restProps
 }) => {
     const cardRef = useRef(null);
     const [transform, setTransform] = useState('');
     const [glarePos, setGlarePos] = useState({ x: 50, y: 50, opacity: 0 });
 
     const handleMouseMove = useCallback((e) => {
-        if (!cardRef.current) return;
+        if (!cardRef.current || maxTilt === 0) return;
         const rect = cardRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -47,10 +48,11 @@ const TiltCard = ({
         <div
             ref={cardRef}
             className={`tilt-card-wrapper ${className}`}
-            style={{ ...style, transform }}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
+            style={{ ...style, transform: maxTilt === 0 ? undefined : transform }}
+            onMouseMove={maxTilt === 0 ? undefined : handleMouseMove}
+            onMouseLeave={maxTilt === 0 ? undefined : handleMouseLeave}
             onClick={onClick}
+            {...restProps}
         >
             <div className="tilt-card-inner">
                 {children}

@@ -344,7 +344,9 @@ const Home3D = () => {
     });
 
     // Prepare duplicate items for continuous seamless loop
-    const repeatCount = filteredHomePhotos.length > 0 ? (filteredHomePhotos.length < 5 ? 4 : 2) : 1;
+    const repeatCount = filteredHomePhotos.length > 0 
+        ? Math.max(2, Math.ceil(12 / filteredHomePhotos.length))
+        : 1;
     const displayHomePhotos = [];
     if (filteredHomePhotos.length > 0) {
         for (let r = 0; r < repeatCount; r++) {
@@ -359,6 +361,7 @@ const Home3D = () => {
     const [isGalleryPaused, setIsGalleryPaused] = useState(false);
     const isGalleryPausedRef = useRef(false);
     const pauseTimeoutRef = useRef(null);
+    const scrollPosRef = useRef(0);
 
     // Keep ref synchronized with pause state and lightbox visibility
     useEffect(() => {
@@ -370,7 +373,12 @@ const Home3D = () => {
             setIsGalleryPaused(true);
             gallerySliderRef.current.scrollBy({ left: -360, behavior: 'smooth' });
             if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
-            pauseTimeoutRef.current = setTimeout(() => setIsGalleryPaused(false), 2500);
+            pauseTimeoutRef.current = setTimeout(() => {
+                if (gallerySliderRef.current) {
+                    scrollPosRef.current = gallerySliderRef.current.scrollLeft;
+                }
+                setIsGalleryPaused(false);
+            }, 2500);
         }
     };
 
@@ -379,24 +387,43 @@ const Home3D = () => {
             setIsGalleryPaused(true);
             gallerySliderRef.current.scrollBy({ left: 360, behavior: 'smooth' });
             if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
-            pauseTimeoutRef.current = setTimeout(() => setIsGalleryPaused(false), 2500);
+            pauseTimeoutRef.current = setTimeout(() => {
+                if (gallerySliderRef.current) {
+                    scrollPosRef.current = gallerySliderRef.current.scrollLeft;
+                }
+                setIsGalleryPaused(false);
+            }, 2500);
         }
     };
 
     // Very slow continuous auto-scroll loop (smooth frame-by-frame glide)
     useEffect(() => {
+        if (isLoading) return;
+
         const track = gallerySliderRef.current;
-        if (!track || filteredHomePhotos.length <= 1) return;
+        if (!track || filteredHomePhotos.length === 0) return;
+
+        // Initialize scroll position accumulator from the DOM element
+        scrollPosRef.current = track.scrollLeft;
 
         let animId;
-        const speed = 0.55; // gentle, steady slow glide (~33px/sec)
+        const speed = 0.7; // gentle, steady slow glide (~42px/sec)
 
         const step = () => {
-            if (!isGalleryPausedRef.current && track && track.scrollWidth > track.clientWidth) {
-                track.scrollLeft += speed;
-                const cycleWidth = track.scrollWidth / repeatCount;
-                if (cycleWidth > 0 && track.scrollLeft >= cycleWidth) {
-                    track.scrollLeft -= cycleWidth;
+            const currentTrack = gallerySliderRef.current;
+            if (currentTrack) {
+                // If user dragged scrollbar or scrolled manually, resync accumulator
+                if (Math.abs(currentTrack.scrollLeft - scrollPosRef.current) > 20) {
+                    scrollPosRef.current = currentTrack.scrollLeft;
+                }
+
+                if (!isGalleryPausedRef.current && currentTrack.scrollWidth > currentTrack.clientWidth) {
+                    scrollPosRef.current += speed;
+                    const cycleWidth = currentTrack.scrollWidth / repeatCount;
+                    if (cycleWidth > 0 && scrollPosRef.current >= cycleWidth) {
+                        scrollPosRef.current -= cycleWidth;
+                    }
+                    currentTrack.scrollLeft = scrollPosRef.current;
                 }
             }
             animId = requestAnimationFrame(step);
@@ -406,12 +433,13 @@ const Home3D = () => {
         return () => {
             if (animId) cancelAnimationFrame(animId);
         };
-    }, [filteredHomePhotos.length, repeatCount]);
+    }, [isLoading, filteredHomePhotos.length, repeatCount, homeGalleryEdition, homeGalleryCategory]);
 
     // Reset slider scroll position when edition or category filter changes
     useEffect(() => {
         if (gallerySliderRef.current) {
             gallerySliderRef.current.scrollTo({ left: 0 });
+            scrollPosRef.current = 0;
         }
     }, [homeGalleryEdition, homeGalleryCategory]);
 
@@ -906,11 +934,21 @@ const Home3D = () => {
                         <div
                             className="gallery-slider-viewport"
                             onMouseEnter={() => setIsGalleryPaused(true)}
-                            onMouseLeave={() => setIsGalleryPaused(false)}
+                            onMouseLeave={() => {
+                                if (gallerySliderRef.current) {
+                                    scrollPosRef.current = gallerySliderRef.current.scrollLeft;
+                                }
+                                setIsGalleryPaused(false);
+                            }}
                             onTouchStart={() => setIsGalleryPaused(true)}
                             onTouchEnd={() => {
                                 if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
-                                pauseTimeoutRef.current = setTimeout(() => setIsGalleryPaused(false), 1800);
+                                pauseTimeoutRef.current = setTimeout(() => {
+                                    if (gallerySliderRef.current) {
+                                        scrollPosRef.current = gallerySliderRef.current.scrollLeft;
+                                    }
+                                    setIsGalleryPaused(false);
+                                }, 1800);
                             }}
                         >
                             <button
@@ -927,6 +965,11 @@ const Home3D = () => {
                                 className="gallery-slider-track"
                                 role="region"
                                 aria-label="Tournament Photos Slider"
+                                onScroll={() => {
+                                    if (isGalleryPausedRef.current && gallerySliderRef.current) {
+                                        scrollPosRef.current = gallerySliderRef.current.scrollLeft;
+                                    }
+                                }}
                             >
                                 {displayHomePhotos.map((photo, idx) => {
                                     const originalIndex = idx % filteredHomePhotos.length;

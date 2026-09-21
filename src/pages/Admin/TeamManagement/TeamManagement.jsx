@@ -124,6 +124,25 @@ const TeamManagement = () => {
         return () => unsub();
     }, [selectedTournamentId]);
 
+    // Handle Escape key to dismiss modals
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                if (cropModalOpen) setCropModalOpen(false);
+                else if (addTeamModalOpen) setAddTeamModalOpen(false);
+                else if (editTeamModalOpen) setEditTeamModalOpen(false);
+                else if (editingPlayer) setEditingPlayer(null);
+                else if (swapModalTarget) { setSwapModalTarget(null); setSwapSelectedReplacementId(''); }
+                else if (addModalOpen) setAddModalOpen(false);
+                else if (captainToConfirm) setCaptainToConfirm(null);
+                else if (deleteTeamTarget) setDeleteTeamTarget(null);
+                else if (deletePlayerTarget) setDeletePlayerTarget(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [cropModalOpen, addTeamModalOpen, editTeamModalOpen, editingPlayer, swapModalTarget, addModalOpen, captainToConfirm, deleteTeamTarget, deletePlayerTarget]);
+
     const activeTeam = teamsData[selectedTeamKey] || {
         name: selectedTeamKey,
         captain: 'Team Captain',

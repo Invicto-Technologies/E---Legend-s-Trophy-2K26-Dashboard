@@ -383,6 +383,12 @@
     flex-direction: column;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: grab;
+    user-select: none;
+}
+
+.gm-photo-card:active {
+    cursor: grabbing;
 }
 
 .gm-photo-card:hover {
@@ -404,6 +410,10 @@
     height: 100%;
     object-fit: cover;
     transition: transform 0.4s ease;
+    user-drag: none;
+    -webkit-user-drag: none;
+    user-select: none;
+    pointer-events: none;
 }
 
 .gm-photo-thumb-wrap:hover .gm-photo-thumb {
@@ -1193,6 +1203,325 @@
     background: rgba(239, 68, 68, 0.22);
 }
 
+/* ==========================================================================
+   PHOTO REORDERING SYSTEM
+   ========================================================================== */
+
+.gm-btn-reorder {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #00f0ff;
+    padding: 0.65rem 1.15rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gm-btn-reorder:hover {
+    background: rgba(0, 240, 255, 0.18);
+    border-color: #00f0ff;
+    box-shadow: 0 4px 18px rgba(0, 240, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.gm-btn-reorder.active {
+    background: linear-gradient(135deg, #00f0ff, #0284c7);
+    color: #041019;
+    border-color: #00f0ff;
+    box-shadow: 0 4px 20px rgba(0, 240, 255, 0.45);
+}
+
+/* Reorder Banner */
+.gm-reorder-banner {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(14, 165, 233, 0.12));
+    border: 1.5px solid rgba(0, 240, 255, 0.4);
+    border-radius: 20px;
+    padding: 1.25rem 1.6rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 240, 255, 0.15);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    animation: gmBannerFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    flex-wrap: wrap;
+}
+
+@keyframes gmBannerFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.gm-reorder-banner-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.gm-reorder-icon-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.gm-reorder-banner-info h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.gm-reorder-banner-info p {
+    margin: 0.2rem 0 0;
+    font-size: 0.86rem;
+    color: #94a3b8;
+}
+
+.gm-unsaved-dot {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.gm-reorder-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.gm-btn-cancel-reorder {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #cbd5e1;
+    padding: 0.55rem 1rem;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.gm-btn-cancel-reorder:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.gm-btn-save-order {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.3rem;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* Card Reorder Enhancements */
+.gm-drag-handle-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    background: rgba(0, 240, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 240, 255, 0.25);
+    color: #00f0ff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: grab;
+}
+
+.gm-drag-handle-bar:active {
+    cursor: grabbing;
+}
+
+.gm-drag-icon {
+    font-size: 1.1rem;
+}
+
+/* Order Sequence Badge on Thumbnails */
+.gm-order-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 5;
+    background: rgba(4, 16, 25, 0.88);
+    border: 1px solid rgba(0, 240, 255, 0.45);
+    color: #00f0ff;
+    font-weight: 800;
+    font-size: 0.8rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 240, 255, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    letter-spacing: 0.02em;
+    transition: all 0.2s ease;
+}
+
+.gm-order-hash {
+    opacity: 0.7;
+    font-size: 0.7rem;
+}
+
+.gm-order-num {
+    font-weight: 900;
+}
+
+.gm-photo-card.reorder-mode {
+    cursor: grab;
+    border-color: rgba(0, 240, 255, 0.35);
+    user-select: none;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.gm-photo-card.reorder-mode:hover {
+    border-color: #00f0ff;
+    box-shadow: 0 12px 32px rgba(0, 240, 255, 0.2);
+}
+
+.gm-photo-card.reorder-mode .gm-order-badge {
+    background: linear-gradient(135deg, #00f0ff, #0284c7);
+    color: #041019;
+    border-color: #ffffff;
+    font-size: 0.88rem;
+    padding: 0.22rem 0.65rem;
+    box-shadow: 0 4px 16px rgba(0, 240, 255, 0.5);
+}
+
+.gm-photo-card.dragging {
+    opacity: 0.4;
+    border: 2px dashed #00f0ff;
+    transform: scale(0.96);
+    box-shadow: none;
+}
+
+.gm-photo-card.drag-over {
+    border: 2px solid #00f0ff;
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.45);
+    transform: translateY(-4px);
+}
+
+/* Card Stepper Controls (Active in Reorder Mode) */
+.gm-card-reorder-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.8rem;
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 0.35rem;
+}
+
+.gm-step-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #cbd5e1;
+    border-radius: 8px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    transition: all 0.15s ease;
+}
+
+.gm-step-btn.step-arrow {
+    padding: 0.35rem 0.65rem;
+}
+
+.gm-step-btn:hover:not(:disabled) {
+    background: rgba(0, 240, 255, 0.18);
+    border-color: #00f0ff;
+    color: #00f0ff;
+    transform: translateY(-1px);
+}
+
+.gm-step-btn:disabled {
+    opacity: 0.28;
+    cursor: not-allowed;
+}
+
+.gm-pos-indicator {
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: #00f0ff;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+}
+
+/* Card Footer in Normal View */
+.gm-card-pos-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.76rem;
+    color: #00f0ff;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.gm-quick-shift-btns {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.gm-nudge-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.gm-nudge-btn:hover:not(:disabled) {
+    background: rgba(0, 240, 255, 0.2);
+    border-color: #00f0ff;
+    color: #00f0ff;
+}
+
+.gm-nudge-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
 /* Responsiveness */
 @media (max-width: 768px) {
     .gm-container {
@@ -1214,6 +1543,28 @@
 
     .gm-photos-grid {
         grid-template-columns: 1fr;
+    }
+
+    .gm-reorder-banner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .gm-reorder-banner-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .gm-reorder-banner-actions button {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .gm-card-reorder-bar {
+        flex-wrap: wrap;
+        gap: 0.4rem;
     }
 
     .gm-lightbox-overlay {
@@ -1665,5 +2016,113 @@
 
 [data-theme="light"] .gm-lightbox-btn:hover {
     background: #e2e8f0;
+}
+
+/* Reorder System in Light Mode */
+[data-theme="light"] .gm-btn-reorder {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+[data-theme="light"] .gm-btn-reorder:hover {
+    background: rgba(2, 132, 199, 0.16);
+    border-color: #0284c7;
+}
+
+[data-theme="light"] .gm-btn-reorder.active {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 4px 18px rgba(2, 132, 199, 0.35);
+}
+
+[data-theme="light"] .gm-reorder-banner {
+    background: #ffffff;
+    border: 1.5px solid rgba(2, 132, 199, 0.35);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12), 0 0 25px rgba(2, 132, 199, 0.1);
+}
+
+[data-theme="light"] .gm-reorder-icon-badge {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.3);
+    color: #0284c7;
+}
+
+[data-theme="light"] .gm-reorder-banner-info h3 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .gm-reorder-banner-info p {
+    color: #475569;
+}
+
+[data-theme="light"] .gm-btn-cancel-reorder {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .gm-btn-cancel-reorder:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+[data-theme="light"] .gm-drag-handle-bar {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.2);
+    color: #0284c7;
+}
+
+[data-theme="light"] .gm-order-badge {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(2, 132, 199, 0.4);
+    color: #0284c7;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+[data-theme="light"] .gm-photo-card.reorder-mode .gm-order-badge {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: #ffffff;
+    border-color: #ffffff;
+}
+
+[data-theme="light"] .gm-card-reorder-bar {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .gm-step-btn {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .gm-step-btn:hover:not(:disabled) {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+[data-theme="light"] .gm-pos-indicator {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.25);
+    color: #0284c7;
+}
+
+[data-theme="light"] .gm-card-pos-tag {
+    color: #0284c7;
+}
+
+[data-theme="light"] .gm-nudge-btn {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+[data-theme="light"] .gm-nudge-btn:hover:not(:disabled) {
+    background: rgba(2, 132, 199, 0.12);
+    border-color: #0284c7;
+    color: #0284c7;
 }
 

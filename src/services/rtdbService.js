@@ -2061,6 +2061,21 @@ export const recordWebView = async () => {
    COMMON TOURNAMENT GALLERY MANAGEMENT (PURE FIREBASE RTDB)
    ========================================================================== */
 
+const sortGalleryPhotos = (photos) => {
+    return photos.sort((a, b) => {
+        const hasOrderA = typeof a.order === 'number';
+        const hasOrderB = typeof b.order === 'number';
+        if (hasOrderA && hasOrderB) {
+            if (a.order !== b.order) return a.order - b.order;
+        } else if (hasOrderA) {
+            return -1;
+        } else if (hasOrderB) {
+            return 1;
+        }
+        return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+};
+
 export const subscribeCommonGallery = (callback) => {
     try {
         const galleryRef = ref(database, 'Gallery');
@@ -2076,7 +2091,7 @@ export const subscribeCommonGallery = (callback) => {
                         ...data[key]
                     }));
                 }
-                photos.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                sortGalleryPhotos(photos);
                 callback(photos);
             } else {
                 callback([]);
@@ -2108,7 +2123,7 @@ export const getCommonGallery = async () => {
                     ...data[key]
                 }));
             }
-            photos.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            sortGalleryPhotos(photos);
             return photos;
         }
         return [];
@@ -2132,10 +2147,56 @@ export const saveCommonGalleryPhoto = async (photoData) => {
             uploadedAt: photoData.uploadedAt || new Date().toISOString().split('T')[0],
             timestamp: photoData.timestamp || Date.now()
         };
+
+        if (typeof photoData.order === 'number') {
+            payload.order = photoData.order;
+        } else if (photoData.order !== undefined && photoData.order !== '' && !isNaN(Number(photoData.order))) {
+            payload.order = Number(photoData.order);
+        }
+
         await set(photoRef, payload);
         return payload;
     } catch (err) {
         console.error('Error saving gallery photo:', err);
+        throw err;
+    }
+};
+
+export const saveGalleryPhotosOrder = async (orderedPhotos, allPhotos = []) => {
+    try {
+        const updates = {};
+        
+        // If an overall array is provided, merge the ordered subset sequence properly
+        if (allPhotos.length > 0 && orderedPhotos.length < allPhotos.length) {
+            const orderedIdSet = new Set(orderedPhotos.map(p => p.id));
+            let orderedCursor = 0;
+            const fullMerged = allPhotos.map(p => {
+                if (orderedIdSet.has(p.id)) {
+                    const item = orderedPhotos[orderedCursor];
+                    orderedCursor += 1;
+                    return item;
+                }
+                return p;
+            });
+            fullMerged.forEach((photo, index) => {
+                if (photo && photo.id) {
+                    updates[`Gallery/${photo.id}/order`] = index;
+                }
+            });
+        } else {
+            orderedPhotos.forEach((photo, index) => {
+                if (photo && photo.id) {
+                    updates[`Gallery/${photo.id}/order`] = index;
+                }
+            });
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await update(ref(database), updates);
+        }
+        return true;
+    } catch (err) {
+        console.error('Error saving gallery photos order:', err);
         throw err;
     }
 };
@@ -2154,6 +2215,7 @@ export const deleteCommonGalleryPhoto = async (photoId) => {
 // Backwards compatibility aliases
 export const subscribeGallery = subscribeCommonGallery;
 export const saveGalleryPhoto = saveCommonGalleryPhoto;
+export const saveGalleryOrder = saveGalleryPhotosOrder;
 export const deleteGalleryPhoto = deleteCommonGalleryPhoto;
 
 
