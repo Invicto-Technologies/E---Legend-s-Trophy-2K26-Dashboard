@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "E-Legends 2K26",
+  "name": "E-Legends Trophy 2K26 - Live Cricket Tournament Dashboard",
+  "description": "Official Live Cricket Tournament Dashboard for E-Legends Trophy 2K26. Real-time scores, ball-by-ball commentary, team rosters, and fixtures.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -18,8 +19,8 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#0a1120",
+  "background_color": "#070a13"
 }

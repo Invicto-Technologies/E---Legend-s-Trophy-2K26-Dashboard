@@ -1,3 +1,8 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin/
+Disallow: /auth/
+
+# XML Sitemap
+Sitemap: https://elt-2k26-dashboard.vercel.app/sitemap.xml
