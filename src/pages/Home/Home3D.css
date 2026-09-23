@@ -945,6 +945,26 @@
     text-align: left;
 }
 
+/* Home Page Special Match Unique Background & Glow */
+.results-grid .pro-match-card.is-special-match {
+    background: linear-gradient(145deg, rgba(45, 26, 10, 0.94) 0%, rgba(28, 16, 42, 0.96) 50%, rgba(16, 12, 28, 0.98) 100%) !important;
+    border: 1px solid rgba(245, 158, 11, 0.42) !important;
+    border-top: 3.5px solid #f59e0b !important;
+    box-shadow: 0 12px 35px rgba(245, 158, 11, 0.15), 0 0 25px rgba(217, 119, 6, 0.1) !important;
+}
+
+.results-grid .pro-match-card.is-special-match:hover {
+    border-color: rgba(245, 158, 11, 0.75) !important;
+    box-shadow: 0 16px 45px rgba(245, 158, 11, 0.26), 0 0 38px rgba(245, 158, 11, 0.2) !important;
+}
+
+[data-theme="light"] .results-grid .pro-match-card.is-special-match {
+    background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 45%, #fff7ed 100%) !important;
+    border: 1px solid rgba(217, 119, 6, 0.38) !important;
+    border-top: 3.5px solid #d97706 !important;
+    box-shadow: 0 12px 28px rgba(217, 119, 6, 0.15) !important;
+}
+
 .results-section .pmc-status-banner {
     display: flex;
     justify-content: center;

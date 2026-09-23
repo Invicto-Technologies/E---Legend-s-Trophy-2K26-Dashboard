@@ -140,6 +140,7 @@ const ScoringConsole = () => {
     const [dismissalType, setDismissalType] = useState('Caught');
     const [dismissalFielder, setDismissalFielder] = useState('');
     const [dismissalBatterId, setDismissalBatterId] = useState(null);
+    const [runOutRuns, setRunOutRuns] = useState(0);
     const [showExtrasModal, setShowExtrasModal] = useState(false);
     const [extraType, setExtraType] = useState('Wide');
     const [extraRuns, setExtraRuns] = useState(0);
@@ -191,6 +192,7 @@ const ScoringConsole = () => {
         setDismissalType(type);
         setDismissalFielder('');
         setDismissalBatterId(strikerId);
+        setRunOutRuns(0);
         setInlinePanelMode('wicket');
     };
 
@@ -574,7 +576,9 @@ const ScoringConsole = () => {
             status = 'Match In Progress',
             strikerId: chosenStrikerId,
             nonStrikerId: chosenNonStrikerId,
-            bowlerId: chosenBowlerId
+            bowlerId: chosenBowlerId,
+            isSpecial: isSpecialMatch = false,
+            matchType: matchTypeVal = 'tournament'
         } = tossConfig;
 
         const t1Obj = findTeamData(t1Name) || {};
@@ -684,7 +688,9 @@ const ScoringConsole = () => {
                 tossDecision: tossDecision,
                 ballType: 'Hard Ball',
                 finished: 0,
-                result: ''
+                result: '',
+                isSpecial: Boolean(isSpecialMatch),
+                matchType: matchTypeVal
             },
             team1: {
                 name: t1Name,
@@ -1089,7 +1095,7 @@ const ScoringConsole = () => {
 
             try {
                 let currentMatch = await getMatchData(targetTitle, selectedTournamentId);
-                // Always initialize a brand new clean scorecard for the starting match
+                const isSpecialFixture = Boolean(fixture?.isSpecial || fixture?.matchType === 'special');
                 const newMatch = createDefaultMatch(targetTitle, t1, t2, {
                     tossWinner,
                     tossDecision,
@@ -1099,8 +1105,12 @@ const ScoringConsole = () => {
                     status: tossStatusText,
                     strikerId: chosenStrikerId,
                     nonStrikerId: chosenNonStrikerId,
-                    bowlerId: chosenBowlerId
+                    bowlerId: chosenBowlerId,
+                    isSpecial: isSpecialFixture,
+                    matchType: isSpecialFixture ? 'special' : 'tournament'
                 });
+                newMatch.isSpecial = isSpecialFixture;
+                newMatch.matchType = isSpecialFixture ? 'special' : 'tournament';
 
                 // If currentMatch already has customized player rosters from Draw Management / Teams,
                 // preserve their identity (id, name, hand, role, image, type) but reset all scoring stats to 0!
@@ -2312,7 +2322,7 @@ const ScoringConsole = () => {
                     sPlayer.runs = (sPlayer.runs || 0) + strikerRunsScored;
                     if (legalBall || extraType === 'No Ball') sPlayer.balls = (sPlayer.balls || 0) + 1;
 
-                    if (isNbBatRuns && strikerRunsScored > 0) {
+                    if ((!isExtra || isNbBatRuns) && strikerRunsScored > 0) {
                         sPlayer.boundaries = sPlayer.boundaries || { fours: 0, sixes: 0, singles: 0, twos: 0 };
                         if (strikerRunsScored === 4) sPlayer.boundaries.fours = (sPlayer.boundaries.fours || 0) + 1;
                         if (strikerRunsScored === 6) sPlayer.boundaries.sixes = (sPlayer.boundaries.sixes || 0) + 1;
@@ -2525,16 +2535,17 @@ const ScoringConsole = () => {
 
                     // Intelligently determine default strike role for incoming batsman:
                     // - If over ended on this ball: strike rotates at end of over.
-                    //   If striker got out: non-striker moves to striker end to face next over; incoming batter starts at non-striker end ('nonStriker').
-                    //   If non-striker got out: striker moves to non-striker end; incoming batter faces next over ('striker').
-                    // - If over did NOT end on this ball:
-                    //   If striker got out: incoming batter takes strike ('striker').
-                    //   If non-striker got out: surviving striker remains on strike ('nonStriker' for incoming batter).
+                    // - For Run Out with completed runs: if odd runs (1, 3) were completed, batsmen crossed ends before wicket!
+                    const crossed = (ballEvent.dismissalType === 'Run Out' && (runs % 2 !== 0));
                     let defaultStrikeRole = 'striker';
                     if (overCompleted) {
-                        defaultStrikeRole = isOutStriker ? 'nonStriker' : 'striker';
+                        defaultStrikeRole = crossed
+                            ? (isOutStriker ? 'striker' : 'nonStriker')
+                            : (isOutStriker ? 'nonStriker' : 'striker');
                     } else {
-                        defaultStrikeRole = isOutStriker ? 'striker' : 'nonStriker';
+                        defaultStrikeRole = crossed
+                            ? (isOutStriker ? 'nonStriker' : 'striker')
+                            : (isOutStriker ? 'striker' : 'nonStriker');
                     }
                     setNextBatterStrikeRole(defaultStrikeRole);
 
@@ -2658,7 +2669,7 @@ const ScoringConsole = () => {
             // Maintain overBallsTypes in common for live over timeline (Flutter & Web)
             let ballToken = String(runs);
             if (isWicket) {
-                ballToken = 'W';
+                ballToken = runs > 0 ? `${runs}W` : 'W';
             } else if (isExtra) {
                 if (extraType === 'Penalty') ballToken = `${extraAmountForTeam}P`;
                 else if (extraType === 'Wide') ballToken = additionalExtraRuns > 0 ? `${1 + additionalExtraRuns}WD` : 'WD';
@@ -2685,13 +2696,16 @@ const ScoringConsole = () => {
 
             const currentBatSquad = Object.values(bTeam.players || {});
             if (isWicket) {
-                bTeam.ballFaceBatsman = isOutStriker
-                    ? { id: null, name: 'Select Batsman...', runs: 0, balls: 0 }
-                    : (currentBatSquad.find(p => String(p.id) === String(remainingBatter.id)) || bTeam.players?.[remainingBatter.id] || remainingBatter);
+                const crossed = (ballEvent.dismissalType === 'Run Out' && (runs % 2 !== 0));
+                const remainingGoesToStrikerEnd = crossed ? isOutStriker : !isOutStriker;
 
-                bTeam.otherSideBatsman = !isOutStriker
-                    ? { id: null, name: 'Select Batsman...', runs: 0, balls: 0 }
-                    : (currentBatSquad.find(p => String(p.id) === String(remainingBatter.id)) || bTeam.players?.[remainingBatter.id] || remainingBatter);
+                bTeam.ballFaceBatsman = remainingGoesToStrikerEnd
+                    ? (currentBatSquad.find(p => String(p.id) === String(remainingBatter.id)) || bTeam.players?.[remainingBatter.id] || remainingBatter)
+                    : { id: null, name: 'Select Batsman...', runs: 0, balls: 0 };
+
+                bTeam.otherSideBatsman = !remainingGoesToStrikerEnd
+                    ? (currentBatSquad.find(p => String(p.id) === String(remainingBatter.id)) || bTeam.players?.[remainingBatter.id] || remainingBatter)
+                    : { id: null, name: 'Select Batsman...', runs: 0, balls: 0 };
             } else {
                 bTeam.ballFaceBatsman = currentBatSquad.find(p => p.id === nextStrikerId) || bTeam.players?.[nextStrikerId] || striker;
                 bTeam.otherSideBatsman = currentBatSquad.find(p => p.id === nextNonStrikerId) || bTeam.players?.[nextNonStrikerId] || nonStriker;
@@ -3434,14 +3448,22 @@ const ScoringConsole = () => {
                 umpire2: existingFixture?.umpire2 || '',
                 umpire3: existingFixture?.umpire3 || '',
                 finished: 1,
-                isFinished: true
+                isFinished: true,
+                isSpecial: Boolean(existingFixture?.isSpecial || matchData?.isSpecial || matchData?.common?.isSpecial || existingFixture?.matchType === 'special'),
+                matchType: existingFixture?.matchType || matchData?.matchType || (existingFixture?.isSpecial ? 'special' : 'tournament')
             }, selectedTournamentId);
 
-            // Submit and update tournament rankings (Points Table, Top Batters, Top Bowlers)
-            try {
-                await recordMatchRankings(finishedMatchPayload, selectedTournamentId);
-            } catch (rankingErr) {
-                console.error('Failed to update tournament rankings on match finish:', rankingErr);
+            const isSpecialMatch = Boolean(existingFixture?.isSpecial || matchData?.isSpecial || matchData?.common?.isSpecial || existingFixture?.matchType === 'special');
+
+            // Submit and update tournament rankings (Points Table, Top Batters, Top Bowlers) ONLY for tournament matches
+            if (!isSpecialMatch) {
+                try {
+                    await recordMatchRankings(finishedMatchPayload, selectedTournamentId);
+                } catch (rankingErr) {
+                    console.error('Failed to update tournament rankings on match finish:', rankingErr);
+                }
+            } else {
+                console.log('Special match finalized - Tournament rankings preserved unchanged.');
             }
 
             await updateLiveData({
@@ -3454,7 +3476,9 @@ const ScoringConsole = () => {
             setIsScoringActive(false);
             setActiveMatchTitle('');
             setSelectedMatchTitle('');
-            toastRef.current?.showToast('success', `Match finalized and rankings updated! ${resultString}`);
+            toastRef.current?.showToast('success', isSpecialMatch
+                ? `Special match finalized! Result recorded (rankings preserved). ${resultString}`
+                : `Match finalized and rankings updated! ${resultString}`);
         }, 'Finalizing Match...', 'Recording results, tournament points, and stats...');
     };
 
@@ -4495,13 +4519,16 @@ const ScoringConsole = () => {
                                                 </button>
                                             </div>
                                             <div className="sc-icb-body">
-                                                <div className="sc-icb-field">
+                                                 <div className="sc-icb-field">
                                                     <label>Dismissal Type</label>
                                                     <select
                                                         value={dismissalType}
                                                         onChange={(e) => {
                                                             const val = e.target.value;
                                                             setDismissalType(val);
+                                                            if (val !== 'Run Out') {
+                                                                setRunOutRuns(0);
+                                                            }
                                                             if (val !== 'Run Out' && val !== 'Retired Out') {
                                                                 setDismissalBatterId(strikerId);
                                                             }
@@ -4540,6 +4567,29 @@ const ScoringConsole = () => {
                                                     </div>
                                                 )}
 
+                                                {dismissalType === 'Run Out' && (
+                                                    <div className="sc-icb-field">
+                                                        <label>Runs Completed Before Run Out (Added to Striker)</label>
+                                                        <div className="sc-icb-runs-grid">
+                                                            {[0, 1, 2, 3, 4].map((r) => (
+                                                                <button
+                                                                    key={r}
+                                                                    type="button"
+                                                                    className={`sc-icb-run-btn ${runOutRuns === r ? 'active' : ''}`}
+                                                                    onClick={() => setRunOutRuns(r)}
+                                                                >
+                                                                    {r === 0 ? '0 Runs' : `+${r} Run${r > 1 ? 's' : ''}`}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <div className="sc-icb-rule-hint">
+                                                            {runOutRuns === 0
+                                                                ? `⚡ 0 Runs: No runs added to striker (${striker?.name || 'Striker'}). Wicket recorded.`
+                                                                : `⚡ +${runOutRuns} Run${runOutRuns > 1 ? 's' : ''}: Added to striker (${striker?.name || 'Striker'}) & team score. Bowler charged: ${runOutRuns}. Strike: ${runOutRuns % 2 !== 0 ? 'Crossed / Swapped' : 'Remains at same end'}.`}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {(dismissalType === 'Caught' || dismissalType === 'Run Out' || dismissalType === 'Stumped') && (
                                                     <div className="sc-icb-field">
                                                         <label>Fielder ({bowlingTeamName} - Fielding Side)</label>
@@ -4550,7 +4600,7 @@ const ScoringConsole = () => {
                                                         >
                                                             <option value="">Select Fielder ({bowlingTeamName})...</option>
                                                             {bowlingPlayersList.map(p => (
-                                                                <option key={p.id} value={p.name}>{p.name}</option>
+                                                                 <option key={p.id} value={p.name}>{p.name}</option>
                                                             ))}
                                                         </select>
                                                     </div>
@@ -4564,8 +4614,9 @@ const ScoringConsole = () => {
                                                         type="button"
                                                         className="sc-icb-btn confirm wicket"
                                                         onClick={() => {
+                                                            const runsScoredOnRunOut = dismissalType === 'Run Out' ? Number(runOutRuns || 0) : 0;
                                                             executeBallDelivery({
-                                                                runs: 0,
+                                                                runs: runsScoredOnRunOut,
                                                                 isWicket: true,
                                                                 dismissalType,
                                                                 dismissalFielder,
@@ -4575,7 +4626,9 @@ const ScoringConsole = () => {
                                                             setInlinePanelMode('wheeler');
                                                         }}
                                                     >
-                                                        Confirm Wicket
+                                                        {dismissalType === 'Run Out' && runOutRuns > 0
+                                                            ? `Confirm Run Out (+${runOutRuns} Runs to Striker)`
+                                                            : 'Confirm Wicket'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -5305,7 +5358,16 @@ const ScoringConsole = () => {
                                 <label>Dismissal Type</label>
                                 <select
                                     value={dismissalType}
-                                    onChange={(e) => setDismissalType(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setDismissalType(val);
+                                        if (val !== 'Run Out') {
+                                            setRunOutRuns(0);
+                                        }
+                                        if (val !== 'Run Out' && val !== 'Retired Out') {
+                                            setDismissalBatterId(strikerId);
+                                        }
+                                    }}
                                     className="sc-modal-select"
                                 >
                                     <option value="Caught">Caught</option>
@@ -5316,6 +5378,51 @@ const ScoringConsole = () => {
                                     <option value="Hit Wicket">Hit Wicket</option>
                                 </select>
                             </div>
+
+                            {(dismissalType === 'Run Out') && (
+                                <div className="sc-form-group">
+                                    <label>Which Batter is Out?</label>
+                                    <div className="sc-icb-batter-toggle" style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                        <button
+                                            type="button"
+                                            className={`sc-icb-batter-btn ${dismissalBatterId === strikerId ? 'active' : ''}`}
+                                            onClick={() => setDismissalBatterId(strikerId)}
+                                        >
+                                            Striker ({striker?.name || 'Striker'})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`sc-icb-batter-btn ${dismissalBatterId === nonStrikerId ? 'active' : ''}`}
+                                            onClick={() => setDismissalBatterId(nonStrikerId)}
+                                        >
+                                            Non-Striker ({nonStriker?.name || 'Non-Striker'})
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {dismissalType === 'Run Out' && (
+                                <div className="sc-form-group">
+                                    <label>Runs Completed Before Run Out (Added to Striker)</label>
+                                    <div className="sc-icb-runs-grid" style={{ marginTop: '6px' }}>
+                                        {[0, 1, 2, 3, 4].map((r) => (
+                                            <button
+                                                key={r}
+                                                type="button"
+                                                className={`sc-icb-run-btn ${runOutRuns === r ? 'active' : ''}`}
+                                                onClick={() => setRunOutRuns(r)}
+                                            >
+                                                {r === 0 ? '0 Runs' : `+${r} Run${r > 1 ? 's' : ''}`}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="sc-icb-rule-hint" style={{ marginTop: '6px' }}>
+                                        {runOutRuns === 0
+                                            ? `⚡ 0 Runs: No runs added to striker (${striker?.name || 'Striker'}).`
+                                            : `⚡ +${runOutRuns} Run${runOutRuns > 1 ? 's' : ''}: Added to striker (${striker?.name || 'Striker'}) & team score.`}
+                                    </div>
+                                </div>
+                            )}
 
                             {(dismissalType === 'Caught' || dismissalType === 'Run Out' || dismissalType === 'Stumped') && (
                                 <div className="sc-form-group">
@@ -5341,17 +5448,20 @@ const ScoringConsole = () => {
                                     className="cx-btn-confirm danger"
                                     onClick={() => {
                                         setShowDismissalModal(false);
+                                        const runsScoredOnRunOut = dismissalType === 'Run Out' ? Number(runOutRuns || 0) : 0;
                                         executeBallDelivery({
-                                            runs: 0,
+                                            runs: runsScoredOnRunOut,
                                             isWicket: true,
                                             dismissalType,
                                             dismissalFielder,
-                                            dismissalBatterId: striker.id,
+                                            dismissalBatterId: (dismissalType === 'Run Out' || dismissalType === 'Retired Out') ? (dismissalBatterId || strikerId) : strikerId,
                                             wagonZone: 'Point'
                                         });
                                     }}
                                 >
-                                    Confirm Wicket
+                                    {dismissalType === 'Run Out' && runOutRuns > 0
+                                        ? `Confirm Run Out (+${runOutRuns} Runs to Striker)`
+                                        : 'Confirm Wicket'}
                                 </button>
                             </div>
                         </div>

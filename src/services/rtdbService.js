@@ -1104,6 +1104,12 @@ export const updateRankings = async (rankingsData, customTourneyId) => {
  */
 export const recordMatchRankings = async (finishedMatchPayload, customTourneyId) => {
     try {
+        // Special Match Safeguard: Exhibition / Friendly matches do NOT affect tournament rankings or points table
+        if (finishedMatchPayload?.isSpecial || finishedMatchPayload?.matchType === 'special') {
+            console.log('Special match concluded - skipping tournament rankings & points table update.');
+            return;
+        }
+
         const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
         const rankingRef = ref(database, `Tournaments/${targetKey}/RankingData`);
         const snapshot = await get(rankingRef);

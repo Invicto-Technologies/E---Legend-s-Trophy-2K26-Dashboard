@@ -31,6 +31,31 @@
     border-top: 3px solid var(--accent-cyan);
 }
 
+/* Special Match Unique Aesthetic (Warm amber / royal gradient background) */
+.pro-match-card.is-special-match {
+    background: linear-gradient(145deg, rgba(38, 22, 10, 0.9) 0%, rgba(24, 14, 38, 0.94) 50%, rgba(14, 10, 24, 0.98) 100%) !important;
+    border: 1px solid rgba(245, 158, 11, 0.38) !important;
+    border-top: 3.5px solid #f59e0b !important;
+    box-shadow: 0 10px 32px rgba(245, 158, 11, 0.12), 0 0 25px rgba(217, 119, 6, 0.08) !important;
+}
+
+.pro-match-card.is-special-match:hover {
+    border-color: rgba(245, 158, 11, 0.65) !important;
+    box-shadow: 0 14px 40px rgba(245, 158, 11, 0.22), 0 0 35px rgba(245, 158, 11, 0.16) !important;
+}
+
+.pro-match-card.is-special-match::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.18), transparent 75%);
+    pointer-events: none;
+    z-index: 0;
+}
+
 /* Header Top Bar */
 .pmc-top-bar {
     display: flex;
@@ -50,6 +75,21 @@
     border: 1px solid rgba(59, 130, 246, 0.25);
     padding: 3px 10px;
     border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.pmc-special-badge {
+    font-size: 0.74rem;
+    font-weight: 800;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    padding: 3px 8px;
+    border-radius: 8px;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     flex-shrink: 0;
 }
 
@@ -485,6 +525,18 @@
 
 [data-theme="light"] .pro-match-card.is-scheduled {
     border-top: 3px solid #0284c7;
+}
+
+[data-theme="light"] .pro-match-card.is-special-match {
+    background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 45%, #fff7ed 100%) !important;
+    border: 1px solid rgba(217, 119, 6, 0.35) !important;
+    border-top: 3.5px solid #d97706 !important;
+    box-shadow: 0 10px 25px rgba(217, 119, 6, 0.12) !important;
+}
+
+[data-theme="light"] .pro-match-card.is-special-match:hover {
+    border-color: rgba(217, 119, 6, 0.55) !important;
+    box-shadow: 0 14px 32px rgba(217, 119, 6, 0.18) !important;
 }
 
 [data-theme="light"] .pmc-stage-badge {

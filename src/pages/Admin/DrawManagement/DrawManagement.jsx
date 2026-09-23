@@ -43,7 +43,7 @@ import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import PageLoader from '../../../components/common/PageLoader/PageLoader';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
 import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
-import { isMatchFinished, isMatchCurrentlyLive } from '../../../components/common/MatchCard/MatchCard';
+import { isMatchFinished, isMatchCurrentlyLive, parseMatchDateTime } from '../../../components/common/MatchCard/MatchCard';
 import './DrawManagement.css';
 
 const DEFAULT_TEAMS = ['E21', 'E22', 'E23', 'E24'];
@@ -74,6 +74,7 @@ const DrawManagement = () => {
 
     // Custom Match Modal state
     const [customModalOpen, setCustomModalOpen] = useState(false);
+    const [customMatchType, setCustomMatchType] = useState('tournament'); // 'tournament' | 'special'
     const [customTitle, setCustomTitle] = useState('Qualifier 1');
     const [customTeam1, setCustomTeam1] = useState('E21');
     const [customTeam2, setCustomTeam2] = useState('E22');
@@ -122,6 +123,7 @@ const DrawManagement = () => {
                         time: m.time || ''
                     });
                 });
+                list.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
                 setGeneratedMatches(list);
                 // Keep editing disabled by default whenever fixtures exist in database
                 setIsEditingEnabled(list.length === 0);
@@ -151,8 +153,8 @@ const DrawManagement = () => {
 
     const isMatchStartedOrConcluded = (m) => {
         if (!m) return false;
-        if (isMatchFinished(m)) return true;
         if (isMatchCurrentlyLive(m, liveData)) return true;
+        if (isMatchFinished(m, liveData)) return true;
         if (isAnyMatchLive && currentLiveTitle && (
             (m.title && m.title.trim().toLowerCase() === currentLiveTitle.toLowerCase()) ||
             (m.id && String(m.id).trim().toLowerCase() === currentLiveTitle.toLowerCase())
@@ -233,7 +235,7 @@ const DrawManagement = () => {
     const detectedSF2Winner = sf2Match ? detectMatchWinner(sf2Match) : '';
 
     const nonFinalMatches = generatedMatches.filter(m => m.id !== finalMatch?.id);
-    const completedNonFinalMatches = nonFinalMatches.filter(m => isMatchFinished(m));
+    const completedNonFinalMatches = nonFinalMatches.filter(m => isMatchFinished(m, liveData));
     const allNonFinalMatchesFinished = nonFinalMatches.length > 0 && completedNonFinalMatches.length === nonFinalMatches.length;
 
     const isFinalStartedOrDone = finalMatch ? isMatchStartedOrConcluded(finalMatch) : false;
@@ -337,6 +339,8 @@ const DrawManagement = () => {
                 const finishedMatchesMap = {};
                 updatedMatches.forEach(m => {
                     const [split1 = '', split2 = ''] = (m.teams || '').split(' vs ');
+                    const mLive = isMatchCurrentlyLive(m, liveData);
+                    const mFinished = !mLive && isMatchFinished(m, liveData);
                     finishedMatchesMap[m.id] = {
                         id: m.id,
                         title: m.title,
@@ -349,10 +353,12 @@ const DrawManagement = () => {
                         umpire1: m.umpire1 || '',
                         umpire2: m.umpire2 || '',
                         active: 1,
-                        score: m.score || 'Scheduled',
-                        result: m.result || 'Scheduled',
-                        finished: isMatchFinished(m) ? 1 : 0,
-                        isFinished: Boolean(isMatchFinished(m)),
+                        score: m.score || (mLive ? 'Live' : 'Scheduled'),
+                        result: m.result || (mLive ? 'Live' : 'Scheduled'),
+                        finished: mFinished ? 1 : 0,
+                        isFinished: Boolean(mFinished),
+                        isLive: mLive ? 1 : 0,
+                        status: mLive ? 'Live' : (mFinished ? 'Finished' : 'Scheduled'),
                         mom: m.mom || ''
                     };
                 });
@@ -528,6 +534,7 @@ const DrawManagement = () => {
             });
         }
 
+        newMatches.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
         setGeneratedMatches(newMatches);
         setFixturesStatus(0); // Newly generated draw is Unpublished until admin publishes
         toastRef.current.showToast('success', `Generated ${newMatches.length} fixtures (${drawType.toUpperCase()}). Match dates & times are unset. You can shift teams by dragging, schedule each match, then Save Draft or Publish.`);
@@ -778,21 +785,28 @@ const DrawManagement = () => {
             return;
         }
 
+        const isSpecial = customMatchType === 'special';
         const newMatch = {
             id: Date.now(),
-            title: customTitle.trim() || `Match ${generatedMatches.length + 1}`,
+            title: customTitle.trim() || (isSpecial ? 'Special' : `Match ${generatedMatches.length + 1}`),
             teams: `${customTeam1.trim()} vs ${customTeam2.trim()}`,
             team1: customTeam1.trim(),
             team2: customTeam2.trim(),
             date: customDate ? customDate.trim() : '',
             time: customTime ? customTime.trim() : '',
-            venue: customVenue ? customVenue.trim() : 'Faculty Cricket Grounds'
+            venue: customVenue ? customVenue.trim() : 'Faculty Cricket Grounds',
+            isSpecial: isSpecial,
+            matchType: isSpecial ? 'special' : 'tournament'
         };
 
-        setGeneratedMatches(prev => [...prev, newMatch]);
+        setGeneratedMatches(prev => {
+            const updated = [...prev, newMatch];
+            updated.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
+            return updated;
+        });
         setFixturesStatus(0);
         setCustomModalOpen(false);
-        toastRef.current.showToast('success', `Added custom fixture: ${newMatch.title}`);
+        toastRef.current.showToast('success', `Added ${isSpecial ? 'Special Exhibition' : 'Tournament'} fixture: ${newMatch.title}`);
     };
 
     // Request deletion of a fixture from the list (triggers confirmation modal)
@@ -802,7 +816,7 @@ const DrawManagement = () => {
             return;
         }
         if (isMatchStartedOrConcluded(match)) {
-            toastRef.current.showToast('warning', isMatchFinished(match) ? 'Completed matches cannot be deleted.' : 'Active live match cannot be deleted.');
+            toastRef.current.showToast('warning', isMatchFinished(match, liveData) ? 'Completed matches cannot be deleted.' : 'Active live match cannot be deleted.');
             return;
         }
         setMatchToDelete(match);
@@ -876,16 +890,32 @@ const DrawManagement = () => {
                 console.warn(`Could not fetch existing match data for [${clean}]:`, err);
             }
 
-            const isFinished = isMatchFinished(m) || isMatchFinished(existing) || existing?.common?.finished === 1 || existing?.finished === 1;
-            const isLive = isMatchCurrentlyLive(m, liveData) || existing?.common?.status === 'Live' || (Boolean(liveData?.isLive) && currentLiveTitle && currentLiveTitle.toLowerCase() === clean.toLowerCase());
+            // CRITICAL: Determine isLive FIRST and check liveData/existing flags
+            const isLive = isMatchCurrentlyLive(m, liveData) ||
+                           isMatchCurrentlyLive(existing, liveData) ||
+                           existing?.common?.status === 'Live' ||
+                           existing?.common?.isLive === 1 ||
+                           existing?.isLive === 1 ||
+                           (Boolean(liveData?.isLive) && currentLiveTitle && (
+                               currentLiveTitle.toLowerCase() === clean.toLowerCase() ||
+                               (m.id && String(m.id).toLowerCase() === currentLiveTitle.toLowerCase())
+                           ));
+
+            // CRITICAL: A match that is currently live must NEVER be marked as finished!
+            const isFinished = !isLive && (
+                isMatchFinished(m, liveData) ||
+                isMatchFinished(existing, liveData) ||
+                (existing?.common?.finished === 1 && !isLive) ||
+                (existing?.finished === 1 && !isLive)
+            );
 
             const matchScore = isFinished
                 ? (existing?.common?.score || existing?.score || m.score || 'Finished')
-                : (isLive ? 'Live' : (m.score || 'Scheduled'));
+                : (isLive ? (existing?.common?.score || existing?.score || 'Live') : (m.score || 'Scheduled'));
 
             const matchResult = isFinished
                 ? (existing?.common?.result || existing?.result || m.result || 'Match Finished')
-                : (isLive ? 'Live' : (m.result || 'Scheduled'));
+                : (isLive ? (existing?.common?.result || existing?.result || 'Live') : (m.result || 'Scheduled'));
 
             const matchMom = isFinished ? (existing?.common?.mom || existing?.mom || m.mom || '') : '';
 
@@ -907,7 +937,11 @@ const DrawManagement = () => {
                 finished: isFinished ? 1 : 0,
                 isFinished: Boolean(isFinished),
                 mom: matchMom,
-                matchPath: `Tournaments/${selectedTournamentId}/${clean}`
+                matchPath: `Tournaments/${selectedTournamentId}/${clean}`,
+                isSpecial: Boolean(m.isSpecial || m.matchType === 'special'),
+                matchType: (m.isSpecial || m.matchType === 'special') ? 'special' : (m.matchType || 'tournament'),
+                isLive: isLive ? 1 : 0,
+                status: isLive ? 'Live' : (isFinished ? 'Finished' : 'Scheduled')
             };
 
             // 2. Synchronize Root Match Node
@@ -928,13 +962,16 @@ const DrawManagement = () => {
 
                 await updateMatchData(clean, updates, selectedTournamentId);
             } else if (isLive) {
-                // LIVE MATCH: Preserve live balls, telemetry, partnerships
+                // LIVE MATCH: Preserve live balls, telemetry, partnerships, ensure status remains Live and finished is 0!
                 const updates = {
                     'common/date': m.date || existing?.common?.date || '',
                     'common/time': m.time || existing?.common?.time || '',
                     'common/venue': m.venue || existing?.common?.venue || 'Faculty Cricket Grounds',
                     'common/umpire1': m.umpire1 || existing?.common?.umpire1 || '',
-                    'common/umpire2': m.umpire2 || existing?.common?.umpire2 || ''
+                    'common/umpire2': m.umpire2 || existing?.common?.umpire2 || '',
+                    'common/finished': 0,
+                    'common/isFinished': false,
+                    'common/status': 'Live'
                 };
                 await updateMatchData(clean, updates, selectedTournamentId);
             } else {
@@ -969,7 +1006,8 @@ const DrawManagement = () => {
             }
 
             // Clean up any legacy or duplicate numeric node created previously (e.g. 1789650092871)
-            if (m.id && String(m.id) !== clean && /^\d+$/.test(String(m.id))) {
+            // NEVER delete if match is currently live!
+            if (!isLive && m.id && String(m.id) !== clean && /^\d+$/.test(String(m.id))) {
                 try {
                     await deleteMatchData(String(m.id), selectedTournamentId);
                 } catch (cleanupErr) {
@@ -1014,6 +1052,7 @@ const DrawManagement = () => {
             }
             return m;
         });
+        updated.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
         setGeneratedMatches(updated);
         setEditingMatch(null);
 
@@ -1238,12 +1277,16 @@ const DrawManagement = () => {
                                     toastRef.current.showToast('warning', "Click 'Enable Editing' in the header to add custom matches.");
                                     return;
                                 }
+                                setCustomMatchType('tournament');
+                                setCustomTitle('Qualifier 1');
+                                setCustomTeam1(availableTeamKeys[0] || 'E21');
+                                setCustomTeam2(availableTeamKeys[1] || 'E22');
                                 setCustomModalOpen(true);
                             }}
                             disabled={!isEditingEnabled}
                             title={!isEditingEnabled ? "Editing is locked. Click 'Enable Editing' to add custom matches." : "Manually add a match"}
                         >
-                            <MdAdd /> Add Custom Match
+                            <MdAdd /> Add Match to Draw
                         </button>
                         {generatedMatches.length > 0 && (
                             <button
@@ -1503,14 +1546,18 @@ const DrawManagement = () => {
                                     ? liveData.currentMatchPath.split('/').pop()
                                     : liveData?.liveScore?.matchTitle || '').trim();
 
-                                return generatedMatches.map((match, index) => {
+                                const displayMatches = [...generatedMatches].sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
+
+                                return displayMatches.map((match, index) => {
                                     const [t1 = match.team1 || 'Team 1', t2 = match.team2 || 'Team 2'] = (match.teams || '').split(' vs ');
                                     const isScheduled = Boolean(match.date && match.time);
-                                    const isCompleted = isMatchFinished(match);
-                                    const isThisMatchLive = !isCompleted && isAnyMatchLive && currentLiveTitle && (
-                                        (match.title && match.title.trim().toLowerCase() === currentLiveTitle.toLowerCase()) ||
-                                        (match.id && String(match.id).trim().toLowerCase() === currentLiveTitle.toLowerCase())
+                                    const isThisMatchLive = isMatchCurrentlyLive(match, liveData) || (
+                                        isAnyMatchLive && currentLiveTitle && (
+                                            (match.title && match.title.trim().toLowerCase() === currentLiveTitle.toLowerCase()) ||
+                                            (match.id && String(match.id).trim().toLowerCase() === currentLiveTitle.toLowerCase())
+                                        )
                                     );
+                                    const isCompleted = !isThisMatchLive && isMatchFinished(match, liveData);
                                     const isBlockedByOtherLive = !isCompleted && isAnyMatchLive && !isThisMatchLive;
                                     const isMatchStartedOrLive = isCompleted || isThisMatchLive;
                                     const isLocked = isMatchLocked(match) || isMatchStartedOrLive;
@@ -1522,6 +1569,11 @@ const DrawManagement = () => {
                                                 <div className="dmm-header">
                                                     <div className="dmm-header-left">
                                                         <span className="dmm-badge">{match.title}</span>
+                                                        {(match.isSpecial || match.matchType === 'special') && (
+                                                            <span className="dmm-special-badge" title="Special match: Exhibition/Friendly match that does not affect tournament rankings or draw points">
+                                                                ⭐ SPECIAL MATCH
+                                                            </span>
+                                                        )}
                                                         {isCompleted ? (
                                                             <span className="dmm-completed-indicator" title={match.result || 'Match Completed'}>
                                                                 <MdCheckCircle /> COMPLETED
@@ -1858,12 +1910,16 @@ const DrawManagement = () => {
             {/* Custom Match Modal */}
             {customModalOpen && (
                 <div className="dm-modal-overlay" onClick={() => setCustomModalOpen(false)}>
-                    <div className="dm-modal-card" onClick={(e) => e.stopPropagation()}>
+                    <div className="dm-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px' }}>
                         <div className="dm-modal-header">
                             <div>
-                                <span className="dm-modal-badge">CUSTOM DRAW</span>
-                                <h3>Add Custom Match</h3>
-                                <p className="dm-modal-sub">Create an exhibition, playoff, or custom matchup</p>
+                                <span className="dm-modal-badge">{customMatchType === 'special' ? '⭐ SPECIAL MATCH' : '🏆 TOURNAMENT DRAW'}</span>
+                                <h3>{customMatchType === 'special' ? 'Add Special Match' : 'Add Custom Draw Match'}</h3>
+                                <p className="dm-modal-sub">
+                                    {customMatchType === 'special'
+                                        ? 'Create an exhibition or friendly match (does NOT affect tournament rankings or draw points)'
+                                        : 'Add a custom playoff, qualifier, or extra group match between tournament teams'}
+                                </p>
                             </div>
                             <button className="dm-modal-close" onClick={() => setCustomModalOpen(false)}>
                                 <MdClose />
@@ -1872,6 +1928,35 @@ const DrawManagement = () => {
 
                         <form onSubmit={handleAddCustomMatch}>
                             <div className="dm-modal-fields">
+                                {/* Match Type Toggle */}
+                                <div className="dm-form-group">
+                                    <label>Match Classification</label>
+                                    <div className="dm-match-type-selector">
+                                        <button
+                                            type="button"
+                                            className={`dm-type-btn ${customMatchType === 'tournament' ? 'active' : ''}`}
+                                            onClick={() => {
+                                                setCustomMatchType('tournament');
+                                                if (customTitle === 'Special') setCustomTitle('Qualifier 1');
+                                            }}
+                                        >
+                                            <span className="dm-type-btn-title">🏆 Tournament Match</span>
+                                            <span className="dm-type-btn-sub">Counts for tournament draw • Affects Points Table & Rankings</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`dm-type-btn special ${customMatchType === 'special' ? 'active' : ''}`}
+                                            onClick={() => {
+                                                setCustomMatchType('special');
+                                                if (customTitle === 'Qualifier 1' || !customTitle) setCustomTitle('Special');
+                                            }}
+                                        >
+                                            <span className="dm-type-btn-title">⭐ Special Match</span>
+                                            <span className="dm-type-btn-sub">Exhibition / Friendly • Does NOT affect points table or rankings</span>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="dm-form-group">
                                     <label>Match Stage / Title</label>
                                     <input
@@ -1879,7 +1964,7 @@ const DrawManagement = () => {
                                         className="dm-input"
                                         value={customTitle}
                                         onChange={(e) => setCustomTitle(e.target.value)}
-                                        placeholder="e.g. Qualifier 1, Semi-Final 3, Exhibition"
+                                        placeholder={customMatchType === 'special' ? "e.g. Special, Friendly 1, Staff vs Alumni" : "e.g. Qualifier 1, Semi-Final 3, Eliminator"}
                                         required
                                     />
                                 </div>
@@ -1887,34 +1972,79 @@ const DrawManagement = () => {
                                 <div className="dm-form-row">
                                     <div className="dm-form-group">
                                         <label>Team 1</label>
-                                        <input
-                                            type="text"
-                                            className="dm-input"
-                                            value={customTeam1}
-                                            onChange={(e) => setCustomTeam1(e.target.value)}
-                                            placeholder="e.g. E21 or Staff XI"
-                                            list="custom-teams-list"
-                                            required
-                                        />
+                                        <div className="dm-team-picker">
+                                            <select
+                                                className="dm-input dm-select"
+                                                value={availableTeamKeys.includes(customTeam1) ? customTeam1 : '__custom__'}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val === '__custom__') {
+                                                        setCustomTeam1('');
+                                                    } else {
+                                                        setCustomTeam1(val);
+                                                    }
+                                                }}
+                                            >
+                                                <optgroup label="Tournament Playing Teams">
+                                                    {availableTeamKeys.map(k => (
+                                                        <option key={k} value={k}>
+                                                            {k} {teamsData[k]?.name ? `(${teamsData[k].name})` : ''}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                                <option value="__custom__">✏️ Custom Team Name...</option>
+                                            </select>
+                                            {(!availableTeamKeys.includes(customTeam1) || customTeam1 === '') && (
+                                                <input
+                                                    type="text"
+                                                    className="dm-input"
+                                                    value={customTeam1}
+                                                    onChange={(e) => setCustomTeam1(e.target.value)}
+                                                    placeholder="Enter custom team name (e.g. Staff XI)..."
+                                                    style={{ marginTop: '6px' }}
+                                                    required
+                                                />
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="dm-form-group">
                                         <label>Team 2</label>
-                                        <input
-                                            type="text"
-                                            className="dm-input"
-                                            value={customTeam2}
-                                            onChange={(e) => setCustomTeam2(e.target.value)}
-                                            placeholder="e.g. E22 or Alumni XI"
-                                            list="custom-teams-list"
-                                            required
-                                        />
+                                        <div className="dm-team-picker">
+                                            <select
+                                                className="dm-input dm-select"
+                                                value={availableTeamKeys.includes(customTeam2) ? customTeam2 : '__custom__'}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val === '__custom__') {
+                                                        setCustomTeam2('');
+                                                    } else {
+                                                        setCustomTeam2(val);
+                                                    }
+                                                }}
+                                            >
+                                                <optgroup label="Tournament Playing Teams">
+                                                    {availableTeamKeys.map(k => (
+                                                        <option key={k} value={k}>
+                                                            {k} {teamsData[k]?.name ? `(${teamsData[k].name})` : ''}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                                <option value="__custom__">✏️ Custom Team Name...</option>
+                                            </select>
+                                            {(!availableTeamKeys.includes(customTeam2) || customTeam2 === '') && (
+                                                <input
+                                                    type="text"
+                                                    className="dm-input"
+                                                    value={customTeam2}
+                                                    onChange={(e) => setCustomTeam2(e.target.value)}
+                                                    placeholder="Enter custom team name (e.g. Alumni XI)..."
+                                                    style={{ marginTop: '6px' }}
+                                                    required
+                                                />
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                                <datalist id="custom-teams-list">
-                                    {availableTeamKeys.map(k => (
-                                        <option key={k} value={k} />
-                                    ))}
-                                </datalist>
 
                                 <div className="dm-form-row">
                                     <div className="dm-form-group">
@@ -1947,14 +2077,23 @@ const DrawManagement = () => {
                                         placeholder="Faculty Cricket Grounds"
                                     />
                                 </div>
+
+                                {customMatchType === 'special' && (
+                                    <div className="dm-special-notice-box">
+                                        <span className="dm-snb-icon">⭐</span>
+                                        <div className="dm-snb-text">
+                                            <strong>Special Match Behavior:</strong> This match will appear in the schedule and can be scored live ball-by-ball. Its outcome is recorded in match history, but <em>will NOT modify the tournament Points Table, NRR, or Tournament Rankings</em>.
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="dm-modal-actions">
                                 <button type="button" className="cx-btn-secondary" onClick={() => setCustomModalOpen(false)}>
                                     Cancel
                                 </button>
-                                <button type="submit" className="cx-btn-confirm primary">
-                                    <MdAdd /> Add Fixture
+                                <button type="submit" className={`cx-btn-confirm ${customMatchType === 'special' ? 'special' : 'primary'}`}>
+                                    <MdAdd /> {customMatchType === 'special' ? 'Add Special Match' : 'Add to Draw'}
                                 </button>
                             </div>
                         </form>
