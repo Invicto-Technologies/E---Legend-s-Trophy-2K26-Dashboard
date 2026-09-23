@@ -18,7 +18,8 @@ import {
 } from 'react-icons/md';
 import { FaTrophy, FaMedal } from 'react-icons/fa';
 import { FaCrown, FaChevronDown, FaCheck } from 'react-icons/fa6';
-import { GiCricketBat, GiCrossedSwords, GiGloves } from 'react-icons/gi';
+import { GiStarMedal, GiBaseballGlove } from 'react-icons/gi';
+import { PiCricketFill, PiTennisBall } from 'react-icons/pi';
 import PageLoader from '../../components/common/PageLoader/PageLoader';
 import './Rankings3D.css';
 
@@ -99,10 +100,33 @@ const Rankings3D = () => {
         })
         .map((t, idx) => ({ ...t, rank: idx + 1 }));
 
-    // Check if points table has actual played data
-    const hasPointsData = pointsList.some(
-        t => Number(t.played || 0) > 0 || Number(t.pts || 0) > 0 || Number(t.won || 0) > 0
+    // Check if points table has any teams (show table even if all zeros)
+    const hasPointsData = pointsList.length > 0;
+
+    // Whether tournament has actually started (at least one match played)
+    const tournamentStarted = pointsList.some(
+        t => Number(t.played || 0) > 0
     );
+
+    // Enrich pointsList with logo from teamsData for display
+    const enrichedPointsList = pointsList.map(t => {
+        // Try to find a matching team in teamsData by name or key
+        const matchedTeamKey = Object.keys(teamsData || {}).find(
+            key => {
+                const td = teamsData[key];
+                return (
+                    (td?.name || '').toLowerCase() === (t.team || '').toLowerCase() ||
+                    key.toLowerCase() === (t.team || '').toLowerCase()
+                );
+            }
+        );
+        const matchedTeam = matchedTeamKey ? teamsData[matchedTeamKey] : null;
+        return {
+            ...t,
+            logo: matchedTeam?.logo || t.logo || null,
+            fullName: matchedTeam?.name || t.team,
+        };
+    });
 
     // 2. Batters Sorting (Higher score first; if equal, higher strike rate first) - Top 20 Performers
     const battersList = Object.values(rankingData?.batters || {})
@@ -191,15 +215,27 @@ const Rankings3D = () => {
     const getRoleIcon = (role) => {
         switch (role) {
             case 'Bowler':
-                return <MdSportsCricket className="squad-role-ico bowler" />;
+                // Clean ball icon — unmistakably a bowler
+                return <PiTennisBall className="squad-role-ico bowler" />;
             case 'All Rounder':
-                return <GiCrossedSwords className="squad-role-ico all-rounder" />;
+                // Star medal — versatile, multi-skilled player
+                return <GiStarMedal className="squad-role-ico all-rounder" />;
             case 'Wicket Keeper':
-                return <GiGloves className="squad-role-ico wicket-keeper" />;
+                // Fielding/catching glove
+                return <GiBaseballGlove className="squad-role-ico wicket-keeper" />;
             case 'Batter':
             default:
-                return <GiCricketBat className="squad-role-ico batter" />;
+                // Cricket bat + ball — clear batter icon
+                return <PiCricketFill className="squad-role-ico batter" />;
         }
+    };
+
+    // Returns up to 2 initials from a player's name, e.g. "Kamal Perera" → "KP"
+    const getPlayerInitials = (name = '') => {
+        const parts = name.trim().split(/\s+/).filter(Boolean);
+        if (parts.length === 0) return '?';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
     };
 
     // Check whether the currently selected tab has data to display
@@ -211,7 +247,7 @@ const Rankings3D = () => {
 
     // Active dataset for podium & table
     const getActiveData = () => {
-        if (activeTab === 'points') return pointsList;
+        if (activeTab === 'points') return enrichedPointsList;
         if (activeTab === 'batters') return battersList;
         return bowlersList;
     };
@@ -564,12 +600,10 @@ const Rankings3D = () => {
                                                                     {isCaptain && (
                                                                         <span className="player-captain-badge" title="Team Captain">
                                                                             <FaCrown />
-                                                                            <span className="captain-label">Captain</span>
                                                                         </span>
                                                                     )}
                                                                     <span className={`player-role-badge ${roleClass}`} title={player.role || 'Player'}>
                                                                         {getRoleIcon(player.role)}
-                                                                        <span className="role-label">{player.role || 'Player'}</span>
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -584,8 +618,8 @@ const Rankings3D = () => {
                                                                             onError={(e) => { e.target.style.display = 'none'; }}
                                                                         />
                                                                     ) : (
-                                                                        <div className="player-avatar-fallback">
-                                                                            {getRoleIcon(player.role)}
+                                                                        <div className="player-avatar-fallback player-avatar-initials">
+                                                                            {getPlayerInitials(player.name)}
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -643,7 +677,6 @@ const Rankings3D = () => {
                                                                     <div className="player-card-top-right">
                                                                         <span className={`player-role-badge ${roleClass}`} title={player.role || 'Player'}>
                                                                             {getRoleIcon(player.role)}
-                                                                            <span className="role-label">{player.role || 'Player'}</span>
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -658,8 +691,8 @@ const Rankings3D = () => {
                                                                                 onError={(e) => { e.target.style.display = 'none'; }}
                                                                             />
                                                                         ) : (
-                                                                            <div className="player-avatar-fallback">
-                                                                                {getRoleIcon(player.role)}
+                                                                            <div className="player-avatar-fallback player-avatar-initials">
+                                                                                {getPlayerInitials(player.name)}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -699,8 +732,8 @@ const Rankings3D = () => {
                     </section>
                 ) : (
                     <>
-                        {/* 3D Holographic Podium Stage (Top 3) - Only shown if table is filled with data */}
-                        {hasCurrentData && (
+                        {/* 3D Holographic Podium Stage (Top 3) - Only shown if tournament has started with actual matches */}
+                        {hasCurrentData && tournamentStarted && (
                             <section className="podium-stage-section">
                                 <div className="rankings-container">
                                     <div className="podium-stage-grid">
@@ -808,20 +841,36 @@ const Rankings3D = () => {
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {filteredList.map((t) => (
-                                                            <tr key={t.id || t.team} className={t.rank === 1 ? 'gold-row' : ''}>
-                                                                <td className="rank-cell">#{t.rank}</td>
-                                                                <td className="team-cell" style={{ textAlign: 'left' }}>
-                                                                    <strong>{t.team}</strong>
+                                                        {filteredList.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="8" style={{ textAlign: 'center', padding: '36px 18px', color: '#94a3b8' }}>
+                                                                    No matching teams found.
                                                                 </td>
-                                                                <td style={{ textAlign: 'center' }}>{t.played}</td>
-                                                                <td style={{ textAlign: 'center' }}>{t.won}</td>
-                                                                <td style={{ textAlign: 'center' }}>{t.lost}</td>
-                                                                <td style={{ textAlign: 'center' }}>{t.nr || 0}</td>
-                                                                <td className={t.nrr >= 0 ? 'nrr-pos' : 'nrr-neg'} style={{ textAlign: 'center' }}>{t.nrr}</td>
-                                                                <td className="pts-cell" style={{ textAlign: 'center' }}>{t.pts}</td>
                                                             </tr>
-                                                        ))}
+                                                        ) : (
+                                                            filteredList.map((t) => (
+                                                                <tr key={t.id || t.team} className={t.rank === 1 && tournamentStarted ? 'gold-row' : ''}>
+                                                                    <td className="rank-cell">#{t.rank}</td>
+                                                                    <td className="team-cell" style={{ textAlign: 'left' }}>
+                                                                        {t.logo && (
+                                                                            <img
+                                                                                src={t.logo}
+                                                                                alt={t.fullName || t.team}
+                                                                                className="points-team-logo"
+                                                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                                                            />
+                                                                        )}
+                                                                        <strong>{t.fullName || t.team}</strong>
+                                                                    </td>
+                                                                    <td style={{ textAlign: 'center' }}>{t.played ?? 0}</td>
+                                                                    <td style={{ textAlign: 'center' }}>{t.won ?? 0}</td>
+                                                                    <td style={{ textAlign: 'center' }}>{t.lost ?? 0}</td>
+                                                                    <td style={{ textAlign: 'center' }}>{t.nr ?? 0}</td>
+                                                                    <td className={Number(t.nrr) > 0 ? 'nrr-pos' : Number(t.nrr) < 0 ? 'nrr-neg' : ''} style={{ textAlign: 'center' }}>{t.nrr ?? 0}</td>
+                                                                    <td className="pts-cell" style={{ textAlign: 'center' }}>{t.pts ?? 0}</td>
+                                                                </tr>
+                                                            ))
+                                                        )}
                                                     </tbody>
                                                 </table>
                                             ) : activeTab === 'batters' ? (

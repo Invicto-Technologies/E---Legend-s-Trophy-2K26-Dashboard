@@ -875,11 +875,14 @@
 .fixtures-subblock-title {
     display: flex;
     align-items: center;
+    text-align: center;
     gap: 10px;
+    width: 100%;
 }
 
 .fixtures-subblock-title h3 {
     margin: 0;
+    width: 100%;
     font-size: 1.25rem;
     font-weight: 700;
     color: #f1f5f9;
@@ -946,6 +949,119 @@
     display: flex;
     justify-content: center;
     text-align: center;
+}
+
+/* ── Home Matches Empty State ───────────────────────────────────────── */
+.home-matches-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 22px 20px;
+    border-radius: 14px;
+    border: 1.5px dashed rgba(0, 240, 255, 0.18);
+    background: rgba(0, 240, 255, 0.03);
+    text-align: center;
+    width: 100%;
+    max-width: 650px;
+    margin: 0 auto;
+    transition: border-color 0.3s ease;
+}
+
+[data-theme='light'] .home-matches-empty-state {
+    border-color: rgba(6, 182, 212, 0.25);
+    background: rgba(6, 182, 212, 0.04);
+}
+
+.home-matches-empty-state:hover {
+    border-color: rgba(0, 240, 255, 0.32);
+}
+
+.home-empty-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 240, 255, 0.1);
+    border: 1.5px solid rgba(0, 240, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    color: #00f0ff;
+}
+
+.home-empty-icon-wrap.completed {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+[data-theme='light'] .home-empty-icon-wrap {
+    background: rgba(6, 182, 212, 0.12);
+    border-color: rgba(6, 182, 212, 0.25);
+    color: #0891b2;
+}
+
+[data-theme='light'] .home-empty-icon-wrap.completed {
+    background: rgba(5, 150, 105, 0.1);
+    border-color: rgba(5, 150, 105, 0.2);
+    color: #059669;
+}
+
+.home-empty-text h4 {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin: 0 0 3px;
+}
+
+[data-theme='light'] .home-empty-text h4 {
+    color: #1e293b;
+}
+
+.home-empty-text p {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.5;
+}
+
+[data-theme='light'] .home-empty-text p {
+    color: #475569;
+}
+
+.home-empty-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 14px;
+    border-radius: 50px;
+    border: 1.5px solid rgba(0, 240, 255, 0.3);
+    background: rgba(0, 240, 255, 0.07);
+    color: #00f0ff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    margin-top: 2px;
+}
+
+.home-empty-cta:hover {
+    background: rgba(0, 240, 255, 0.15);
+    border-color: rgba(0, 240, 255, 0.5);
+    transform: translateY(-1px);
+}
+
+[data-theme='light'] .home-empty-cta {
+    border-color: rgba(6, 182, 212, 0.4);
+    background: rgba(6, 182, 212, 0.08);
+    color: #0891b2;
+}
+
+[data-theme='light'] .home-empty-cta:hover {
+    background: rgba(6, 182, 212, 0.15);
+    border-color: rgba(6, 182, 212, 0.6);
 }
 
 .results-section .pmc-result-text,

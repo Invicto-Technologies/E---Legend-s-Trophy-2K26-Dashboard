@@ -344,7 +344,7 @@ const Home3D = () => {
     });
 
     // Prepare duplicate items for continuous seamless loop
-    const repeatCount = filteredHomePhotos.length > 0 
+    const repeatCount = filteredHomePhotos.length > 0
         ? Math.max(2, Math.ceil(12 / filteredHomePhotos.length))
         : 1;
     const displayHomePhotos = [];
@@ -669,7 +669,7 @@ const Home3D = () => {
                             <div className="stat-details">
                                 <span className="stat-number">
                                     <CountUpNumber
-                                        target={Object.keys(teams).length > 0 ? Object.keys(teams).length : 8}
+                                        target={Object.keys(teams).length > 0 ? Object.keys(teams).length : 0}
                                         shouldStart={statsAppeared}
                                     />
                                 </span>
@@ -698,7 +698,7 @@ const Home3D = () => {
                             <div className="stat-details">
                                 <span className="stat-number">
                                     <CountUpNumber
-                                        target={allMatches.length > 0 ? allMatches.length : 12}
+                                        target={allMatches.length > 0 ? allMatches.length : 0}
                                         shouldStart={statsAppeared}
                                     />
                                 </span>
@@ -727,59 +727,87 @@ const Home3D = () => {
             </section>
 
             {/* TOURNAMENT FIXTURES SECTION: UPCOMING SCHEDULE & LATEST COMPLETED */}
-            {(upcomingMatches.length > 0 || completedMatches.length > 0) && (
-                <section className="results-section" id="home-fixtures-section">
-                    <div className="home-container">
-                        <div className="section-header results-section-header">
-                            <div className="section-header-titles">
-                                <span className="section-tag">TOURNAMENT FIXTURES &amp; RESULTS</span>
-                                <h2 className="section-title">Match Schedule &amp; Results</h2>
-                            </div>
-                            <Link to="/fixtures" className="view-all-link">
-                                All Fixtures &amp; Scorecards <MdArrowForward />
-                            </Link>
+            <section className="results-section" id="home-fixtures-section">
+                <div className="home-container">
+                    <div className="section-header results-section-header">
+                        <div className="section-header-titles">
+                            <span className="section-tag">TOURNAMENT FIXTURES &amp; RESULTS</span>
+                            <h2 className="section-title">Match Schedule &amp; Results</h2>
                         </div>
+                        <Link to="/fixtures" className="view-all-link">
+                            All Fixtures &amp; Scorecards <MdArrowForward />
+                        </Link>
+                    </div>
 
-                        {/* 1. Upcoming Match Schedule Block */}
-                        {upcomingMatches.length > 0 && (
-                            <div className="fixtures-subblock upcoming-block">
-                                <div className="fixtures-subblock-header">
-                                    <div className="fixtures-subblock-title">
-                                        <h3>Upcoming Match Schedule</h3>
-                                    </div>
-                                    <span className="fixtures-count-badge upcoming">
-                                        {upcomingMatches.length} Upcoming
-                                    </span>
-                                </div>
-                                <div className="results-grid">
-                                    {upcomingMatches.slice(0, 4).map((match, idx) => (
-                                        <MatchCard key={match.id || `up-${idx}`} match={match} teamsMap={teams} />
-                                    ))}
-                                </div>
+                    {/* 1. Upcoming Match Schedule Block */}
+                    <div className="fixtures-subblock upcoming-block">
+                        <div className="fixtures-subblock-header">
+                            <div className="fixtures-subblock-title">
+                                <h3>Upcoming Match Schedule</h3>
                             </div>
-                        )}
-
-                        {/* 2. Latest Completed Matches Block */}
-                        {completedMatches.length > 0 && (
-                            <div className="fixtures-subblock completed-block">
-                                <div className="fixtures-subblock-header">
-                                    <div className="fixtures-subblock-title">
-                                        <h3>Latest Concluded Matches</h3>
-                                    </div>
-                                    <span className="fixtures-count-badge completed">
-                                        {completedMatches.length} Concluded
-                                    </span>
+                            {upcomingMatches.length > 0 && (
+                                <span className="fixtures-count-badge upcoming">
+                                    {upcomingMatches.length} Upcoming
+                                </span>
+                            )}
+                        </div>
+                        {upcomingMatches.length > 0 ? (
+                            <div className="results-grid">
+                                {upcomingMatches.slice(0, 4).map((match, idx) => (
+                                    <MatchCard key={match.id || `up-${idx}`} match={match} teamsMap={teams} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="home-matches-empty-state">
+                                <div className="home-empty-icon-wrap">
+                                    <MdCalendarToday />
                                 </div>
-                                <div className="results-grid">
-                                    {[...completedMatches].reverse().slice(0, 4).map((match, idx) => (
-                                        <MatchCard key={match.id || `comp-${idx}`} match={match} teamsMap={teams} />
-                                    ))}
+                                <div className="home-empty-text">
+                                    <h4>No Upcoming Matches</h4>
+                                    <p>Match fixtures haven't been scheduled yet. Check back soon for upcoming game announcements.</p>
                                 </div>
+                                <Link to="/fixtures" className="home-empty-cta">
+                                    View Fixtures Page <MdArrowForward />
+                                </Link>
                             </div>
                         )}
                     </div>
-                </section>
-            )}
+
+                    {/* 2. Latest Completed Matches Block */}
+                    <div className="fixtures-subblock completed-block">
+                        <div className="fixtures-subblock-header">
+                            <div className="fixtures-subblock-title">
+                                <h3>Latest Concluded Matches</h3>
+                            </div>
+                            {completedMatches.length > 0 && (
+                                <span className="fixtures-count-badge completed">
+                                    {completedMatches.length} Concluded
+                                </span>
+                            )}
+                        </div>
+                        {completedMatches.length > 0 ? (
+                            <div className="results-grid">
+                                {[...completedMatches].reverse().slice(0, 4).map((match, idx) => (
+                                    <MatchCard key={match.id || `comp-${idx}`} match={match} teamsMap={teams} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="home-matches-empty-state">
+                                <div className="home-empty-icon-wrap completed">
+                                    <MdSportsCricket />
+                                </div>
+                                <div className="home-empty-text">
+                                    <h4>No Completed Matches</h4>
+                                    <p>Tournament action hasn't kicked off yet. Match results and scorecards will appear here once games are concluded.</p>
+                                </div>
+                                <Link to="/fixtures" className="home-empty-cta">
+                                    View Fixtures Page <MdArrowForward />
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </section>
 
             {/* Featured Stories Deck (Even Section 4) */}
             {stories.length > 0 && (

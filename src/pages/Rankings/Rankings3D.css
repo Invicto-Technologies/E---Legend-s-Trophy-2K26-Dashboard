@@ -439,6 +439,7 @@
     box-shadow: var(--card-shadow);
     border-radius: 18px;
     overflow-x: auto;
+    margin-top: 40px;
     transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
@@ -486,6 +487,21 @@
     font-size: 1.1rem;
     font-weight: 800;
     color: #00f0ff;
+}
+
+/* Team cell: flex layout to show logo + name side by side */
+.team-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.points-team-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    border-radius: 4px;
+    flex-shrink: 0;
 }
 
 .rating-cell,
@@ -1667,8 +1683,31 @@
     font-size: 1.8rem;
 }
 
-.captain-card .player-avatar-fallback {
+/* Initials monogram inside avatar ring */
+.player-avatar-initials {
+    font-size: 1.45rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    color: #e2e8f0;
+    font-family: 'Inter', 'Outfit', system-ui, sans-serif;
+    user-select: none;
+}
+
+.captain-card .player-avatar-initials {
     color: #fbbf24;
+}
+
+.reserve-ring .player-avatar-initials,
+.reserve-card .player-avatar-initials {
+    color: #94a3b8;
+}
+
+[data-theme='light'] .player-avatar-initials {
+    color: #1e293b;
+}
+
+[data-theme='light'] .captain-card .player-avatar-initials {
+    color: #b45309;
 }
 
 /* Player Info */
@@ -2181,29 +2220,8 @@
 }
 
 @media (min-width: 992px) {
-    .rankings-no-data-page {
-        height: 100vh;
-        max-height: 100vh;
-        overflow: hidden;
-    }
-
-    .rankings-no-data-page .rankings-hero {
-        padding-top: 86px;
-        padding-bottom: 14px;
-    }
-
     .rankings-no-data-page .rankings-tag-badge {
         margin-bottom: 8px;
-    }
-
-    .rankings-no-data-page .rankings-title {
-        font-size: clamp(1.8rem, 2.5vw, 2.3rem);
-        margin: 0 0 6px 0;
-    }
-
-    .rankings-no-data-page .rankings-subtitle {
-        font-size: 0.95rem;
-        margin: 0 0 16px 0;
     }
 
     .rankings-no-data-page .rankings-stage-table-wrapper {
@@ -2258,11 +2276,6 @@
 @media (max-width: 991px) {
     .rankings-no-data-page {
         overflow-y: auto;
-    }
-
-    .rankings-no-data-page .rankings-hero {
-        padding-top: 96px;
-        padding-bottom: 20px;
     }
 
     .rankings-no-data-page .rankings-table-section {
@@ -3021,6 +3034,7 @@
             opacity: 0;
             transform: translateY(-6px) scale(0.98);
         }
+
         to {
             opacity: 1;
             transform: translateY(0) scale(1);
