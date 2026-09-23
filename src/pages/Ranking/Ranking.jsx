@@ -70,6 +70,20 @@ const Ranking = () => {
                 };
                 if (name === 'scores') {
                     updated.runs = Number(value);
+                    const b = Number(updated.balls || 0);
+                    if (b > 0) {
+                        updated.strikeRate = parseFloat(((Number(value) / b) * 100).toFixed(2));
+                    }
+                }
+                if (name === 'balls') {
+                    const b = Number(value);
+                    updated.balls = b;
+                    updated.overs = b > 0 ? `${Math.floor(b / 6)}.${b % 6}` : '0.0';
+                    updated.oversPlayed = updated.overs;
+                    const sc = Number(updated.scores ?? updated.runs ?? 0);
+                    if (b > 0) {
+                        updated.strikeRate = parseFloat(((sc / b) * 100).toFixed(2));
+                    }
                 }
                 if (name === 'wickets') {
                     updated.takenWickets = Number(value);
@@ -182,12 +196,15 @@ const Ranking = () => {
                                     />
                                 </div>
                                 <div className="form-group">
-                                    <label>Overs Played:</label>
+                                    <label>Balls Faced:</label>
                                     <input
-                                        type="text"
-                                        name="overs"
-                                        value={editingPlayer.overs ?? editingPlayer.oversPlayed ?? '0.0'}
+                                        type="number"
+                                        name="balls"
+                                        value={editingPlayer.balls !== undefined && editingPlayer.balls !== null
+                                            ? editingPlayer.balls
+                                            : (editingPlayer.overs ? (Math.floor(Number(editingPlayer.overs)) * 6 + Math.round((Number(editingPlayer.overs) - Math.floor(Number(editingPlayer.overs))) * 10)) : 0)}
                                         onChange={handlePlayerInputChange}
+                                        min="0"
                                     />
                                 </div>
                                 <div className="form-group">
@@ -262,7 +279,7 @@ const Ranking = () => {
                                             <th>Name</th>
                                             <th>Team</th>
                                             <th>Scores (Runs)</th>
-                                            <th>Overs</th>
+                                            <th>Balls</th>
                                             <th>Strike Rate</th>
                                             <th>Actions</th>
                                         </tr>
@@ -292,7 +309,7 @@ const Ranking = () => {
                                             {activeTab === 'batters' ? (
                                                 <>
                                                     <td><strong>{player.scores ?? player.runs ?? player.rating ?? 0}</strong></td>
-                                                    <td>{player.overs ?? player.oversPlayed ?? (player.balls ? `${Math.floor(player.balls / 6)}.${player.balls % 6}` : '0.0')}</td>
+                                                    <td>{player.balls !== undefined && player.balls !== null ? player.balls : (player.overs ? (Math.floor(Number(player.overs)) * 6 + Math.round((Number(player.overs) - Math.floor(Number(player.overs))) * 10)) : 0)}</td>
                                                     <td>{Number(player.strikeRate || 0).toFixed(2)}</td>
                                                 </>
                                             ) : (

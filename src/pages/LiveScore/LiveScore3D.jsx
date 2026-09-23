@@ -576,6 +576,11 @@ const LiveScore3D = () => {
                 Object.values(teamObj?.players || {}).find(sp =>
                     String(sp.id) === String(p.id) ||
                     (sp.name && p.name && sp.name.trim().toLowerCase() === p.name.trim().toLowerCase())
+                ) ||
+                teamObj?.extraPlayers?.[p.id] ||
+                Object.values(teamObj?.extraPlayers || {}).find(ep =>
+                    String(ep.id) === String(p.id) ||
+                    (ep.name && p.name && ep.name.trim().toLowerCase() === p.name.trim().toLowerCase())
                 );
 
             // Check if player has match participation (batting / bowling / crease)
@@ -598,17 +603,34 @@ const LiveScore3D = () => {
             const isCaptain = teamObj?.captain && p.name &&
                 (teamObj.captain.trim().toLowerCase() === p.name.trim().toLowerCase());
 
+            const rawHand = p.hand || squadPlayer?.hand || 'RHB';
+            const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
+            const bowlingStyle = p.bowlingStyle || squadPlayer?.bowlingStyle || '';
+
+            const lineupOrder = (p.lineupOrder !== undefined && p.lineupOrder !== null)
+                ? Number(p.lineupOrder)
+                : ((p.order !== undefined && p.order !== null)
+                    ? Number(p.order)
+                    : ((squadPlayer?.order !== undefined && squadPlayer?.order !== null)
+                        ? Number(squadPlayer.order)
+                        : ((squadPlayer?.battingOrder !== undefined && squadPlayer?.battingOrder !== null)
+                            ? Number(squadPlayer.battingOrder)
+                            : idx + 1)));
+
             return {
                 ...p,
+                lineupOrder,
                 role: p.role || squadPlayer?.role || (isExtra ? 'Substitute' : 'All Rounder'),
                 imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || squadPlayer?.imageUrl || '',
                 type: resolvedType === 'Reserve' ? 'Reserve' : 'Playing XI',
-                isCaptain: Boolean(isCaptain)
+                isCaptain: Boolean(isCaptain),
+                hand: normHand,
+                bowlingStyle
             };
         });
 
         return {
-            playingXI: mapped.filter(p => p.type === 'Playing XI'),
+            playingXI: mapped.filter(p => p.type === 'Playing XI').sort((a, b) => (a.lineupOrder ?? 999) - (b.lineupOrder ?? 999)),
             reserves: mapped.filter(p => p.type === 'Reserve')
         };
     };
@@ -616,7 +638,186 @@ const LiveScore3D = () => {
     // Helper to resolve playing squad for scorecards
     const resolveTeamSquad = (teamMatchData, teamName) => {
         const roster = resolveTeamRoster(teamMatchData, teamName);
-        return roster.playingXI.length > 0 ? roster.playingXI : Object.values(teamMatchData?.players || {});
+        return roster.playingXI.length > 0
+            ? roster.playingXI
+            : Object.values(teamMatchData?.players || {}).sort((a, b) => (a.lineupOrder ?? a.order ?? 999) - (b.lineupOrder ?? b.order ?? 999));
+    };
+
+    // Helper to order batting performance list according to when batters come out to the ground
+    const getBattersInGroundArrivalOrder = (teamData, playersList) => {
+        if (!playersList || playersList.length === 0) return [];
+        if (!teamData) return playersList;
+
+        const arrivalOrder = [];
+        const addedIds = new Set();
+
+        const addPlayerId = (pid) => {
+            if (!pid) return;
+            const sId = String(pid);
+            if (!addedIds.has(sId)) {
+                addedIds.add(sId);
+                arrivalOrder.push(sId);
+            }
+        };
+
+        const isCurrentlyAtCrease = (p) => {
+            return (teamData.ballFaceBatsman && String(teamData.ballFaceBatsman.id) === String(p.id)) ||
+                (teamData.otherSideBatsman && String(teamData.otherSideBatsman.id) === String(p.id)) ||
+                p.status === 'batting';
+        };
+
+        const hasBatted = (p) => {
+            return isCurrentlyAtCrease(p) ||
+                Number(p.balls || 0) > 0 ||
+                Number(p.runs || 0) > 0 ||
+                (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat') ||
+                (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
+        };
+
+        // 1. Build an inferred arrival map from historical partnerships & fall of wickets
+        const inferredMap = {};
+
+        // A. Completed partnerships in ascending order
+        const sortedPartnerships = Object.values(teamData.partnerships || {})
+            .filter(Boolean)
+            .sort((a, b) => Number(a.wicketNumber || 0) - Number(b.wicketNumber || 0));
+
+        sortedPartnerships.forEach((part, idx) => {
+            const wNum = Number(part.wicketNumber || idx + 1);
+            if (wNum === 1) {
+                if (part.batsman1?.id && inferredMap[String(part.batsman1.id)] === undefined) {
+                    inferredMap[String(part.batsman1.id)] = 1;
+                }
+                if (part.batsman2?.id && inferredMap[String(part.batsman2.id)] === undefined) {
+                    inferredMap[String(part.batsman2.id)] = 2;
+                }
+            } else {
+                if (part.batsman1?.id && inferredMap[String(part.batsman1.id)] === undefined) {
+                    inferredMap[String(part.batsman1.id)] = wNum + 1;
+                }
+                if (part.batsman2?.id && inferredMap[String(part.batsman2.id)] === undefined) {
+                    inferredMap[String(part.batsman2.id)] = wNum + 1;
+                }
+            }
+        });
+
+        // B. Fall of Wickets in chronological order
+        const sortedFow = Object.values(teamData.fallOfWickets || {}).filter(Boolean);
+        sortedFow.forEach((fow, idx) => {
+            const wNum = idx + 1;
+            let pId = null;
+            if (fow.outBatsman?.id) {
+                pId = String(fow.outBatsman.id);
+            } else if (fow.batsman) {
+                const cleanName = fow.batsman.trim().toLowerCase();
+                const matched = playersList.find(p => p.name && p.name.trim().toLowerCase() === cleanName);
+                if (matched) pId = String(matched.id);
+            }
+            if (pId && inferredMap[pId] === undefined) {
+                inferredMap[pId] = wNum === 1 ? 1 : wNum + 1;
+            }
+        });
+
+        // Determine the max arrival rank among all previously arrived batters
+        let maxKnownArrival = 2;
+        playersList.forEach(p => {
+            const sId = String(p.id);
+            const order = Number(p.groundArrivalOrder || inferredMap[sId] || 0);
+            if (order > maxKnownArrival) maxKnownArrival = order;
+        });
+        const totalWickets = Number(teamData.totalWickets || 0);
+        if (totalWickets + 1 > maxKnownArrival) {
+            maxKnownArrival = totalWickets + 1;
+        }
+
+        // C. Current Crease Batters
+        const strikerId = teamData.ballFaceBatsman?.id ? String(teamData.ballFaceBatsman.id) : null;
+        const nonStrikerId = teamData.otherSideBatsman?.id ? String(teamData.otherSideBatsman.id) : null;
+
+        if (strikerId && nonStrikerId) {
+            if (totalWickets === 0) {
+                if (inferredMap[strikerId] === undefined) inferredMap[strikerId] = 1;
+                if (inferredMap[nonStrikerId] === undefined) inferredMap[nonStrikerId] = 2;
+            } else {
+                // The new incoming batter must always appear AFTER the last ground-coming player (maxKnownArrival + 1)
+                const sPlayer = playersList.find(p => String(p.id) === strikerId);
+                const nsPlayer = playersList.find(p => String(p.id) === nonStrikerId);
+                const sHasOrder = Number(sPlayer?.groundArrivalOrder || inferredMap[strikerId] || 0) > 0;
+                const nsHasOrder = Number(nsPlayer?.groundArrivalOrder || inferredMap[nonStrikerId] || 0) > 0;
+
+                if (sHasOrder && !nsHasOrder) {
+                    inferredMap[nonStrikerId] = maxKnownArrival + 1;
+                } else if (nsHasOrder && !sHasOrder) {
+                    inferredMap[strikerId] = maxKnownArrival + 1;
+                } else if (!sHasOrder && !nsHasOrder) {
+                    const sBalls = Number(sPlayer?.balls || 0) + Number(sPlayer?.runs || 0);
+                    const nsBalls = Number(nsPlayer?.balls || 0) + Number(nsPlayer?.runs || 0);
+                    if (sBalls > 0 && nsBalls === 0) {
+                        inferredMap[nonStrikerId] = maxKnownArrival + 1;
+                    } else if (nsBalls > 0 && sBalls === 0) {
+                        inferredMap[strikerId] = maxKnownArrival + 1;
+                    }
+                }
+            }
+        }
+
+        const getEffectiveArrivalRank = (p) => {
+            // Priority 1: Explicit groundArrivalOrder
+            if (p.groundArrivalOrder !== undefined && p.groundArrivalOrder !== null && Number(p.groundArrivalOrder) > 0) {
+                return Number(p.groundArrivalOrder);
+            }
+            // Priority 2: Inferred map
+            const sId = String(p.id);
+            if (inferredMap[sId] !== undefined) return inferredMap[sId];
+            // Priority 3: Batting order
+            if (p.battingOrder !== undefined && p.battingOrder !== null && Number(p.battingOrder) > 0) {
+                return Number(p.battingOrder);
+            }
+            return 999;
+        };
+
+        // 2. Active/participated batters sorted strictly by arrival order
+        const activeBatters = [...playersList]
+            .filter(hasBatted)
+            .sort((a, b) => {
+                const rankA = getEffectiveArrivalRank(a);
+                const rankB = getEffectiveArrivalRank(b);
+                if (rankA !== rankB) return rankA - rankB;
+                return (Number(a.lineupOrder ?? 999)) - (Number(b.lineupOrder ?? 999));
+            });
+
+        activeBatters.forEach(p => addPlayerId(p.id));
+
+        // 3. Map in exact ground arrival order
+        const arrived = [];
+        arrivalOrder.forEach(id => {
+            const found = playersList.find(p => String(p.id) === String(id));
+            if (found) arrived.push(found);
+        });
+
+        // 4. Remaining unbatted players MUST be sorted strictly by initial team line up order
+        const unbatted = playersList
+            .filter(p => !addedIds.has(String(p.id)))
+            .sort((a, b) => {
+                const orderA = (a.lineupOrder !== undefined && a.lineupOrder !== null)
+                    ? Number(a.lineupOrder)
+                    : ((a.order !== undefined && a.order !== null)
+                        ? Number(a.order)
+                        : ((a.initialOrder !== undefined && a.initialOrder !== null)
+                            ? Number(a.initialOrder)
+                            : 999));
+                const orderB = (b.lineupOrder !== undefined && b.lineupOrder !== null)
+                    ? Number(b.lineupOrder)
+                    : ((b.order !== undefined && b.order !== null)
+                        ? Number(b.order)
+                        : ((b.initialOrder !== undefined && b.initialOrder !== null)
+                            ? Number(b.initialOrder)
+                            : 999));
+                if (orderA !== orderB) return orderA - orderB;
+                return (Number(a.id) || 0) - (Number(b.id) || 0);
+            });
+
+        return [...arrived, ...unbatted];
     };
 
     // Helper to render role icon
@@ -737,16 +938,24 @@ const LiveScore3D = () => {
     // Active Batsmen & Bowler at the crease (Always live, never affected by tabs)
     const activeStriker = liveBattingTeam.ballFaceBatsman || liveBattersList.find(p => p.status === 'striker' || p.status === 'batting') || liveBattersList[0] || { name: 'Striker', runs: 0, balls: 0 };
     const activeNonStriker = liveBattingTeam.otherSideBatsman || liveBattersList.find(p => p.status === 'non-striker') || liveBattersList[1] || { name: 'Non-Striker', runs: 0, balls: 0 };
-    const activeBowler = liveBowlingTeam.bowler || liveBowlersList[0] || { name: 'Active Bowler', overs: 0, runs: 0, wickets: 0 };
+    const rawActiveBowler = liveBowlingTeam.bowler || liveBowlersList[0] || { name: 'Active Bowler', overs: 0, runs: 0, wickets: 0 };
+    const liveBowlSquadAll = resolveTeamSquad(liveBowlingTeam, liveBowlTeamName);
+    const matchedActiveBowler = liveBowlSquadAll.find(p => String(p.id) === String(rawActiveBowler.id) || (p.name && rawActiveBowler.name && p.name.trim().toLowerCase() === rawActiveBowler.name.trim().toLowerCase()));
+    const activeBowler = {
+        ...rawActiveBowler,
+        bowlingStyle: rawActiveBowler.bowlingStyle || matchedActiveBowler?.bowlingStyle || ''
+    };
 
     // Tab-Selected Scorecard Data (For Batting & Bowling tables below in the selected innings)
     const currentBatTeamName = tabBattingTeam.name || (isTabTeam1Batting ? t1Name : t2Name);
     const currentBowlTeamName = tabBowlingTeam.name || (isTabTeam1Batting ? t2Name : t1Name);
-    const battersList = resolveTeamSquad(tabBattingTeam, currentBatTeamName);
+    const rawBattersList = resolveTeamSquad(tabBattingTeam, currentBatTeamName);
+    const battersList = getBattersInGroundArrivalOrder(tabBattingTeam, rawBattersList);
+    const tabBowlSquadAll = resolveTeamSquad(tabBowlingTeam, currentBowlTeamName);
     const rawBowlersList = Object.values(tabBowlingTeam.bowlers || {});
-    const bowlersList = rawBowlersList.length > 0
+    const bowlersList = (rawBowlersList.length > 0
         ? rawBowlersList
-        : resolveTeamSquad(tabBowlingTeam, currentBowlTeamName).map(p => ({
+        : tabBowlSquadAll.map(p => ({
             id: p.id,
             name: p.name,
             overs: 0,
@@ -754,7 +963,14 @@ const LiveScore3D = () => {
             wickets: 0,
             maidens: 0,
             economy: '0.00'
-        }));
+        }))).map(b => {
+            const matched = tabBowlSquadAll.find(p => String(p.id) === String(b.id) || (p.name && b.name && p.name.trim().toLowerCase() === b.name.trim().toLowerCase()));
+            return {
+                ...matched,
+                ...b,
+                bowlingStyle: b.bowlingStyle || matched?.bowlingStyle || ''
+            };
+        });
     const fallOfWickets = Object.values(tabBattingTeam.fallOfWickets || {}).filter(Boolean);
     const currentPartnership = tabBattingTeam.currentPartnership;
     const partnershipsList = Object.values(tabBattingTeam.partnerships || {}).filter(Boolean);
@@ -950,12 +1166,11 @@ const LiveScore3D = () => {
             {/* Main Interactive Broadcast Console */}
             <main className="ls-main-section">
                 <div className="ls-container">
-                    <div className={`ls-two-col-layout tab-${activeHubTab}`}>
-                        {/* ========================================================= */}
-                        {/* LEFT COLUMN: Holographic Scoreboard + Scorecard & Match Info Hub */}
-                        {/* ========================================================= */}
+                    {/* ========================================================= */}
+                    {/* ROW 01: Top Section (Holographic Scoreboard + Smart Crease Spotlight) */}
+                    {/* ========================================================= */}
+                    <div className="ls-two-col-layout ls-row-top">
                         <div className="ls-col-left">
-                            {/* 1. Premier Stadium Holographic Scoreboard */}
                             <div className="scoreboard-glass-card">
                                 {/* Match Title & Format Ribbon */}
                                 <div className="sb-header">
@@ -1109,45 +1324,223 @@ const LiveScore3D = () => {
                                     );
                                 })()}
                             </div>
+                        </div>
+                        <div className="ls-col-right">
+                            <section className="ls-crease-section">
+                                <div className="ls-crease-card">
+                                    {isLive ? (
+                                        <>
+                                            {/* Two Column Space-Saving Crease Layout: Left=Bowler, Right=Striker & Non-Striker */}
+                                            <div className="crease-two-col-layout">
+                                                {/* Right Column: Striker & Non-Striker Batters */}
+                                                <div className="crease-batters-col">
+                                                    {/* Striker Mini Card */}
+                                                    {activeStriker && (
+                                                        <div className="crease-batter-mini-card striker">
+                                                            <div className="cbm-header">
+                                                                <div className="cbm-info">
+                                                                    <div className="cbm-name-row">
+                                                                        <span className="cbm-name">{activeStriker.name}</span>
+                                                                        <span className={`cbm-hand-badge ${(activeStriker.hand === 'LHB' || activeStriker.hand === 'LHS' || String(activeStriker.hand || '').toLowerCase().includes('left')) ? 'lhb' : 'rhb'}`}>
+                                                                            {(activeStriker.hand === 'LHB' || activeStriker.hand === 'LHS' || String(activeStriker.hand || '').toLowerCase().includes('left')) ? 'LHB' : 'RHB'}
+                                                                        </span>
+                                                                        <span className="cbm-badge striker-badge">
+                                                                            <GiCricketBat /> STRIKER *
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="cbm-stats-row">
+                                                                        <span>4s: <strong>{activeStriker.boundaries?.fours ?? activeStriker.fours ?? 0}</strong></span>
+                                                                        <span>6s: <strong>{activeStriker.boundaries?.sixes ?? activeStriker.sixes ?? 0}</strong></span>
+                                                                        <span>SR: <strong>{activeStriker.strikeRate || ((Number(activeStriker.runs || 0) / Math.max(1, Number(activeStriker.balls || 1))) * 100).toFixed(1)}</strong></span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="cbm-score-box">
+                                                                    <span className="cbm-runs">{activeStriker.runs ?? 0}</span>
+                                                                    <span className="cbm-balls">({activeStriker.balls ?? 0}b)</span>
+                                                                    <button
+                                                                        className="wagon-mini-btn"
+                                                                        onClick={() => {
+                                                                            setSelectedBatsmanForWagon(activeStriker);
+                                                                            setShowWagonWheel(true);
+                                                                        }}
+                                                                        title="View Striker Wagon Wheel"
+                                                                    >
+                                                                        <MdPieChart /> Wagon
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
-                            {/* 2. Match Hub Section (Scorecard and Match Info & Rosters Tabs) */}
-                            <div className="ls-hub-card">
-                                <div className="hub-tabs-header">
+                                                    {/* Non-Striker Mini Card */}
+                                                    {activeNonStriker && (
+                                                        <div className="crease-batter-mini-card non-striker">
+                                                            <div className="cbm-header">
+                                                                <div className="cbm-info">
+                                                                    <div className="cbm-name-row">
+                                                                        <span className="cbm-name">{activeNonStriker.name}</span>
+                                                                        <span className={`cbm-hand-badge ${(activeNonStriker.hand === 'LHB' || activeNonStriker.hand === 'LHS' || String(activeNonStriker.hand || '').toLowerCase().includes('left')) ? 'lhb' : 'rhb'}`}>
+                                                                            {(activeNonStriker.hand === 'LHB' || activeNonStriker.hand === 'LHS' || String(activeNonStriker.hand || '').toLowerCase().includes('left')) ? 'LHB' : 'RHB'}
+                                                                        </span>
+                                                                        <span className="cbm-badge non-striker-badge">
+                                                                            NON-STRIKE
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="cbm-stats-row">
+                                                                        <span>4s: <strong>{activeNonStriker.boundaries?.fours ?? activeNonStriker.fours ?? 0}</strong></span>
+                                                                        <span>6s: <strong>{activeNonStriker.boundaries?.sixes ?? activeNonStriker.sixes ?? 0}</strong></span>
+                                                                        <span>SR: <strong>{activeNonStriker.strikeRate || ((Number(activeNonStriker.runs || 0) / Math.max(1, Number(activeNonStriker.balls || 1))) * 100).toFixed(1)}</strong></span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="cbm-score-box">
+                                                                    <span className="cbm-runs">{activeNonStriker.runs ?? 0}</span>
+                                                                    <span className="cbm-balls">({activeNonStriker.balls ?? 0}b)</span>
+                                                                    <button
+                                                                        className="wagon-mini-btn"
+                                                                        onClick={() => {
+                                                                            setSelectedBatsmanForWagon(activeNonStriker);
+                                                                            setShowWagonWheel(true);
+                                                                        }}
+                                                                        title="View Non-Striker Wagon Wheel"
+                                                                    >
+                                                                        <MdPieChart /> Wagon
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Left Column: Active Bowler */}
+                                                <div className="crease-bowler-col">
+                                                    {activeBowler && (
+                                                        <TiltCard className="crease-card bowler-spotlight-card" maxTilt={5}>
+                                                            <div className="cc-tag bowler-tag">
+                                                                <MdSportsBaseball className="cc-tag-icon" /> CURRENT BOWLER
+                                                            </div>
+                                                            <h3 className="cc-name">{activeBowler.name}</h3>
+                                                            {activeBowler.bowlingStyle && (
+                                                                <div className="cc-bowling-style-chip" title={`Bowling Style: ${activeBowler.bowlingStyle}`}>
+                                                                    <MdSportsCricket /> {activeBowler.bowlingStyle}
+                                                                </div>
+                                                            )}
+                                                            <div className="cc-score-row">
+                                                                <span className="cc-runs">{activeBowler.wickets ?? 0}</span>
+                                                                <span className="cc-balls">for {activeBowler.runs ?? 0}</span>
+                                                            </div>
+                                                            <div className="cc-compact-stats">
+                                                                <span className="cc-stat-chip">Overs: <strong>{activeBowler.overs ?? 0}</strong></span>
+                                                                <span className="cc-stat-chip">Mdns: <strong>{activeBowler.maidens ?? 0}</strong></span>
+                                                                <span className="cc-stat-chip">Econ: <strong>{activeBowler.economy ?? (activeBowler.overs ? (activeBowler.runs / activeBowler.overs).toFixed(2) : '0.00')}</strong></span>
+                                                            </div>
+                                                        </TiltCard>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Recent Deliveries Strip */}
+                                            {recentDeliveries.length > 0 && (
+                                                <div className="recent-balls-bar">
+                                                    <span className="rbb-title">Recent Balls:</span>
+                                                    <div className="rbb-tokens">
+                                                        {recentDeliveries.map((c, idx) => {
+                                                            const meta = getDeliveryMeta(c);
+                                                            return (
+                                                                <span
+                                                                    key={idx}
+                                                                    className={`delivery-token ${meta.type} len-${String(meta.label).length}`}
+                                                                    title={`Ball ${c.ball || idx + 1}: ${c.commentary || c.text || ''}`}
+                                                                >
+                                                                    {meta.label}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        /* Concluded Match Top Performers Showcase */
+                                        <div className="concluded-performers-grid">
+                                            {common.mom && (
+                                                <div className="performer-highlight-card potm">
+                                                    <div className="ph-badge">
+                                                        <MdEmojiEvents /> PLAYER OF THE MATCH
+                                                    </div>
+                                                    <h3 className="ph-name">{common.mom}</h3>
+                                                    <p className="ph-caption">Outstanding Match-Winning Performance</p>
+                                                </div>
+                                            )}
+                                            {topBatter && (
+                                                <div className="performer-highlight-card batter">
+                                                    <div className="ph-badge">
+                                                        <MdSportsCricket /> TOP RUN SCORER
+                                                    </div>
+                                                    <h3 className="ph-name">{topBatter.name}</h3>
+                                                    <p className="ph-score">{topBatter.runs} runs ({topBatter.balls} balls) • SR {topBatter.strikeRate || '100'}</p>
+                                                </div>
+                                            )}
+                                            {topBowler && (
+                                                <div className="performer-highlight-card bowler">
+                                                    <div className="ph-badge">
+                                                        <MdBolt /> TOP WICKET TAKER
+                                                    </div>
+                                                    <h3 className="ph-name">{topBowler.name}</h3>
+                                                    <p className="ph-score">{topBowler.wickets} wkts ({topBowler.runs} runs in {topBowler.overs} ov)</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    {/* ========================================================= */}
+                    {/* ROW 02: Under Section (Hub Tabs + Batting & Bowling Side-by-Side) */}
+                    {/* ========================================================= */}
+                    <div className="ls-hub-card ls-row-under">
+                        <div className="hub-tabs-header">
+                            <button
+                                className={`hub-tab-btn ${activeHubTab === 'scorecard' ? 'active' : ''}`}
+                                onClick={() => setActiveHubTab('scorecard')}
+                            >
+                                <MdFormatListNumbered /> Scorecard
+                            </button>
+                            <button
+                                className={`hub-tab-btn ${activeHubTab === 'info' ? 'active' : ''}`}
+                                onClick={() => setActiveHubTab('info')}
+                            >
+                                <MdInfo /> Match Info &amp; Rosters
+                            </button>
+                        </div>
+
+                        {/* TAB 1: SCORECARD */}
+
+                        {/* TAB 1: SCORECARD (Batting & Bowling at same horizontal level) */}
+                        {activeHubTab === 'scorecard' && (
+                            <div className="hub-tab-pane">
+                                <div className="innings-switcher-bar">
                                     <button
-                                        className={`hub-tab-btn ${activeHubTab === 'scorecard' ? 'active' : ''}`}
-                                        onClick={() => setActiveHubTab('scorecard')}
+                                        className={`innings-switch-btn ${activeInningsTab === firstBatTeamKey ? 'active' : ''}`}
+                                        onClick={() => setUserSelectedInningsTab(firstBatTeamKey)}
                                     >
-                                        <MdFormatListNumbered /> Scorecard
+                                        <span className="col-full">1st Innings: <strong>{firstBatName}</strong> ({firstBatRuns}/{firstBatWickets} in {firstBatOvers} ov)</span>
+                                        <span className="col-short">1st: <strong>{firstBatName}</strong> ({firstBatRuns}/{firstBatWickets})</span>
                                     </button>
                                     <button
-                                        className={`hub-tab-btn ${activeHubTab === 'info' ? 'active' : ''}`}
-                                        onClick={() => setActiveHubTab('info')}
+                                        className={`innings-switch-btn ${activeInningsTab === secondBatTeamKey ? 'active' : ''}`}
+                                        onClick={() => setUserSelectedInningsTab(secondBatTeamKey)}
                                     >
-                                        <MdInfo /> Match Info &amp; Rosters
+                                        <span className="col-full">2nd Innings: <strong>{secondBatName}</strong> ({secondBatRuns}/{secondBatWickets} in {secondBatOvers} ov)</span>
+                                        <span className="col-short">2nd: <strong>{secondBatName}</strong> ({secondBatRuns}/{secondBatWickets})</span>
                                     </button>
                                 </div>
 
-                                {/* TAB 1: SCORECARD */}
-                                {activeHubTab === 'scorecard' && (
-                                    <div className="hub-tab-pane">
-                                        {/* Innings Switcher Toggle Bar */}
-                                        <div className="innings-switcher-bar">
-                                            <button
-                                                className={`innings-switch-btn ${activeInningsTab === firstBatTeamKey ? 'active' : ''}`}
-                                                onClick={() => setUserSelectedInningsTab(firstBatTeamKey)}
-                                            >
-                                                <span className="col-full">1st Innings: <strong>{firstBatName}</strong> ({firstBatRuns}/{firstBatWickets} in {firstBatOvers} ov)</span>
-                                                <span className="col-short">1st: <strong>{firstBatName}</strong> ({firstBatRuns}/{firstBatWickets})</span>
-                                            </button>
-                                            <button
-                                                className={`innings-switch-btn ${activeInningsTab === secondBatTeamKey ? 'active' : ''}`}
-                                                onClick={() => setUserSelectedInningsTab(secondBatTeamKey)}
-                                            >
-                                                <span className="col-full">2nd Innings: <strong>{secondBatName}</strong> ({secondBatRuns}/{secondBatWickets} in {secondBatOvers} ov)</span>
-                                                <span className="col-short">2nd: <strong>{secondBatName}</strong> ({secondBatRuns}/{secondBatWickets})</span>
-                                            </button>
-                                        </div>
-
+                                {/* Side-by-side Scorecard Grid */}
+                                <div className="ls-two-col-layout ls-row-scorecard">
+                                    {/* Left Column: Batting, Extras, Partnerships */}
+                                    <div className="ls-col-left">
                                         {/* Batting Scorecard Block */}
                                         <div className="scorecard-block">
                                             <div className="block-header-bar">
@@ -1173,53 +1566,75 @@ const LiveScore3D = () => {
                                                                 <th className="th-num" style={{ textAlign: 'center' }}>4s</th>
                                                                 <th className="th-num" style={{ textAlign: 'center' }}>6s</th>
                                                                 <th className="th-num" style={{ textAlign: 'center' }}>SR</th>
-                                                                <th className="th-wagon" style={{ textAlign: 'center' }}>Wagon</th>
+                                                                <th className="th-wagon" style={{ textAlign: 'center' }}>Wag</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {battersList.map((p, idx) => (
-                                                                <tr key={p.id || idx}>
-                                                                    <td className="player-name-cell">
-                                                                        <div className="p-cell-wrap">
-                                                                            <strong>{p.name}</strong>
-                                                                            {p.role && <span className="player-role-sub">{p.role}</span>}
-                                                                            <span className="mobile-dismissal-sub">
-                                                                                {p.dismissal ? (
-                                                                                    <span className="dismissal-out">{p.dismissal}</span>
-                                                                                ) : (
-                                                                                    <span className="dismissal-notout">{p.runs > 0 || p.balls > 0 ? 'not out' : 'yet to bat'}</span>
-                                                                                )}
-                                                                            </span>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="dismissal-cell desktop-dismissal">
-                                                                        {p.dismissal ? (
-                                                                            <span className="dismissal-out">{p.dismissal}</span>
-                                                                        ) : (
-                                                                            <span className="dismissal-notout">{p.runs > 0 || p.balls > 0 ? 'not out' : 'yet to bat'}</span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="runs-cell" style={{ textAlign: 'center' }}>{p.runs ?? 0}</td>
-                                                                    <td className="balls-cell" style={{ textAlign: 'center' }}>{p.balls ?? 0}</td>
-                                                                    <td className="fours-cell" style={{ textAlign: 'center' }}>{p.boundaries?.fours ?? p.fours ?? 0}</td>
-                                                                    <td className="sixes-cell" style={{ textAlign: 'center' }}>{p.boundaries?.sixes ?? p.sixes ?? 0}</td>
-                                                                    <td className="sr-cell" style={{ textAlign: 'center' }}>
-                                                                        {p.strikeRate || ((Number(p.runs || 0) / Math.max(1, Number(p.balls || 1))) * 100).toFixed(1)}
-                                                                    </td>
-                                                                    <td className="wagon-cell" style={{ textAlign: 'center' }}>
-                                                                        <button
-                                                                            className="table-wagon-btn"
-                                                                            onClick={() => {
-                                                                                setSelectedBatsmanForWagon(p);
-                                                                                setShowWagonWheel(true);
-                                                                            }}
-                                                                            title="View Wagon Wheel"
-                                                                        >
-                                                                            <MdPieChart />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
+                                                            {battersList.map((p, idx) => {
+                                                                const isStriker = tabBattingTeam?.ballFaceBatsman && String(tabBattingTeam.ballFaceBatsman.id) === String(p.id);
+                                                                const isNonStriker = tabBattingTeam?.otherSideBatsman && String(tabBattingTeam.otherSideBatsman.id) === String(p.id);
+                                                                const isCurrentlyBatting = isStriker || isNonStriker || p.status === 'batting';
+                                                                const isOut = p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat';
+                                                                const dismissalText = isOut
+                                                                    ? p.dismissal
+                                                                    : (isCurrentlyBatting || Number(p.runs || 0) > 0 || Number(p.balls || 0) > 0 ? 'not out' : 'yet to bat');
+
+                                                                return (
+                                                                    <tr
+                                                                        key={p.id || idx}
+                                                                        className={isOut ? 'out-batter-row' : ''}
+                                                                        style={isOut ? { color: '#94a3b8', fontStyle: 'italic', opacity: 0.8 } : {}}
+                                                                    >
+                                                                        <td className="player-name-cell" style={isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}}>
+                                                                            <div className="table-player-cell-inner">
+                                                                                {renderPlayerAvatar(p, currentBatTeamName, 'xs')}
+                                                                                <div className="p-cell-wrap">
+                                                                                    <div className="p-name-row-live">
+                                                                                        <strong style={isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}}>{p.name}</strong>
+                                                                                        <span className={`p-hand-sub ${isOut ? 'out-hand' : ''} ${(p.hand === 'LHB' || p.hand === 'LHS' || String(p.hand || '').toLowerCase().includes('left')) ? 'lhb' : 'rhb'}`}>
+                                                                                            {(p.hand === 'LHB' || p.hand === 'LHS' || String(p.hand || '').toLowerCase().includes('left')) ? 'LHB' : 'RHB'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    {p.role && <span className="player-role-sub" style={isOut ? { color: '#94a3b8' } : {}}>{p.role}</span>}
+                                                                                    <span className="mobile-dismissal-sub">
+                                                                                        {isOut ? (
+                                                                                            <span className="dismissal-out" style={{ fontStyle: 'italic', color: '#94a3b8' }}>{dismissalText}</span>
+                                                                                        ) : (
+                                                                                            <span className="dismissal-notout">{dismissalText}</span>
+                                                                                        )}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="dismissal-cell desktop-dismissal" style={isOut ? { fontStyle: 'italic', color: '#94a3b8' } : {}}>
+                                                                            {isOut ? (
+                                                                                <span className="dismissal-out" style={{ fontStyle: 'italic', color: '#94a3b8' }}>{dismissalText}</span>
+                                                                            ) : (
+                                                                                <span className="dismissal-notout">{dismissalText}</span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="runs-cell" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.runs ?? 0}</td>
+                                                                        <td className="balls-cell" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.balls ?? 0}</td>
+                                                                        <td className="fours-cell" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.boundaries?.fours ?? p.fours ?? 0}</td>
+                                                                        <td className="sixes-cell" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.boundaries?.sixes ?? p.sixes ?? 0}</td>
+                                                                        <td className="sr-cell" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>
+                                                                            {p.strikeRate || ((Number(p.runs || 0) / Math.max(1, Number(p.balls || 1))) * 100).toFixed(1)}
+                                                                        </td>
+                                                                        <td className="wagon-cell" style={{ textAlign: 'center' }}>
+                                                                            <button
+                                                                                className="table-wagon-btn"
+                                                                                onClick={() => {
+                                                                                    setSelectedBatsmanForWagon(p);
+                                                                                    setShowWagonWheel(true);
+                                                                                }}
+                                                                                title="View Wagon Wheel"
+                                                                            >
+                                                                                <MdPieChart />
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                )
+                                                            })}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -1252,7 +1667,7 @@ const LiveScore3D = () => {
 
                                         {/* Partnerships Card: Current Stand & Innings History */}
                                         {(currentPartnership?.batsman1 || partnershipsList.length > 0) && (
-                                            <div className="scorecard-block partnerships-block" style={{ marginTop: '16px' }}>
+                                            <div className="scorecard-block partnerships-block">
                                                 <div className="block-header-bar">
                                                     <h3 className="block-title">
                                                         <MdHandshake className="block-header-icon" /> Partnerships • {tabBattingTeam.name || 'Batting Side'}
@@ -1340,530 +1755,382 @@ const LiveScore3D = () => {
 
                                                 {/* Completed Partnerships Table */}
                                                 {partnershipsList.length > 0 && (
-                                                    <div className="table-responsive" style={{ marginTop: '12px' }}>
-                                                        <table className="score-table partnerships-table">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th style={{ textAlign: 'left' }}><span className="col-full">Wicket</span><span className="col-short">W</span></th>
-                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Runs (Balls)</span><span className="col-short">R</span></th>
-                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Overs</span><span className="col-short">O</span></th>
-                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Batters Breakdown</span><span className="col-short">B</span></th>
-                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">Extras</span><span className="col-short">E</span></th>
-                                                                    <th style={{ textAlign: 'center' }}><span className="col-full">End Score</span><span className="col-short">S</span></th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {partnershipsList.map((p, idx) => (
-                                                                    <tr key={p.id || idx} className={p?.isUnbroken ? 'unbroken-partnership-row' : ''}>
-                                                                        <td className="wkt-cell" style={{ textAlign: 'left' }}>
-                                                                            <strong>{p.wicketLabel || `${p.wicketNumber || idx + 1}${idx === 0 ? 'st' : idx === 1 ? 'nd' : idx === 2 ? 'rd' : 'th'} Wicket`}</strong>
-                                                                            {p?.isUnbroken && <span className="unbroken-badge">Not Out</span>}
-                                                                        </td>
-                                                                        <td className="runs-cell" style={{ textAlign: 'center' }}>
-                                                                            <span className="part-runs-bold">{p.runs}</span> <span className="text-muted">({p.balls}b)</span>
-                                                                        </td>
-                                                                        <td style={{ textAlign: 'center' }}>{p.overs || `${Math.floor((p.balls || 0) / 6)}.${(p.balls || 0) % 6}`}</td>
-                                                                        <td className="part-batters-cell" style={{ textAlign: 'center' }}>
-                                                                            <span className="part-b-seg">
-                                                                                {renderPlayerAvatar(p.batsman1, currentBatTeamName, 'sm')}
-                                                                                <span className="part-b-info">
-                                                                                    {p.batsman1?.name}: <strong>{p.batsman1Runs || 0}</strong> <small>({p.batsman1Balls || 0}b)</small>
-                                                                                </span>
-                                                                            </span>
-                                                                            <span className="part-b-seg">
-                                                                                {renderPlayerAvatar(p.batsman2, currentBatTeamName, 'sm')}
-                                                                                <span className="part-b-info">
-                                                                                    {p.batsman2?.name}: <strong>{p.batsman2Runs || 0}</strong> <small>({p.batsman2Balls || 0}b)</small>
-                                                                                </span>
-                                                                            </span>
-                                                                        </td>
-                                                                        <td style={{ textAlign: 'center' }}>{p.extras ?? Math.max(0, p.runs - ((p.batsman1Runs || 0) + (p.batsman2Runs || 0)))}</td>
-                                                                        <td className="end-score-cell" style={{ textAlign: 'center' }}>{p.endScore || '-'}</td>
+                                                    <div className="partnerships-history-wrap">
+                                                        <div className="partnerships-table-header-row">
+                                                            <span className="partnerships-table-title">Partnership History</span>
+                                                            <span className="partnerships-scroll-badge">⇄ Scroll to view details</span>
+                                                        </div>
+                                                        <div className="table-responsive partnerships-table-responsive">
+                                                            <table className="score-table partnerships-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style={{ textAlign: 'left' }}><span className="col-full">Wicket</span><span className="col-short">W</span></th>
+                                                                        <th style={{ textAlign: 'center' }}><span className="col-full">R (B)</span><span className="col-short">R</span></th>
+                                                                        <th style={{ textAlign: 'center' }}><span className="col-full">Ov</span><span className="col-short">O</span></th>
+                                                                        <th style={{ textAlign: 'center' }}><span className="col-full">Batters Breakdown</span><span className="col-short">B</span></th>
+                                                                        <th style={{ textAlign: 'center' }}><span className="col-full">Extr</span><span className="col-short">E</span></th>
+                                                                        <th style={{ textAlign: 'center' }}><span className="col-full">Sco</span><span className="col-short">S</span></th>
                                                                     </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {partnershipsList.map((p, idx) => (
+                                                                        <tr key={p.id || idx} className={p?.isUnbroken ? 'unbroken-partnership-row' : ''}>
+                                                                            <td className="wkt-cell" style={{ textAlign: 'left' }}>
+                                                                                <strong>{p.wicketLabel || `${p.wicketNumber || idx + 1}${idx === 0 ? 'st' : idx === 1 ? 'nd' : idx === 2 ? 'rd' : 'th'} Wicket`}</strong>
+                                                                                {p?.isUnbroken && <span className="unbroken-badge">Not Out</span>}
+                                                                            </td>
+                                                                            <td className="runs-cell" style={{ textAlign: 'center' }}>
+                                                                                <span className="part-runs-bold">{p.runs}</span> <span className="text-muted">({p.balls}b)</span>
+                                                                            </td>
+                                                                            <td style={{ textAlign: 'center' }}>{p.overs || `${Math.floor((p.balls || 0) / 6)}.${(p.balls || 0) % 6}`}</td>
+                                                                            <td className="part-batters-cell" style={{ textAlign: 'center', width: 'max-content' }}>
+                                                                                <span className="part-b-seg">
+                                                                                    <span className="part-b-info">
+                                                                                        {p.batsman1?.name}: <strong>{p.batsman1Runs || 0}</strong> <small>({p.batsman1Balls || 0}b)</small>
+                                                                                    </span>
+                                                                                </span>
+                                                                                <span className="part-b-seg">
+                                                                                    <span className="part-b-info">
+                                                                                        {p.batsman2?.name}: <strong>{p.batsman2Runs || 0}</strong> <small>({p.batsman2Balls || 0}b)</small>
+                                                                                    </span>
+                                                                                </span>
+                                                                            </td>
+                                                                            <td style={{ textAlign: 'center' }}>{p.extras ?? Math.max(0, p.runs - ((p.batsman1Runs || 0) + (p.batsman2Runs || 0)))}</td>
+                                                                            <td className="end-score-cell" style={{ textAlign: 'center' }}>{p.endScore || '-'}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
                                     </div>
-                                )}
 
-                                {/* TAB 2: MATCH INFO & ROSTERS */}
-                                {activeHubTab === 'info' && (
-                                    <div className="hub-tab-pane">
-                                        <div className="match-info-card">
-                                            <h3 className="block-title">Match Information</h3>
-                                            <div className="info-grid">
-                                                <div className="info-item">
-                                                    <span className="info-label">Tournament:</span>
-                                                    <strong className="info-val">{labels.fullName}</strong>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Match:</span>
-                                                    <strong className="info-val">{common.title || 'Official Clash'}</strong>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Date &amp; Time:</span>
-                                                    <strong className="info-val">{common.date || 'TBD'} • {common.time || '10:00 AM'}</strong>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Venue:</span>
-                                                    <strong className="info-val">Faculty of Engineering Grounds, Kilinochchi</strong>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Format:</span>
-                                                    <strong className="info-val">15 Overs per side • White Ball T20</strong>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Toss:</span>
-                                                    <strong className="info-val">{common.status || 'Decided prior to start'}</strong>
-                                                </div>
+                                    {/* Right Column: Bowling, FoW, Commentary */}
+                                    <div className="ls-col-right">
+                                        <div className="scorecard-block right-col-bowling-block" >
+                                            <div className="block-header-bar">
+                                                <h3 className="block-title">Bowling • {tabBowlingTeam.name || 'Opponent'}</h3>
+                                                <span className="block-total-pill">
+                                                    Overs: <strong>{tabBatOvers}</strong> ({tabBatWickets} Wkts)
+                                                </span>
                                             </div>
-
-                                            {/* Playing XI & Reserve Rosters */}
-                                            {(() => {
-                                                const t1Roster = resolveTeamRoster(team1, t1Name);
-                                                const t2Roster = resolveTeamRoster(team2, t2Name);
-
-                                                return (
-                                                    <div className="rosters-comparison-grid">
-                                                        {/* Team 1 Squad */}
-                                                        <div className="roster-col">
-                                                            <div className="roster-header">
-                                                                {t1Logo && <img src={t1Logo} alt={t1Name} className="roster-logo" />}
-                                                                <div className="roster-header-info">
-                                                                    <h4>{t1Name} Squad</h4>
-                                                                    <span className="roster-header-meta">
-                                                                        {t1Roster.playingXI.length} XI • {t1Roster.reserves.length} Reserves
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Section 1: Playing XI */}
-                                                            <div className="roster-section-group">
-                                                                <div className="roster-section-heading xi">
-                                                                    <div className="r-sec-title">
-                                                                        <MdGroups className="r-sec-icon" />
-                                                                        <span>Playing XI</span>
-                                                                        <span className="r-count-pill xi">{t1Roster.playingXI.length}</span>
-                                                                    </div>
-                                                                    <span className="r-sec-tag">Active Lineup</span>
-                                                                </div>
-                                                                <ul className="roster-list">
-                                                                    {t1Roster.playingXI.map((player, pIdx) => renderRosterItem(player, t1Name, pIdx, false))}
-                                                                </ul>
-                                                            </div>
-
-                                                            {/* Section 2: Bench & Reserves */}
-                                                            <div className="roster-section-group">
-                                                                <div className="roster-section-heading reserve">
-                                                                    <div className="r-sec-title">
-                                                                        <MdShield className="r-sec-icon" />
-                                                                        <span>Bench &amp; Reserves</span>
-                                                                        <span className="r-count-pill reserve">{t1Roster.reserves.length}</span>
-                                                                    </div>
-                                                                    <span className="r-sec-tag">Substitutes</span>
-                                                                </div>
-                                                                {t1Roster.reserves.length === 0 ? (
-                                                                    <div className="roster-empty-reserves">
-                                                                        <span>No reserve players registered on standby</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <ul className="roster-list">
-                                                                        {t1Roster.reserves.map((player, pIdx) => renderRosterItem(player, t1Name, pIdx, true))}
-                                                                    </ul>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Team 2 Squad */}
-                                                        <div className="roster-col">
-                                                            <div className="roster-header">
-                                                                {t2Logo && <img src={t2Logo} alt={t2Name} className="roster-logo" />}
-                                                                <div className="roster-header-info">
-                                                                    <h4>{t2Name} Squad</h4>
-                                                                    <span className="roster-header-meta">
-                                                                        {t2Roster.playingXI.length} XI • {t2Roster.reserves.length} Reserves
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Section 1: Playing XI */}
-                                                            <div className="roster-section-group">
-                                                                <div className="roster-section-heading xi">
-                                                                    <div className="r-sec-title">
-                                                                        <MdGroups className="r-sec-icon" />
-                                                                        <span>Playing XI</span>
-                                                                        <span className="r-count-pill xi">{t2Roster.playingXI.length}</span>
-                                                                    </div>
-                                                                    <span className="r-sec-tag">Active Lineup</span>
-                                                                </div>
-                                                                <ul className="roster-list">
-                                                                    {t2Roster.playingXI.map((player, pIdx) => renderRosterItem(player, t2Name, pIdx, false))}
-                                                                </ul>
-                                                            </div>
-
-                                                            {/* Section 2: Bench & Reserves */}
-                                                            <div className="roster-section-group">
-                                                                <div className="roster-section-heading reserve">
-                                                                    <div className="r-sec-title">
-                                                                        <MdShield className="r-sec-icon" />
-                                                                        <span>Bench &amp; Reserves</span>
-                                                                        <span className="r-count-pill reserve">{t2Roster.reserves.length}</span>
-                                                                    </div>
-                                                                    <span className="r-sec-tag">Substitutes</span>
-                                                                </div>
-                                                                {t2Roster.reserves.length === 0 ? (
-                                                                    <div className="roster-empty-reserves">
-                                                                        <span>No reserve players registered on standby</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <ul className="roster-list">
-                                                                        {t2Roster.reserves.map((player, pIdx) => renderRosterItem(player, t2Name, pIdx, true))}
-                                                                    </ul>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
+                                            <div className="table-responsive bowling-table-responsive">
+                                                <table className="score-table bowling-score-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th className="th-bowler">Bowler</th>
+                                                            <th className="th-bowl-stat" style={{ textAlign: 'center' }}>O</th>
+                                                            <th className="th-bowl-stat" style={{ textAlign: 'center' }}>M</th>
+                                                            <th className="th-bowl-stat" style={{ textAlign: 'center' }}>R</th>
+                                                            <th className="th-bowl-stat" style={{ textAlign: 'center' }}>W</th>
+                                                            <th className="th-bowl-stat" style={{ textAlign: 'center' }}>Econ</th>
+                                                            <th className="th-bowl-stat" style={{ textAlign: 'center' }}>Dots</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {bowlersList.length > 0 ? (
+                                                            bowlersList.map((b, idx) => (
+                                                                <tr key={b.id || idx}>
+                                                                    <td className="player-name-cell bowler-name-cell">
+                                                                        <div className="table-player-cell-inner">
+                                                                            {renderPlayerAvatar(b, currentBowlTeamName, 'xs')}
+                                                                            <div className="p-cell-wrap">
+                                                                                <strong>{b.name}</strong>
+                                                                                {b.bowlingStyle && (
+                                                                                    <span className="bowler-style-sub">{b.bowlingStyle}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.overs ?? 0}</td>
+                                                                    <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.maidens ?? 0}</td>
+                                                                    <td className="bowl-stat-cell runs-cell" style={{ textAlign: 'center' }}>{b.runs ?? 0}</td>
+                                                                    <td className="bowl-stat-cell wicket-highlight" style={{ textAlign: 'center' }}>{b.wickets ?? 0}</td>
+                                                                    <td className="bowl-stat-cell econ-cell" style={{ textAlign: 'center' }}>{b.economy ?? (b.overs ? (b.runs / b.overs).toFixed(2) : '0.00')}</td>
+                                                                    <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.dots ?? 0}</td>
+                                                                </tr>
+                                                            ))
+                                                        ) : (
+                                                            <tr>
+                                                                <td colSpan="7" className="text-center-muted">No bowling stats recorded yet.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
 
-                        {/* ========================================================= */}
-                        {/* RIGHT COLUMN: Crease Spotlights (Top) + Live Commentary (Underneath) */}
-                        {/* ========================================================= */}
-                        <div className="ls-col-right">
-                            {/* 1. Smart Crease Spotlights (Active Bowler, Striker, Non-Striker) / Concluded Key Performers */}
-                            <section className="ls-crease-section">
-                                <div className="ls-crease-card">
-                                    {isLive ? (
-                                        <>
-                                            {/* Two Column Space-Saving Crease Layout: Left=Bowler, Right=Striker & Non-Striker */}
-                                            <div className="crease-two-col-layout">
-                                                {/* Left Column: Active Bowler */}
-                                                <div className="crease-bowler-col">
-                                                    {activeBowler && (
-                                                        <TiltCard className="crease-card bowler-spotlight-card" maxTilt={5}>
-                                                            <div className="cc-tag bowler-tag">
-                                                                <MdSportsBaseball className="cc-tag-icon" /> CURRENT BOWLER
-                                                            </div>
-                                                            <h3 className="cc-name">{activeBowler.name}</h3>
-                                                            <div className="cc-score-row">
-                                                                <span className="cc-runs">{activeBowler.wickets ?? 0}</span>
-                                                                <span className="cc-balls">for {activeBowler.runs ?? 0}</span>
-                                                            </div>
-                                                            <div className="cc-compact-stats">
-                                                                <span className="cc-stat-chip">Overs: <strong>{activeBowler.overs ?? 0}</strong></span>
-                                                                <span className="cc-stat-chip">Mdns: <strong>{activeBowler.maidens ?? 0}</strong></span>
-                                                                <span className="cc-stat-chip">Econ: <strong>{activeBowler.economy ?? (activeBowler.overs ? (activeBowler.runs / activeBowler.overs).toFixed(2) : '0.00')}</strong></span>
-                                                            </div>
-                                                        </TiltCard>
-                                                    )}
-                                                </div>
-
-                                                {/* Right Column: Striker & Non-Striker Batters */}
-                                                <div className="crease-batters-col">
-                                                    {/* Striker Mini Card */}
-                                                    {activeStriker && (
-                                                        <div className="crease-batter-mini-card striker">
-                                                            <div className="cbm-header">
-                                                                <div className="cbm-info">
-                                                                    <div className="cbm-name-row">
-                                                                        <span className="cbm-name">{activeStriker.name}</span>
-                                                                        <span className="cbm-badge striker-badge">
-                                                                            <GiCricketBat /> STRIKER *
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="cbm-stats-row">
-                                                                        <span>4s: <strong>{activeStriker.boundaries?.fours ?? activeStriker.fours ?? 0}</strong></span>
-                                                                        <span>6s: <strong>{activeStriker.boundaries?.sixes ?? activeStriker.sixes ?? 0}</strong></span>
-                                                                        <span>SR: <strong>{activeStriker.strikeRate || ((Number(activeStriker.runs || 0) / Math.max(1, Number(activeStriker.balls || 1))) * 100).toFixed(1)}</strong></span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="cbm-score-box">
-                                                                    <span className="cbm-runs">{activeStriker.runs ?? 0}</span>
-                                                                    <span className="cbm-balls">({activeStriker.balls ?? 0}b)</span>
-                                                                    <button
-                                                                        className="wagon-mini-btn"
-                                                                        onClick={() => {
-                                                                            setSelectedBatsmanForWagon(activeStriker);
-                                                                            setShowWagonWheel(true);
-                                                                        }}
-                                                                        title="View Striker Wagon Wheel"
-                                                                    >
-                                                                        <MdPieChart /> Wagon
-                                                                    </button>
-                                                                </div>
-                                                            </div>
+                                        {/* 3. Fall of Wickets Section */}
+                                        {fallOfWickets.length > 0 && (
+                                            <div className="fow-card right-col-fow">
+                                                <h4 className="fow-title">Fall of Wickets</h4>
+                                                <div className="fow-pills-list">
+                                                    {fallOfWickets.map((f, idx) => (
+                                                        <div key={idx} className="fow-pill">
+                                                            <span className="fow-score">{f.score}</span>
+                                                            <span className="fow-batsman">{f.batsman}</span>
+                                                            <span className="fow-ov">({f.over} ov)</span>
                                                         </div>
-                                                    )}
-
-                                                    {/* Non-Striker Mini Card */}
-                                                    {activeNonStriker && (
-                                                        <div className="crease-batter-mini-card non-striker">
-                                                            <div className="cbm-header">
-                                                                <div className="cbm-info">
-                                                                    <div className="cbm-name-row">
-                                                                        <span className="cbm-name">{activeNonStriker.name}</span>
-                                                                        <span className="cbm-badge non-striker-badge">
-                                                                            NON-STRIKE
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="cbm-stats-row">
-                                                                        <span>4s: <strong>{activeNonStriker.boundaries?.fours ?? activeNonStriker.fours ?? 0}</strong></span>
-                                                                        <span>6s: <strong>{activeNonStriker.boundaries?.sixes ?? activeNonStriker.sixes ?? 0}</strong></span>
-                                                                        <span>SR: <strong>{activeNonStriker.strikeRate || ((Number(activeNonStriker.runs || 0) / Math.max(1, Number(activeNonStriker.balls || 1))) * 100).toFixed(1)}</strong></span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="cbm-score-box">
-                                                                    <span className="cbm-runs">{activeNonStriker.runs ?? 0}</span>
-                                                                    <span className="cbm-balls">({activeNonStriker.balls ?? 0}b)</span>
-                                                                    <button
-                                                                        className="wagon-mini-btn"
-                                                                        onClick={() => {
-                                                                            setSelectedBatsmanForWagon(activeNonStriker);
-                                                                            setShowWagonWheel(true);
-                                                                        }}
-                                                                        title="View Non-Striker Wagon Wheel"
-                                                                    >
-                                                                        <MdPieChart /> Wagon
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                    ))}
                                                 </div>
                                             </div>
+                                        )}
 
-                                            {/* Recent Deliveries Strip */}
-                                            {recentDeliveries.length > 0 && (
-                                                <div className="recent-balls-bar">
-                                                    <span className="rbb-title">Recent Balls:</span>
-                                                    <div className="rbb-tokens">
-                                                        {recentDeliveries.map((c, idx) => {
-                                                            const meta = getDeliveryMeta(c);
-                                                            return (
-                                                                <span
-                                                                    key={idx}
-                                                                    className={`delivery-token ${meta.type} len-${String(meta.label).length}`}
-                                                                    title={`Ball ${c.ball || idx + 1}: ${c.commentary || c.text || ''}`}
-                                                                >
-                                                                    {meta.label}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        /* Concluded Match Top Performers Showcase */
-                                        <div className="concluded-performers-grid">
-                                            {common.mom && (
-                                                <div className="performer-highlight-card potm">
-                                                    <div className="ph-badge">
-                                                        <MdEmojiEvents /> PLAYER OF THE MATCH
-                                                    </div>
-                                                    <h3 className="ph-name">{common.mom}</h3>
-                                                    <p className="ph-caption">Outstanding Match-Winning Performance</p>
-                                                </div>
-                                            )}
-                                            {topBatter && (
-                                                <div className="performer-highlight-card batter">
-                                                    <div className="ph-badge">
-                                                        <MdSportsCricket /> TOP RUN SCORER
-                                                    </div>
-                                                    <h3 className="ph-name">{topBatter.name}</h3>
-                                                    <p className="ph-score">{topBatter.runs} runs ({topBatter.balls} balls) • SR {topBatter.strikeRate || '100'}</p>
-                                                </div>
-                                            )}
-                                            {topBowler && (
-                                                <div className="performer-highlight-card bowler">
-                                                    <div className="ph-badge">
-                                                        <MdBolt /> TOP WICKET TAKER
-                                                    </div>
-                                                    <h3 className="ph-name">{topBowler.name}</h3>
-                                                    <p className="ph-score">{topBowler.wickets} wkts ({topBowler.runs} runs in {topBowler.overs} ov)</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* 2. Bowling Scorecard Block (Rendered at same horizontal level as Batter table) */}
-                            <div className="scorecard-block right-col-bowling-block" style={isLive ? { marginTop: 185 } : { marginTop: 60 }}>
-                                <div className="block-header-bar">
-                                    <h3 className="block-title">Bowling • {tabBowlingTeam.name || 'Opponent'}</h3>
-                                    <span className="block-total-pill">
-                                        Overs: <strong>{tabBatOvers}</strong> ({tabBatWickets} Wkts)
-                                    </span>
-                                </div>
-                                <div className="table-responsive bowling-table-responsive">
-                                    <table className="score-table bowling-score-table">
-                                        <thead>
-                                            <tr>
-                                                <th className="th-bowler">Bowler</th>
-                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>O</th>
-                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>M</th>
-                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>R</th>
-                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>W</th>
-                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>Econ</th>
-                                                <th className="th-bowl-stat" style={{ textAlign: 'center' }}>Dots</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {bowlersList.length > 0 ? (
-                                                bowlersList.map((b, idx) => (
-                                                    <tr key={b.id || idx}>
-                                                        <td className="player-name-cell bowler-name-cell">
-                                                            <strong>{b.name}</strong>
-                                                        </td>
-                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.overs ?? 0}</td>
-                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.maidens ?? 0}</td>
-                                                        <td className="bowl-stat-cell runs-cell" style={{ textAlign: 'center' }}>{b.runs ?? 0}</td>
-                                                        <td className="bowl-stat-cell wicket-highlight" style={{ textAlign: 'center' }}>{b.wickets ?? 0}</td>
-                                                        <td className="bowl-stat-cell econ-cell" style={{ textAlign: 'center' }}>{b.economy ?? (b.overs ? (b.runs / b.overs).toFixed(2) : '0.00')}</td>
-                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.dots ?? 0}</td>
-                                                    </tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan="7" className="text-center-muted">No bowling stats recorded yet.</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            {/* 3. Fall of Wickets Section */}
-                            {fallOfWickets.length > 0 && (
-                                <div className="fow-card right-col-fow">
-                                    <h4 className="fow-title">Fall of Wickets</h4>
-                                    <div className="fow-pills-list">
-                                        {fallOfWickets.map((f, idx) => (
-                                            <div key={idx} className="fow-pill">
-                                                <span className="fow-score">{f.score}</span>
-                                                <span className="fow-batsman">{f.batsman}</span>
-                                                <span className="fow-ov">({f.over} ov)</span>
+                                        {/* 4. Full Live Commentary Section */}
+                                        <div className="commentary-full-card">
+                                            <div className="comm-top-header">
+                                                <h3 className="comm-header-title">
+                                                    <MdTimeline /> Ball by Ball Live Commentary • <span style={{ color: '#00e5ff', fontWeight: 600 }}>{activeInningsTab === firstBatTeamKey ? '1st Innings' : '2nd Innings'} ({tabBattingTeam.name || 'Batting Side'})</span>
+                                                </h3>
+                                                <span className="comm-count-tag">
+                                                    {filteredCommentary.length} {filteredCommentary.length === 1 ? 'Delivery' : 'Deliveries'}
+                                                    {selectedOverFilter !== 'all' ? ` (Over ${selectedOverFilter})` : ' Recorded'}
+                                                </span>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
 
-                            {/* 4. Full Live Commentary Section */}
-                            <div className="commentary-full-card">
-                                <div className="comm-top-header">
-                                    <h3 className="comm-header-title">
-                                        <MdTimeline /> Ball by Ball Live Commentary • <span style={{ color: '#00e5ff', fontWeight: 600 }}>{activeInningsTab === firstBatTeamKey ? '1st Innings' : '2nd Innings'} ({tabBattingTeam.name || 'Batting Side'})</span>
-                                    </h3>
-                                    <span className="comm-count-tag">
-                                        {filteredCommentary.length} {filteredCommentary.length === 1 ? 'Delivery' : 'Deliveries'}
-                                        {selectedOverFilter !== 'all' ? ` (Over ${selectedOverFilter})` : ' Recorded'}
-                                    </span>
-                                </div>
-
-                                {/* Over Filter Bar: Custom Entry Over Number OR All Overs Option */}
-                                <div className="comm-over-filter-bar">
-                                    <div className="comm-filter-controls">
-                                        <button
-                                            type="button"
-                                            className={`comm-over-pill all-pill ${!isFilteredByOver ? 'active' : ''}`}
-                                            onClick={() => setSelectedOverFilter('all')}
-                                        >
-                                            All Overs
-                                        </button>
-
-                                        <div className="comm-custom-over-box">
-                                            <span className="comm-custom-label">Custom Over:</span>
-                                            <div className="comm-custom-input-wrap">
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max="50"
-                                                    placeholder="Over #"
-                                                    className="comm-custom-over-input"
-                                                    value={selectedOverFilter === 'all' ? '' : selectedOverFilter}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value.trim();
-                                                        setSelectedOverFilter(val === '' ? 'all' : val);
-                                                    }}
-                                                />
-                                                {isFilteredByOver && (
+                                            {/* Over Filter Bar: Custom Entry Over Number OR All Overs Option */}
+                                            <div className="comm-over-filter-bar">
+                                                <div className="comm-filter-controls">
                                                     <button
                                                         type="button"
-                                                        className="comm-clear-filter-btn"
+                                                        className={`comm-over-pill all-pill ${!isFilteredByOver ? 'active' : ''}`}
                                                         onClick={() => setSelectedOverFilter('all')}
-                                                        title="Clear filter (Show All Overs)"
                                                     >
-                                                        <MdClose />
+                                                        All Overs
                                                     </button>
+
+                                                    <div className="comm-custom-over-box">
+                                                        <span className="comm-custom-label">Custom Over:</span>
+                                                        <div className="comm-custom-input-wrap">
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                max="50"
+                                                                placeholder="Over #"
+                                                                className="comm-custom-over-input"
+                                                                value={selectedOverFilter === 'all' ? '' : selectedOverFilter}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value.trim();
+                                                                    setSelectedOverFilter(val === '' ? 'all' : val);
+                                                                }}
+                                                            />
+                                                            {isFilteredByOver && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="comm-clear-filter-btn"
+                                                                    onClick={() => setSelectedOverFilter('all')}
+                                                                    title="Clear filter (Show All Overs)"
+                                                                >
+                                                                    <MdClose />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {availableOvers.length > 0 && (
+                                                    <div className="comm-over-pills-scroll">
+                                                        {availableOvers.map((ov) => (
+                                                            <button
+                                                                key={ov}
+                                                                type="button"
+                                                                className={`comm-over-pill ${selectedOverFilter === String(ov) ? 'active' : ''}`}
+                                                                onClick={() => setSelectedOverFilter(String(ov))}
+                                                            >
+                                                                Ov {ov}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="comm-feed-list">
+                                                {filteredCommentary.length > 0 ? (
+                                                    filteredCommentary.map((c, idx) => {
+                                                        const meta = getDeliveryMeta(c);
+                                                        const broadcastCommentary = formatRealCommentary(c);
+                                                        return (
+                                                            <div key={c._id || idx} className={`comm-stream-item ${meta.type}`}>
+                                                                <div className="comm-token-col">
+                                                                    <span className={`comm-ball-token ${meta.type} len-${String(meta.label).length}`}>
+                                                                        {meta.label}
+                                                                    </span>
+                                                                    <span className="comm-ov-num">{c.over || c.ball || `${idx + 1}`}</span>
+                                                                </div>
+                                                                <div className="comm-text-col">
+                                                                    <p className="comm-message">{broadcastCommentary}</p>
+                                                                    {c.wagonZone && (
+                                                                        <span className="comm-zone-tag">
+                                                                            Shot Zone: <strong>{c.wagonZone}</strong>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <div className="comm-empty-state">
+                                                        <MdTimeline className="comm-empty-icon" />
+                                                        <p>
+                                                            {selectedOverFilter !== 'all'
+                                                                ? `No deliveries recorded in Over ${selectedOverFilter}.`
+                                                                : 'Ball-by-ball stream will appear here as deliveries are recorded.'}
+                                                        </p>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
-
-                                    {availableOvers.length > 0 && (
-                                        <div className="comm-over-pills-scroll">
-                                            {availableOvers.map((ov) => (
-                                                <button
-                                                    key={ov}
-                                                    type="button"
-                                                    className={`comm-over-pill ${selectedOverFilter === String(ov) ? 'active' : ''}`}
-                                                    onClick={() => setSelectedOverFilter(String(ov))}
-                                                >
-                                                    Ov {ov}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
+                            </div>
+                        )}
 
-                                <div className="comm-feed-list">
-                                    {filteredCommentary.length > 0 ? (
-                                        filteredCommentary.map((c, idx) => {
-                                            const meta = getDeliveryMeta(c);
-                                            const broadcastCommentary = formatRealCommentary(c);
-                                            return (
-                                                <div key={c._id || idx} className={`comm-stream-item ${meta.type}`}>
-                                                    <div className="comm-token-col">
-                                                        <span className={`comm-ball-token ${meta.type} len-${String(meta.label).length}`}>
-                                                            {meta.label}
-                                                        </span>
-                                                        <span className="comm-ov-num">{c.over || c.ball || `${idx + 1}`}</span>
-                                                    </div>
-                                                    <div className="comm-text-col">
-                                                        <p className="comm-message">{broadcastCommentary}</p>
-                                                        {c.wagonZone && (
-                                                            <span className="comm-zone-tag">
-                                                                Shot Zone: <strong>{c.wagonZone}</strong>
+                        {/* TAB 2: MATCH INFO & ROSTERS */}
+                        {/* TAB 2: MATCH INFO & ROSTERS */}
+                        {activeHubTab === 'info' && (
+                            <div className="hub-tab-pane">
+                                <div className="match-info-card">
+                                    <h3 className="block-title">Match Information</h3>
+                                    <div className="info-grid">
+                                        <div className="info-item">
+                                            <span className="info-label">Tournament:</span>
+                                            <strong className="info-val">{labels.fullName}</strong>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Match:</span>
+                                            <strong className="info-val">{common.title || 'Official Clash'}</strong>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Date &amp; Time:</span>
+                                            <strong className="info-val">{common.date || 'TBD'} • {common.time || '10:00 AM'}</strong>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Venue:</span>
+                                            <strong className="info-val">Faculty of Engineering Grounds, Kilinochchi</strong>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Format:</span>
+                                            <strong className="info-val">15 Overs per side • White Ball T20</strong>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Toss:</span>
+                                            <strong className="info-val">{common.status || 'Decided prior to start'}</strong>
+                                        </div>
+                                    </div>
+
+                                    {/* Playing XI & Reserve Rosters */}
+                                    {(() => {
+                                        const t1Roster = resolveTeamRoster(team1, t1Name);
+                                        const t2Roster = resolveTeamRoster(team2, t2Name);
+
+                                        return (
+                                            <div className="rosters-comparison-grid">
+                                                {/* Team 1 Squad */}
+                                                <div className="roster-col">
+                                                    <div className="roster-header">
+                                                        {t1Logo && <img src={t1Logo} alt={t1Name} className="roster-logo" />}
+                                                        <div className="roster-header-info">
+                                                            <h4>{t1Name} Squad</h4>
+                                                            <span className="roster-header-meta">
+                                                                {t1Roster.playingXI.length} XI • {t1Roster.reserves.length} Reserves
                                                             </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Section 1: Playing XI */}
+                                                    <div className="roster-section-group">
+                                                        <div className="roster-section-heading xi">
+                                                            <div className="r-sec-title">
+                                                                <MdGroups className="r-sec-icon" />
+                                                                <span>Playing XI</span>
+                                                                <span className="r-count-pill xi">{t1Roster.playingXI.length}</span>
+                                                            </div>
+                                                            <span className="r-sec-tag">Active Lineup</span>
+                                                        </div>
+                                                        <ul className="roster-list">
+                                                            {t1Roster.playingXI.map((player, pIdx) => renderRosterItem(player, t1Name, pIdx, false))}
+                                                        </ul>
+                                                    </div>
+
+                                                    {/* Section 2: Bench & Reserves */}
+                                                    <div className="roster-section-group">
+                                                        <div className="roster-section-heading reserve">
+                                                            <div className="r-sec-title">
+                                                                <MdShield className="r-sec-icon" />
+                                                                <span>Bench &amp; Reserves</span>
+                                                                <span className="r-count-pill reserve">{t1Roster.reserves.length}</span>
+                                                            </div>
+                                                            <span className="r-sec-tag">Substitutes</span>
+                                                        </div>
+                                                        {t1Roster.reserves.length === 0 ? (
+                                                            <div className="roster-empty-reserves">
+                                                                <span>No reserve players registered on standby</span>
+                                                            </div>
+                                                        ) : (
+                                                            <ul className="roster-list">
+                                                                {t1Roster.reserves.map((player, pIdx) => renderRosterItem(player, t1Name, pIdx, true))}
+                                                            </ul>
                                                         )}
                                                     </div>
                                                 </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="comm-empty-state">
-                                            <MdTimeline className="comm-empty-icon" />
-                                            <p>
-                                                {selectedOverFilter !== 'all'
-                                                    ? `No deliveries recorded in Over ${selectedOverFilter}.`
-                                                    : 'Ball-by-ball stream will appear here as deliveries are recorded.'}
-                                            </p>
-                                        </div>
-                                    )}
+
+                                                {/* Team 2 Squad */}
+                                                <div className="roster-col">
+                                                    <div className="roster-header">
+                                                        {t2Logo && <img src={t2Logo} alt={t2Name} className="roster-logo" />}
+                                                        <div className="roster-header-info">
+                                                            <h4>{t2Name} Squad</h4>
+                                                            <span className="roster-header-meta">
+                                                                {t2Roster.playingXI.length} XI • {t2Roster.reserves.length} Reserves
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Section 1: Playing XI */}
+                                                    <div className="roster-section-group">
+                                                        <div className="roster-section-heading xi">
+                                                            <div className="r-sec-title">
+                                                                <MdGroups className="r-sec-icon" />
+                                                                <span>Playing XI</span>
+                                                                <span className="r-count-pill xi">{t2Roster.playingXI.length}</span>
+                                                            </div>
+                                                            <span className="r-sec-tag">Active Lineup</span>
+                                                        </div>
+                                                        <ul className="roster-list">
+                                                            {t2Roster.playingXI.map((player, pIdx) => renderRosterItem(player, t2Name, pIdx, false))}
+                                                        </ul>
+                                                    </div>
+
+                                                    {/* Section 2: Bench & Reserves */}
+                                                    <div className="roster-section-group">
+                                                        <div className="roster-section-heading reserve">
+                                                            <div className="r-sec-title">
+                                                                <MdShield className="r-sec-icon" />
+                                                                <span>Bench &amp; Reserves</span>
+                                                                <span className="r-count-pill reserve">{t2Roster.reserves.length}</span>
+                                                            </div>
+                                                            <span className="r-sec-tag">Substitutes</span>
+                                                        </div>
+                                                        {t2Roster.reserves.length === 0 ? (
+                                                            <div className="roster-empty-reserves">
+                                                                <span>No reserve players registered on standby</span>
+                                                            </div>
+                                                        ) : (
+                                                            <ul className="roster-list">
+                                                                {t2Roster.reserves.map((player, pIdx) => renderRosterItem(player, t2Name, pIdx, true))}
+                                                            </ul>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </main>
@@ -1872,15 +2139,21 @@ const LiveScore3D = () => {
             {showWagonWheel && createPortal(
                 <div className="wagon-modal-overlay" onClick={() => setShowWagonWheel(false)}>
                     <div className="wagon-modal-card" onClick={(e) => e.stopPropagation()}>
-                        <button className="wagon-modal-close" onClick={() => setShowWagonWheel(false)}>
-                            <MdClose />
-                        </button>
-                        <h2 className="wagon-modal-title">Wagon Wheel Shot Chart</h2>
+                        <div className="wagon-modal-header">
+                            <h2 className="wagon-modal-title">Wagon Wheel Shot Chart</h2>
+                            <button
+                                className="wagon-modal-close"
+                                onClick={() => setShowWagonWheel(false)}
+                                aria-label="Close Wagon Wheel"
+                            >
+                                <MdClose />
+                            </button>
+                        </div>
                         <WagonWheel
                             shots={wagonShots}
                             batsmanName={selectedBatsmanForWagon?.name}
                             batsmanHand={selectedBatsmanForWagon?.hand || 'Right Hand'}
-                            size={400}
+                            size={340}
                         />
                     </div>
                 </div>,

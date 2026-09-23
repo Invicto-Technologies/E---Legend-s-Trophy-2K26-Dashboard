@@ -9,7 +9,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 280px;
+    width: max-content;
+    max-width: calc(100vw - 20px);
 }
 
 .elt-custom-tooltip.pos-bottom {
@@ -32,12 +33,32 @@
     letter-spacing: 0.4px;
     line-height: 1.35;
     text-align: center;
+    width: max-content;
+    min-width: 90px;
+    max-width: min(290px, calc(100vw - 28px));
     white-space: normal;
-    word-break: break-word;
+    word-break: normal;
+    overflow-wrap: normal;
     box-shadow: 
         0 4px 16px rgba(0, 0, 0, 0.5),
         0 0 12px rgba(0, 240, 255, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 600px) {
+    .elt-custom-tooltip {
+        max-width: calc(100vw - 16px);
+    }
+
+    .elt-tooltip-content {
+        font-size: 0.76rem;
+        padding: 6px 12px;
+        min-width: 85px;
+        max-width: min(280px, calc(100vw - 24px));
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: normal;
+    }
 }
 
 .elt-tooltip-arrow {

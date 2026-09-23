@@ -1050,6 +1050,67 @@
     color: #f87171;
 }
 
+.sc-hand-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.64rem;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    margin-left: 6px;
+}
+
+.sc-hand-pill.rhs,
+.sc-hand-pill.rhb {
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+}
+
+.sc-hand-pill.lhs,
+.sc-hand-pill.lhb {
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    color: #fbbf24;
+}
+
+.sc-bowler-style-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(168, 85, 247, 0.16);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #c084fc;
+    letter-spacing: 0.02em;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+.cx-bowler-style-sub {
+    display: block;
+    font-size: 0.72rem;
+    color: #c084fc;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.sc-nb-style-sub {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #c084fc;
+    background: rgba(168, 85, 247, 0.14);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    display: inline-block;
+}
+
 .sc-crease-select {
     width: 100%;
     background: #090e18;
@@ -1246,6 +1307,19 @@
 
 .cx-scorecard-table tr.cx-row-active-bowling {
     background: rgba(239, 68, 68, 0.08);
+}
+
+.cx-scorecard-table tr.cx-row-out-batter {
+    color: #94a3b8;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.cx-scorecard-table tr.cx-row-out-batter .cx-player-name-cell,
+.cx-scorecard-table tr.cx-row-out-batter strong,
+.cx-scorecard-table tr.cx-row-out-batter td {
+    color: #94a3b8;
+    font-style: italic;
 }
 
 .cx-player-name-cell {
@@ -5355,6 +5429,41 @@
     font-weight: 600;
 }
 
+.sc-nb-order-num {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #00f0ff;
+    margin-right: 6px;
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+
+.sc-nb-yet-to-bat-pill {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 1px 6px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: auto;
+}
+
+.sc-nb-res-tag {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 6px;
+}
+
 .sc-nb-strike-role-selection {
     margin-top: 14px;
     margin-bottom: 8px;
@@ -5460,6 +5569,18 @@
     background: #e0f2fe;
     border-color: #0284c7;
     box-shadow: 0 0 15px rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .sc-nb-order-num {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .sc-nb-yet-to-bat-pill {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.25);
 }
 
 /* ==========================================================================

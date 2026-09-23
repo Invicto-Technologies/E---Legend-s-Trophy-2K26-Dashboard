@@ -68,10 +68,16 @@ const CustomTooltip = () => {
             }
 
             const targetCenterX = rect.left + rect.width / 2;
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 360;
 
             let pos = preferredPos;
             const margin = 10;
-            let x = targetCenterX;
+            
+            // Prevent tooltip from overflowing or being squished against screen edges on mobile
+            const safeEdgeMargin = Math.min(90, Math.floor(viewportWidth / 2) - 10);
+            const clampedX = Math.max(safeEdgeMargin, Math.min(viewportWidth - safeEdgeMargin, targetCenterX));
+
+            let x = clampedX;
             let y = rect.top - margin;
 
             // Auto flip if overflowing top

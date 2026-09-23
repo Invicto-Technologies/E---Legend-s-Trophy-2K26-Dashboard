@@ -561,6 +561,52 @@
     color: #fbbf24;
 }
 
+.tmr-role-hand-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.tmr-hand-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 3px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+}
+
+.tmr-hand-badge.rhb,
+.tmr-hand-badge.rhs {
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #00f0ff;
+}
+
+.tmr-hand-badge.lhb,
+.tmr-hand-badge.lhs {
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+}
+
+.tmr-bowling-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(168, 85, 247, 0.14);
+    border: 1px solid rgba(168, 85, 247, 0.38);
+    color: #d8b4fe;
+    white-space: nowrap;
+}
+
 .tmp-action-btn:hover {
     background: rgba(0, 240, 255, 0.2);
     border-color: #00f0ff;
@@ -2043,4 +2089,353 @@
 [data-theme="light"] .tm-roster-status-info {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .tmr-hand-badge.rhb,
+[data-theme="light"] .tmr-hand-badge.rhs {
+    background: #ecfeff;
+    border-color: #a5f3fc;
+    color: #0891b2;
+}
+
+[data-theme="light"] .tmr-hand-badge.lhb,
+[data-theme="light"] .tmr-hand-badge.lhs {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #d97706;
+}
+
+[data-theme="light"] .tmr-bowling-badge {
+    background: #faf5ff;
+    border-color: #e9d5ff;
+    color: #9333ea;
+}
+
+/* ==========================================================================
+   PLAYING XI TEAM ORDER & REORDERING STYLES
+   ========================================================================== */
+
+/* Change XI Order Button in Section Header */
+.tm-btn-reorder-xi {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: #00f0ff;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tm-btn-reorder-xi:hover {
+    background: rgba(0, 240, 255, 0.18);
+    border-color: #00f0ff;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 240, 255, 0.2);
+}
+
+/* Number + Quick Move Column Controls */
+.tmr-num-control-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tmr-order-arrows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tmr-order-btn {
+    width: 20px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+
+.tmr-order-btn:hover:not(:disabled) {
+    background: #00f0ff;
+    border-color: #00f0ff;
+    color: #070a13;
+}
+
+.tmr-order-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+/* Reorder Modal Styles */
+.tm-reorder-modal-card {
+    max-width: 620px;
+    width: 95%;
+}
+
+.tm-modal-header-icon.reorder-icon {
+    background: rgba(0, 240, 255, 0.1);
+    color: #00f0ff;
+    border-color: rgba(0, 240, 255, 0.3);
+}
+
+.tm-reorder-notice-box {
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(0, 240, 255, 0.05);
+    border: 1px solid rgba(0, 240, 255, 0.18);
+    color: #cbd5e1;
+    margin-bottom: 14px;
+    font-size: 0.82rem;
+}
+
+.tm-reorder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding-right: 4px;
+    margin-bottom: 18px;
+}
+
+.tm-reorder-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: all 0.2s ease;
+}
+
+.tm-reorder-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 240, 255, 0.25);
+}
+
+.tm-reorder-item.is-captain-item {
+    border-color: rgba(245, 158, 11, 0.28);
+    background: rgba(245, 158, 11, 0.04);
+}
+
+.tm-reorder-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+}
+
+.tm-reorder-pos-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    color: #00f0ff;
+    font-size: 0.85rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tm-reorder-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.tm-reorder-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tm-reorder-player-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tm-reorder-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.tm-reorder-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.tm-reorder-pos-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tm-reorder-pos-select-wrap label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.tm-reorder-select-pos {
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: #00f0ff;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.tm-reorder-select-pos:focus {
+    border-color: #00f0ff;
+    box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.25);
+}
+
+.tm-reorder-arrow-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.tm-reorder-shift-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tm-reorder-shift-btn:hover:not(:disabled) {
+    background: #00f0ff;
+    border-color: #00f0ff;
+    color: #070a13;
+    transform: scale(1.05);
+}
+
+.tm-reorder-shift-btn:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
+
+/* Light Theme Overrides for Reordering */
+[data-theme="light"] .tm-btn-reorder-xi {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.3);
+    color: #0284c7;
+}
+
+[data-theme="light"] .tm-btn-reorder-xi:hover {
+    background: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .tmr-order-btn {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #64748b;
+}
+
+[data-theme="light"] .tmr-order-btn:hover:not(:disabled) {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+}
+
+[data-theme="light"] .tm-modal-header-icon.reorder-icon {
+    background: rgba(2, 132, 199, 0.08);
+    color: #0284c7;
+    border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .tm-reorder-notice-box {
+    background: rgba(2, 132, 199, 0.06);
+    border-color: rgba(2, 132, 199, 0.2);
+    color: #334155;
+}
+
+[data-theme="light"] .tm-reorder-item {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .tm-reorder-item:hover {
+    background: #ffffff;
+    border-color: rgba(2, 132, 199, 0.4);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .tm-reorder-item.is-captain-item {
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+[data-theme="light"] .tm-reorder-pos-badge {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.25);
+    color: #0284c7;
+}
+
+[data-theme="light"] .tm-reorder-player-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .tm-reorder-pos-select-wrap label {
+    color: #64748b;
+}
+
+[data-theme="light"] .tm-reorder-select-pos {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .tm-reorder-shift-btn {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+[data-theme="light"] .tm-reorder-shift-btn:hover:not(:disabled) {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
 }

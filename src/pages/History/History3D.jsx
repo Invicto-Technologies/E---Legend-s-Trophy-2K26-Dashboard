@@ -173,9 +173,9 @@ const History3D = () => {
                             <button
                                 key={ed.id}
                                 className={`timeline-tab-btn ${selectedEditionId === ed.id ||
-                                        resolveTournamentKey(selectedEditionId) === resolveTournamentKey(ed.id)
-                                        ? 'active'
-                                        : ''
+                                    resolveTournamentKey(selectedEditionId) === resolveTournamentKey(ed.id)
+                                    ? 'active'
+                                    : ''
                                     }`}
                                 onClick={() => handleSelectEdition(ed.id)}
                             >
@@ -339,11 +339,11 @@ const History3D = () => {
                                                 {/* Score summary */}
                                                 <div className="hm-scores-box">
                                                     <div className="hm-team-score">
-                                                        <span>{t1.name || 'Team 1'}</span>
+                                                        <span style={{ marginRight: '10px' }}>{t1.name || 'Team 1'}</span>
                                                         <strong>{t1.totalRuns ?? 0}/{t1.totalWickets ?? 0} <small>({t1.overs ?? 0} ov)</small></strong>
                                                     </div>
                                                     <div className="hm-team-score">
-                                                        <span>{t2.name || 'Team 2'}</span>
+                                                        <span style={{ marginRight: '10px' }}>{t2.name || 'Team 2'}</span>
                                                         <strong>{t2.totalRuns ?? 0}/{t2.totalWickets ?? 0} <small>({t2.overs ?? 0} ov)</small></strong>
                                                     </div>
                                                 </div>
@@ -380,11 +380,11 @@ const History3D = () => {
                                             <tr>
                                                 <th><span className="col-full">POS</span><span className="col-short">#</span></th>
                                                 <th><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
-                                                <th><span className="col-full">PLAYED</span><span className="col-short">P</span></th>
-                                                <th><span className="col-full">WON</span><span className="col-short">W</span></th>
-                                                <th><span className="col-full">LOST</span><span className="col-short">L</span></th>
-                                                <th><span className="col-full">NRR</span><span className="col-short">NRR</span></th>
-                                                <th><span className="col-full">PTS</span><span className="col-short">PTS</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">PLAYED</span><span className="col-short">P</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">WON</span><span className="col-short">W</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">LOST</span><span className="col-short">L</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">NRR</span><span className="col-short">NRR</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">PTS</span><span className="col-short">PTS</span></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -401,13 +401,13 @@ const History3D = () => {
                                                         <strong>{row.team}</strong>
                                                         {idx === 0 && <span className="winner-badge">CHAMPION</span>}
                                                     </td>
-                                                    <td>{row.played}</td>
-                                                    <td>{row.won}</td>
-                                                    <td>{row.lost}</td>
-                                                    <td className={row.nrr >= 0 ? 'nrr-pos' : 'nrr-neg'}>
+                                                    <td style={{ textAlign: 'center' }}>{row.played}</td>
+                                                    <td style={{ textAlign: 'center' }}>{row.won}</td>
+                                                    <td style={{ textAlign: 'center' }}>{row.lost}</td>
+                                                    <td className={row.nrr >= 0 ? 'nrr-pos' : 'nrr-neg'} style={{ textAlign: 'center' }}>
                                                         {row.nrr > 0 ? `+${row.nrr}` : row.nrr}
                                                     </td>
-                                                    <td className="pts-cell">{row.pts}</td>
+                                                    <td className="pts-cell" style={{ textAlign: 'center' }}>{row.pts}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -432,8 +432,8 @@ const History3D = () => {
                                             <tr>
                                                 <th><span className="col-full">#</span><span className="col-short">#</span></th>
                                                 <th><span className="col-full">PLAYER</span><span className="col-short">PLAYER</span></th>
-                                                <th><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
-                                                <th><span className="col-full">RUNS</span><span className="col-short">R</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">RUNS</span><span className="col-short">R</span></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -441,8 +441,8 @@ const History3D = () => {
                                                 <tr key={idx} className={idx === 0 ? 'leader-row' : ''}>
                                                     <td>{idx + 1}</td>
                                                     <td><strong>{b.name}</strong></td>
-                                                    <td><span className="team-badge-sub">{b.team}</span></td>
-                                                    <td className="stat-highlight">{b.scores ?? b.runs ?? b.rating ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}><span className="team-badge-sub">{b.team}</span></td>
+                                                    <td className="stat-highlight" style={{ textAlign: 'center' }}>{b.scores ?? b.runs ?? b.rating ?? 0}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -460,8 +460,8 @@ const History3D = () => {
                                             <tr>
                                                 <th><span className="col-full">#</span><span className="col-short">#</span></th>
                                                 <th><span className="col-full">PLAYER</span><span className="col-short">PLAYER</span></th>
-                                                <th><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
-                                                <th><span className="col-full">WICKETS</span><span className="col-short">W</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">TEAM</span><span className="col-short">TEAM</span></th>
+                                                <th style={{ textAlign: 'center' }}><span className="col-full">WICKETS</span><span className="col-short">W</span></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -469,8 +469,8 @@ const History3D = () => {
                                                 <tr key={idx} className={idx === 0 ? 'leader-row' : ''}>
                                                     <td>{idx + 1}</td>
                                                     <td><strong>{b.name}</strong></td>
-                                                    <td><span className="team-badge-sub">{b.team}</span></td>
-                                                    <td className="stat-highlight">{b.wickets ?? b.takenWickets ?? b.rating ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}><span className="team-badge-sub">{b.team}</span></td>
+                                                    <td className="stat-highlight" style={{ textAlign: 'center' }}>{b.wickets ?? b.takenWickets ?? b.rating ?? 0}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -502,16 +502,16 @@ const History3D = () => {
                 const modal = activeScorecardModal || {};
                 const team1 = (modal.team1 && typeof modal.team1 === 'object') ? modal.team1
                     : (modal.teamA && typeof modal.teamA === 'object') ? modal.teamA
-                    : (modal.innings1 && typeof modal.innings1 === 'object') ? modal.innings1
-                    : {};
+                        : (modal.innings1 && typeof modal.innings1 === 'object') ? modal.innings1
+                            : {};
                 const team2 = (modal.team2 && typeof modal.team2 === 'object') ? modal.team2
                     : (modal.teamB && typeof modal.teamB === 'object') ? modal.teamB
-                    : (modal.innings2 && typeof modal.innings2 === 'object') ? modal.innings2
-                    : {};
+                        : (modal.innings2 && typeof modal.innings2 === 'object') ? modal.innings2
+                            : {};
                 const common = (modal.common && typeof modal.common === 'object') ? modal.common
                     : (modal.matchInfo && typeof modal.matchInfo === 'object') ? modal.matchInfo
-                    : (modal.info && typeof modal.info === 'object') ? modal.info
-                    : {};
+                        : (modal.info && typeof modal.info === 'object') ? modal.info
+                            : {};
 
                 const sanitizeList = (raw) => {
                     if (!raw) return [];

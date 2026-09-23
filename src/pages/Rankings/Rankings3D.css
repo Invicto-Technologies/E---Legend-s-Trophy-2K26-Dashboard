@@ -375,8 +375,26 @@
 
 .table-controls-bar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.table-limit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    color: #00f0ff;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .search-box {
@@ -482,7 +500,8 @@
     color: #38bdf8;
 }
 
-.overs-cell {
+.overs-cell,
+.balls-cell {
     font-weight: 600;
     color: #94a3b8;
 }
@@ -882,27 +901,41 @@
     }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
     .rankings-nav-tabs {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
         width: 100% !important;
-        padding: 4px !important;
-        gap: 5px !important;
-        overflow-x: hidden !important;
+        max-width: 440px !important;
+        padding: 5px !important;
+        gap: 6px !important;
+        overflow: visible !important;
+        box-sizing: border-box !important;
+        margin: 0 auto !important;
+    }
+
+    .rankings-nav-tabs::-webkit-scrollbar {
+        display: none !important;
     }
 
     .r-tab-btn {
-        flex: 1 1 0 !important;
-        padding: 9px 2px !important;
-        font-size: 0.74rem !important;
+        width: 100% !important;
+        flex: none !important;
+        min-width: 0 !important;
+        padding: 9px 8px !important;
+        font-size: 0.78rem !important;
+        font-weight: 700 !important;
         text-align: center !important;
         justify-content: center !important;
+        white-space: nowrap !important;
+        border-radius: 10px !important;
     }
 
     .r-tab-btn svg {
-        display: none !important;
+        font-size: 0.88rem !important;
+        display: inline-block !important;
+        flex-shrink: 0 !important;
+        margin-right: 4px !important;
     }
 
     .table-controls-bar {
@@ -970,6 +1003,909 @@
 
     .score-bold {
         font-size: 0.76rem !important;
+    }
+}
+
+/* ==========================================================================
+   TEAM SQUADS SHOWCASE STYLES
+   ========================================================================== */
+
+.rankings-squads-section {
+    padding: 32px 0 60px;
+    animation: fadeInSquads 0.4s ease-out;
+}
+
+@keyframes fadeInSquads {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Team Switcher Horizontal Track */
+.squad-team-selector-wrap {
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: center;
+}
+
+.squad-team-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(13, 20, 36, 0.7);
+    border: 1px solid rgba(0, 240, 255, 0.16);
+    padding: 6px 8px;
+    border-radius: 999px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.squad-team-selector::-webkit-scrollbar {
+    height: 4px;
+}
+
+.squad-team-selector::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.3);
+    border-radius: 4px;
+}
+
+.squad-team-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 6px 16px 6px 8px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+.squad-team-pill:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.squad-team-pill.active {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.18), rgba(2, 132, 199, 0.28));
+    border-color: #00f0ff;
+    color: #ffffff;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+}
+
+.team-pill-crest {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.team-pill-crest img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.team-pill-crest svg {
+    color: #00f0ff;
+    font-size: 1.1rem;
+}
+
+.team-pill-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+}
+
+.team-pill-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.team-pill-count {
+    font-size: 0.7rem;
+    opacity: 0.75;
+}
+
+/* Spotlight Team Banner Card */
+.squad-team-banner {
+    position: relative;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(13, 20, 36, 0.7) 100%);
+    border: 1px solid rgba(0, 240, 255, 0.22);
+    border-radius: 24px;
+    padding: 28px 36px;
+    margin-bottom: 34px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.squad-banner-glow {
+    position: absolute;
+    top: -50%;
+    left: -10%;
+    width: 380px;
+    height: 380px;
+    background: radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.squad-banner-left {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.squad-banner-logo-frame {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: radial-gradient(circle at top left, rgba(0, 240, 255, 0.18), rgba(15, 23, 42, 0.95));
+    border: 2px solid rgba(0, 240, 255, 0.4);
+    box-shadow: 0 0 24px rgba(0, 240, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.squad-banner-logo-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.squad-banner-fallback-icon {
+    font-size: 2.5rem;
+    color: #00f0ff;
+}
+
+.squad-banner-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.squad-tournament-tag {
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #00f0ff;
+}
+
+.squad-banner-team-name {
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 900;
+    margin: 0;
+    color: #ffffff;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+
+.squad-banner-captain {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.88rem;
+    color: #e2e8f0;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 3px 12px;
+    border-radius: 999px;
+    width: fit-content;
+    margin-top: 4px;
+}
+
+.captain-crown-icon {
+    color: #fbbf24;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+    font-size: 0.95rem;
+}
+
+.squad-banner-captain strong {
+    color: #fef08a;
+    font-weight: 800;
+}
+
+.squad-banner-stats {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(7, 10, 19, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 14px 24px;
+    border-radius: 18px;
+    backdrop-filter: blur(12px);
+}
+
+.squad-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 68px;
+}
+
+.squad-stat-val {
+    font-size: 1.6rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.squad-stat-val.xi-val {
+    color: #00f0ff;
+    text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+}
+
+.squad-stat-val.res-val {
+    color: #fbbf24;
+    text-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+}
+
+.squad-stat-val.tot-val {
+    color: #f8fafc;
+}
+
+.squad-stat-lbl {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.squad-stat-divider {
+    width: 1px;
+    height: 34px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Squad Controls Bar (Search + Role Filter Chips) */
+.squad-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+}
+
+.search-box.squad-search {
+    position: relative;
+    min-width: 280px;
+    max-width: 360px;
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 6px;
+}
+
+.clear-search-btn:hover {
+    color: #ffffff;
+}
+
+.squad-role-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.squad-role-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.squad-role-chip:hover {
+    color: #ffffff;
+    border-color: rgba(0, 240, 255, 0.3);
+    background: rgba(0, 240, 255, 0.05);
+}
+
+.squad-role-chip.active {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(2, 132, 199, 0.22));
+    border-color: #00f0ff;
+    color: #00f0ff;
+    box-shadow: 0 0 14px rgba(0, 240, 255, 0.2);
+}
+
+.role-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+}
+
+.squad-role-chip.active .role-count {
+    background: #00f0ff;
+    color: #041019;
+}
+
+/* Roster Groups */
+.squad-roster-group {
+    margin-bottom: 48px;
+}
+
+.squad-roster-group.reserves-group {
+    padding-top: 16px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.squad-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.squad-group-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.squad-indicator-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.squad-indicator-dot.playing-xi {
+    background: #00f0ff;
+    box-shadow: 0 0 10px #00f0ff;
+}
+
+.squad-indicator-dot.reserves {
+    background: #fbbf24;
+    box-shadow: 0 0 10px #fbbf24;
+}
+
+.squad-group-title h3 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin: 0;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+}
+
+.squad-count-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #00f0ff;
+}
+
+.squad-count-pill.amber {
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.38);
+    color: #fbbf24;
+}
+
+.squad-group-note {
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.squad-empty-group {
+    padding: 36px 20px;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    color: #94a3b8;
+    font-size: 0.92rem;
+}
+
+/* Squad Players Grid */
+.squad-players-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+}
+
+/* Player Card Component */
+.squad-player-card {
+    background: linear-gradient(165deg, rgba(20, 29, 47, 0.85) 0%, rgba(13, 20, 36, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 20px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+.squad-player-card:hover {
+    border-color: rgba(0, 240, 255, 0.4);
+    box-shadow: 0 16px 36px rgba(0, 240, 255, 0.18), 0 0 0 1px rgba(0, 240, 255, 0.25);
+    transform: translateY(-4px);
+}
+
+/* Special Captain Styling */
+.squad-player-card.captain-card {
+    background: linear-gradient(165deg, rgba(30, 28, 20, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    box-shadow: 0 12px 30px rgba(251, 191, 36, 0.15);
+}
+
+.squad-player-card.captain-card:hover {
+    border-color: #fbbf24;
+    box-shadow: 0 18px 40px rgba(251, 191, 36, 0.25), 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+
+/* Reserve Card Softening */
+.squad-player-card.reserve-card {
+    background: linear-gradient(165deg, rgba(17, 24, 39, 0.75) 0%, rgba(11, 16, 28, 0.9) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.player-card-top {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: 0.75rem;
+}
+
+.player-number {
+    font-family: monospace;
+    font-weight: 800;
+    color: #64748b;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+}
+
+.player-card-top-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.res-short {
+    display: none;
+}
+
+.res-full {
+    display: inline;
+}
+
+.captain-label,
+.role-label {
+    display: inline;
+    margin-left: 2px;
+}
+
+.player-captain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(251, 191, 36, 0.18);
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    color: #fef08a;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.25);
+}
+
+.player-reserve-tag {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+}
+
+/* Role Badges with specific color themes */
+.player-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-left: auto;
+}
+
+.player-role-badge svg {
+    font-size: 0.85rem;
+}
+
+.player-role-badge.batter {
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #00f0ff;
+}
+
+.player-role-badge.bowler {
+    background: rgba(168, 85, 247, 0.14);
+    border: 1px solid rgba(168, 85, 247, 0.38);
+    color: #c084fc;
+}
+
+.player-role-badge.all-rounder {
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+}
+
+.player-role-badge.wicket-keeper {
+    background: rgba(244, 63, 94, 0.14);
+    border: 1px solid rgba(244, 63, 94, 0.4);
+    color: #fb7185;
+}
+
+/* Player Avatar Frame */
+.player-avatar-section {
+    margin-bottom: 14px;
+}
+
+.player-avatar-ring {
+    width: 86px;
+    height: 86px;
+    border-radius: 50%;
+    padding: 3px;
+    background: linear-gradient(135deg, #00f0ff 0%, #0284c7 50%, #3b82f6 100%);
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+.captain-card .player-avatar-ring {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.35);
+}
+
+.player-avatar-ring.reserve-ring {
+    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+    box-shadow: none;
+}
+
+.squad-player-card:hover .player-avatar-ring {
+    transform: scale(1.05);
+}
+
+.player-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    background: #0f172a;
+}
+
+.player-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 1.8rem;
+}
+
+.captain-card .player-avatar-fallback {
+    color: #fbbf24;
+}
+
+/* Player Info */
+.player-info-section {
+    width: 100%;
+}
+
+.player-name {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 4px;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.player-team-label {
+    font-size: 0.74rem;
+    color: #94a3b8;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+}
+
+/* Squad Empty State */
+.r-empty-icon-wrap.squads {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: #00f0ff;
+}
+
+/* Responsive adjustments for squads */
+@media (max-width: 900px) {
+    .squad-team-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 22px;
+        gap: 20px;
+    }
+
+    .squad-banner-stats {
+        width: 100%;
+        justify-content: space-around;
+        padding: 12px 16px;
+    }
+
+    .squad-players-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+    }
+}
+
+@media (max-width: 600px) {
+    .rankings-squads-section {
+        padding: 20px 0 40px;
+    }
+
+    .squad-team-selector-wrap {
+        margin-bottom: 20px;
+        justify-content: flex-start;
+    }
+
+    .squad-team-selector {
+        width: 100%;
+    }
+
+    .squad-team-banner {
+        padding: 18px 16px;
+        border-radius: 18px;
+        margin-bottom: 24px;
+    }
+
+    .squad-banner-left {
+        gap: 14px;
+    }
+
+    .squad-banner-logo-frame {
+        width: 60px;
+        height: 60px;
+        border-radius: 14px;
+    }
+
+    .squad-banner-team-name {
+        font-size: 1.4rem;
+    }
+
+    .squad-banner-captain {
+        font-size: 0.78rem;
+    }
+
+    .squad-banner-stats {
+        gap: 12px;
+    }
+
+    .squad-stat-item {
+        min-width: 50px;
+    }
+
+    .squad-stat-val {
+        font-size: 1.3rem;
+    }
+
+    .squad-filter-bar {
+        margin-bottom: 24px;
+    }
+
+    .search-box.squad-search {
+        min-width: 100%;
+        max-width: 100%;
+    }
+
+    .squad-role-chips {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 4px;
+    }
+
+    .squad-role-chip {
+        flex-shrink: 0;
+    }
+
+    .squad-players-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+
+    .squad-player-card {
+        padding: 10px 8px 10px !important;
+        border-radius: 13px !important;
+    }
+
+    .player-card-top {
+        margin-bottom: 6px !important;
+        gap: 3px !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+
+    .player-card-top-left {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .player-card-top-right {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+        flex-shrink: 0 !important;
+    }
+
+    /* Hide full text labels in mobile responsive and display icons only */
+    .captain-label,
+    .role-label,
+    .res-full {
+        display: none !important;
+    }
+
+    .res-short {
+        display: inline !important;
+    }
+
+    .player-number,
+    .player-reserve-tag {
+        font-size: 0.58rem !important;
+        padding: 1px 4px !important;
+    }
+
+    .player-hand-tag {
+        font-size: 0.55rem !important;
+        padding: 1px 4px !important;
+    }
+
+    .player-role-badge {
+        font-size: 0.72rem !important;
+        padding: 3px 5px !important;
+        gap: 0 !important;
+        line-height: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 6px !important;
+    }
+
+    .player-role-badge svg {
+        font-size: 0.74rem !important;
+        margin: 0 !important;
+    }
+
+    .player-captain-badge {
+        font-size: 0.72rem !important;
+        padding: 3px 5px !important;
+        gap: 0 !important;
+        line-height: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 6px !important;
+    }
+
+    .player-captain-badge svg {
+        font-size: 0.72rem !important;
+        margin: 0 !important;
+    }
+
+    .player-avatar-ring {
+        width: 50px !important;
+        height: 50px !important;
+        border-width: 2px !important;
+    }
+
+    .player-avatar-fallback {
+        font-size: 1.2rem !important;
+    }
+
+    .player-name {
+        font-size: 0.78rem !important;
+        margin-bottom: 2px !important;
+        line-height: 1.2 !important;
+    }
+
+    .player-team-label {
+        font-size: 0.62rem !important;
+    }
+
+    .player-bowling-style-badge {
+        font-size: 0.58rem !important;
+        padding: 2px 6px !important;
+        margin-top: 4px !important;
+        max-width: 100% !important;
     }
 }
 
@@ -1195,7 +2131,8 @@
     color: #0284c7;
 }
 
-[data-theme="light"] .overs-cell {
+[data-theme="light"] .overs-cell,
+[data-theme="light"] .balls-cell {
     color: #64748b;
 }
 
@@ -1417,4 +2354,1148 @@
     background: linear-gradient(180deg, #0f172a 15%, #1e293b 80%, #334155 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+}
+
+/* Light Theme - Squads Showcase */
+[data-theme="light"] .squad-team-selector {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .squad-team-pill {
+    color: #475569;
+}
+
+[data-theme="light"] .squad-team-pill:hover {
+    color: #0f172a;
+    background: rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .squad-team-pill.active {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(14, 165, 233, 0.2));
+    border-color: #0284c7;
+    color: #0284c7;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="light"] .team-pill-crest {
+    background: #ffffff;
+    border-color: rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .team-pill-crest svg {
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-team-banner {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(186, 230, 253, 0.9);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .squad-banner-glow {
+    background: radial-gradient(circle, rgba(2, 132, 199, 0.12) 0%, transparent 70%);
+}
+
+[data-theme="light"] .squad-banner-logo-frame {
+    background: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 8px 24px rgba(2, 132, 199, 0.18);
+}
+
+[data-theme="light"] .squad-banner-fallback-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-tournament-tag {
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-banner-team-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .squad-banner-captain {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #78350f;
+}
+
+[data-theme="light"] .squad-banner-captain strong {
+    color: #b45309;
+}
+
+[data-theme="light"] .squad-banner-stats {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .squad-stat-val.xi-val {
+    color: #0284c7;
+    text-shadow: none;
+}
+
+[data-theme="light"] .squad-stat-val.res-val {
+    color: #d97706;
+    text-shadow: none;
+}
+
+[data-theme="light"] .squad-stat-val.tot-val {
+    color: #0f172a;
+}
+
+[data-theme="light"] .squad-stat-lbl {
+    color: #64748b;
+}
+
+[data-theme="light"] .squad-stat-divider {
+    background: rgba(226, 232, 240, 0.9);
+}
+
+[data-theme="light"] .squad-role-chip {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    color: #475569;
+}
+
+[data-theme="light"] .squad-role-chip:hover {
+    color: #0f172a;
+    border-color: #0284c7;
+    background: rgba(2, 132, 199, 0.05);
+}
+
+[data-theme="light"] .squad-role-chip.active {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(14, 165, 233, 0.18));
+    border-color: #0284c7;
+    color: #0284c7;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.15);
+}
+
+[data-theme="light"] .role-count {
+    background: rgba(148, 163, 184, 0.18);
+    color: #475569;
+}
+
+[data-theme="light"] .squad-role-chip.active .role-count {
+    background: #0284c7;
+    color: #ffffff;
+}
+
+[data-theme="light"] .squad-group-title h3 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .squad-group-note {
+    color: #64748b;
+}
+
+[data-theme="light"] .squad-count-pill {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.3);
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-count-pill.amber {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #d97706;
+}
+
+[data-theme="light"] .squad-player-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .squad-player-card:hover {
+    border-color: #0284c7;
+    box-shadow: 0 14px 32px rgba(2, 132, 199, 0.18);
+}
+
+[data-theme="light"] .squad-player-card.captain-card {
+    background: linear-gradient(180deg, #ffffff 0%, rgba(254, 249, 195, 0.25) 100%);
+    border-color: rgba(245, 158, 11, 0.45);
+    box-shadow: 0 10px 28px rgba(245, 158, 11, 0.12);
+}
+
+[data-theme="light"] .squad-player-card.reserve-card {
+    background: #fafafa;
+    border-color: rgba(226, 232, 240, 0.95);
+}
+
+[data-theme="light"] .player-number {
+    color: #94a3b8;
+}
+
+[data-theme="light"] .player-captain-badge {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.45);
+    color: #92400e;
+}
+
+[data-theme="light"] .player-reserve-tag {
+    background: rgba(100, 116, 139, 0.1);
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #475569;
+}
+
+[data-theme="light"] .player-avatar-fallback {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+[data-theme="light"] .player-avatar-img {
+    background: #f1f5f9;
+}
+
+[data-theme="light"] .player-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .player-team-label {
+    color: #64748b;
+}
+
+[data-theme="light"] .player-role-badge.batter {
+    background: #ecfeff;
+    border-color: #a5f3fc;
+    color: #0891b2;
+}
+
+[data-theme="light"] .player-role-badge.bowler {
+    background: #faf5ff;
+    border-color: #e9d5ff;
+    color: #9333ea;
+}
+
+[data-theme="light"] .player-role-badge.all-rounder {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #d97706;
+}
+
+[data-theme="light"] .player-role-badge.wicket-keeper {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    color: #e11d48;
+}
+
+/* ==========================================================================
+   COMBINED COMPACT SQUAD HEADER (Teams Switcher + Active Team Spotlight)
+   ========================================================================== */
+.squad-combined-header {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.6) 100%);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    border-radius: 20px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 25px rgba(0, 240, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 50;
+    overflow: visible;
+}
+
+.squad-combined-header.dropdown-active {
+    z-index: 1000 !important;
+}
+
+/* Row 1: Competing Team Tabs Switcher */
+.squad-combined-tabs-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 60;
+    overflow: visible;
+}
+
+.squad-combined-tabs-row.dropdown-active {
+    z-index: 1001 !important;
+}
+
+.squad-combined-tabs-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.squad-combined-tabs-label .selector-icon {
+    font-size: 1rem;
+    color: #00f0ff;
+}
+
+.squad-combined-tabs-scroll {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 2px 4px 2px;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+}
+
+.squad-combined-tabs-scroll::-webkit-scrollbar {
+    height: 4px;
+}
+
+.squad-combined-tabs-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.2);
+    border-radius: 4px;
+}
+
+/* Mobile Competing Teams Dropdown (hidden on desktop/tablet) */
+.squad-combined-mobile-dropdown {
+    display: none;
+}
+
+.squad-combined-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #cbd5e1;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.squad-combined-tab-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    border-color: rgba(0, 240, 255, 0.35);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.squad-combined-tab-btn.active {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.18), rgba(2, 132, 199, 0.28));
+    border-color: #00f0ff;
+    color: #00f0ff;
+    box-shadow: 0 0 14px rgba(0, 240, 255, 0.22);
+}
+
+.squad-combined-tab-crest {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #00f0ff;
+    flex-shrink: 0;
+}
+
+.squad-combined-tab-crest img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.squad-combined-tab-name {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.squad-combined-tab-count {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.squad-combined-tab-btn.active .squad-combined-tab-count {
+    color: rgba(0, 240, 255, 0.85);
+}
+
+/* Row 2: Selected Team Profile & Stats */
+.squad-combined-spotlight {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.squad-combined-profile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+    flex: 1;
+}
+
+.squad-combined-crest-frame {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    background: radial-gradient(circle at top left, rgba(0, 240, 255, 0.2), rgba(15, 23, 42, 0.95));
+    border: 2px solid rgba(0, 240, 255, 0.4);
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.squad-combined-crest {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.squad-combined-crest-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #00f0ff;
+    font-size: 1.5rem;
+}
+
+.squad-combined-crest-fallback span {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #cbd5e1;
+    margin-top: -2px;
+}
+
+.squad-combined-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.squad-combined-meta-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.squad-combined-title {
+    font-size: clamp(1.2rem, 2.2vw, 1.6rem);
+    font-weight: 900;
+    margin: 0;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+}
+
+.squad-combined-captain {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: #e2e8f0;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 2px 10px;
+    border-radius: 999px;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.squad-combined-captain strong {
+    color: #fef08a;
+    font-weight: 800;
+}
+
+.squad-combined-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(7, 10, 19, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 18px;
+    border-radius: 14px;
+    flex-shrink: 0;
+}
+
+/* Responsive adjustments for Combined Header & Team Details */
+@media (max-width: 768px) {
+    .squad-combined-header {
+        padding: 12px 14px 14px;
+        border-radius: 16px;
+        gap: 12px;
+        position: relative !important;
+        z-index: 50;
+        overflow: visible !important;
+    }
+
+    .squad-combined-header.dropdown-active {
+        z-index: 1000 !important;
+    }
+
+    .squad-combined-tabs-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding-bottom: 10px;
+        position: relative !important;
+        z-index: 60;
+        overflow: visible !important;
+    }
+
+    .squad-combined-tabs-row.dropdown-active {
+        z-index: 1001 !important;
+    }
+
+    /* Hide desktop scroll tabs on mobile responsive since dropdown is used */
+    .squad-combined-tabs-scroll {
+        display: none !important;
+    }
+
+    .squad-combined-mobile-dropdown {
+        display: block !important;
+        position: relative !important;
+        width: 100% !important;
+        z-index: 1002 !important;
+        overflow: visible !important;
+    }
+
+    .squad-custom-dropdown-trigger {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(7, 10, 19, 0.98) 100%);
+        border: 1px solid rgba(0, 240, 255, 0.35);
+        border-radius: 12px;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 12px rgba(0, 240, 255, 0.08);
+    }
+
+    .squad-custom-dropdown-trigger:hover,
+    .squad-custom-dropdown-trigger.open {
+        border-color: #00f0ff;
+        box-shadow: 0 4px 20px rgba(0, 240, 255, 0.25), 0 0 0 1px rgba(0, 240, 255, 0.25);
+        background: linear-gradient(135deg, rgba(20, 32, 58, 0.98) 0%, rgba(10, 16, 30, 0.98) 100%);
+    }
+
+    .custom-dropdown-trigger-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .custom-dropdown-crest {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1.5px solid rgba(0, 240, 255, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        flex-shrink: 0;
+        box-shadow: 0 0 8px rgba(0, 240, 255, 0.2);
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #00f0ff;
+    }
+
+    .custom-dropdown-crest img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .custom-dropdown-trigger-text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1px;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .custom-dropdown-team-name {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: #ffffff;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .custom-dropdown-team-code {
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: #00f0ff;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .custom-dropdown-trigger-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .custom-dropdown-count-pill {
+        font-size: 0.68rem;
+        font-weight: 800;
+        color: #00f0ff;
+        background: rgba(0, 240, 255, 0.12);
+        border: 1px solid rgba(0, 240, 255, 0.3);
+        padding: 3px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
+
+    .custom-dropdown-arrow {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s;
+    }
+
+    .custom-dropdown-arrow.rotate {
+        transform: rotate(180deg);
+        color: #00f0ff;
+    }
+
+    .squad-custom-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+        z-index: 99999 !important;
+        background: rgba(10, 16, 30, 0.98);
+        border: 1px solid rgba(0, 240, 255, 0.45);
+        border-radius: 14px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 240, 255, 0.25);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        animation: squadDropdownPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes squadDropdownPop {
+        from {
+            opacity: 0;
+            transform: translateY(-6px) scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .custom-dropdown-header-tip {
+        padding: 5px 8px 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        margin-bottom: 2px;
+    }
+
+    .custom-dropdown-header-tip span {
+        font-size: 0.65rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #64748b;
+    }
+
+    .custom-dropdown-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+
+    .custom-dropdown-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .custom-dropdown-list::-webkit-scrollbar-thumb {
+        background: rgba(0, 240, 255, 0.3);
+        border-radius: 4px;
+    }
+
+    .squad-custom-dropdown-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: transparent;
+        border: 1px solid transparent;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.18s ease;
+    }
+
+    .squad-custom-dropdown-item:hover,
+    .squad-custom-dropdown-item:active {
+        background: rgba(0, 240, 255, 0.08);
+        border-color: rgba(0, 240, 255, 0.25);
+    }
+
+    .squad-custom-dropdown-item.active {
+        background: linear-gradient(135deg, rgba(0, 240, 255, 0.16) 0%, rgba(2, 132, 199, 0.25) 100%);
+        border-color: rgba(0, 240, 255, 0.5);
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+    }
+
+    .dropdown-item-left {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .dropdown-item-crest {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        flex-shrink: 0;
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: #00f0ff;
+    }
+
+    .dropdown-item-crest img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .dropdown-item-info {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+    }
+
+    .dropdown-item-name {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #e2e8f0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .squad-custom-dropdown-item.active .dropdown-item-name {
+        color: #00f0ff;
+        font-weight: 800;
+    }
+
+    .dropdown-item-sub {
+        font-size: 0.65rem;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .squad-custom-dropdown-item.active .dropdown-item-sub {
+        color: rgba(0, 240, 255, 0.8);
+    }
+
+    .dropdown-item-check {
+        font-size: 0.8rem;
+        color: #00f0ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .squad-combined-spotlight {
+        position: relative;
+        z-index: 1;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Hide active team profile banner on mobile responsive since dropdown already displays team crest, name and code */
+    .squad-combined-profile {
+        display: none !important;
+    }
+
+    .squad-combined-crest-frame {
+        width: 46px;
+        height: 46px;
+        border-radius: 10px;
+        flex-shrink: 0;
+    }
+
+    .squad-combined-crest-fallback {
+        font-size: 1.15rem;
+    }
+
+    .squad-combined-crest-fallback span {
+        font-size: 0.58rem;
+    }
+
+    .squad-combined-info {
+        min-width: 0;
+        flex: 1;
+        gap: 3px;
+    }
+
+    .squad-combined-meta-badges {
+        gap: 6px;
+    }
+
+    .squad-badge-code,
+    .squad-badge-edition {
+        font-size: 0.6rem;
+        padding: 1px 6px;
+    }
+
+    .squad-combined-title {
+        font-size: 1.15rem;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.25;
+    }
+
+    .squad-combined-captain {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .squad-combined-stats {
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: space-around;
+        padding: 7px 10px;
+        gap: 6px;
+        border-radius: 10px;
+    }
+
+    .squad-stat-item {
+        min-width: 0;
+        flex: 1;
+        text-align: center;
+    }
+
+    .squad-stat-val {
+        font-size: 1.15rem;
+    }
+
+    .squad-stat-lbl {
+        font-size: 0.62rem;
+    }
+
+    .squad-stat-divider {
+        height: 20px;
+        margin: 0;
+    }
+}
+
+/* Player Hand (RHS / LHS) Badges */
+.player-card-top-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.player-hand-tag {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    text-transform: uppercase;
+    font-family: monospace, var(--font-primary, sans-serif);
+    transition: all 0.2s ease;
+    line-height: 1.2;
+}
+
+.player-hand-tag.rhs,
+.player-hand-tag.rhb {
+    background: rgba(6, 182, 212, 0.14);
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    color: #22d3ee;
+}
+
+.player-hand-tag.lhs,
+.player-hand-tag.lhb {
+    background: rgba(245, 158, 11, 0.16);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    color: #fbbf24;
+}
+
+.player-bowling-style-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    color: #c084fc;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.player-bowling-style-badge svg {
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+
+
+/* Light Theme Overrides for Squad Additions */
+/* Light Theme Overrides for Combined Header */
+[data-theme="light"] .squad-combined-header {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(186, 230, 253, 0.9);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .squad-combined-tabs-row {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+[data-theme="light"] .squad-combined-tabs-label {
+    color: #64748b;
+}
+
+[data-theme="light"] .squad-combined-tabs-label .selector-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-combined-tab-btn {
+    background: #f1f5f9;
+    border-color: rgba(203, 213, 225, 0.7);
+    color: #475569;
+}
+
+[data-theme="light"] .squad-combined-tab-btn:hover {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-combined-tab-btn.active {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(14, 165, 233, 0.2));
+    border-color: #0284c7;
+    color: #0284c7;
+    box-shadow: 0 2px 10px rgba(2, 132, 199, 0.18);
+}
+
+[data-theme="light"] .squad-combined-tab-crest {
+    background: #ffffff;
+    border-color: rgba(203, 213, 225, 0.8);
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-combined-crest-frame {
+    background: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 4px 16px rgba(2, 132, 199, 0.15);
+}
+
+[data-theme="light"] .squad-combined-crest-fallback {
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-combined-title {
+    color: #0f172a;
+}
+
+[data-theme="light"] .squad-combined-captain {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #78350f;
+}
+
+[data-theme="light"] .squad-combined-captain strong {
+    color: #b45309;
+}
+
+[data-theme="light"] .squad-combined-stats {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .squad-custom-dropdown-trigger {
+    background: #ffffff;
+    border-color: rgba(2, 132, 199, 0.4);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .squad-custom-dropdown-trigger:hover,
+[data-theme="light"] .squad-custom-dropdown-trigger.open {
+    border-color: #0284c7;
+    background: #f8fafc;
+    box-shadow: 0 4px 18px rgba(2, 132, 199, 0.18);
+}
+
+[data-theme="light"] .custom-dropdown-crest {
+    background: #f1f5f9;
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+[data-theme="light"] .custom-dropdown-team-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .custom-dropdown-team-code {
+    color: #0284c7;
+}
+
+[data-theme="light"] .custom-dropdown-count-pill {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+[data-theme="light"] .custom-dropdown-arrow {
+    color: #64748b;
+}
+
+[data-theme="light"] .custom-dropdown-arrow.rotate {
+    color: #0284c7;
+}
+
+[data-theme="light"] .squad-custom-dropdown-menu {
+    background: #ffffff;
+    border-color: rgba(2, 132, 199, 0.4);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.15);
+}
+
+[data-theme="light"] .custom-dropdown-header-tip {
+    border-bottom-color: rgba(226, 232, 240, 0.9);
+}
+
+[data-theme="light"] .custom-dropdown-header-tip span {
+    color: #94a3b8;
+}
+
+[data-theme="light"] .squad-custom-dropdown-item:hover,
+[data-theme="light"] .squad-custom-dropdown-item:active {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="light"] .squad-custom-dropdown-item.active {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(14, 165, 233, 0.2) 100%);
+    border-color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-item-crest {
+    background: #f1f5f9;
+    border-color: rgba(203, 213, 225, 0.9);
+    color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-item-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .squad-custom-dropdown-item.active .dropdown-item-name {
+    color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-item-sub {
+    color: #64748b;
+}
+
+[data-theme="light"] .squad-custom-dropdown-item.active .dropdown-item-sub {
+    color: #0284c7;
+}
+
+[data-theme="light"] .dropdown-item-check {
+    color: #0284c7;
+}
+
+[data-theme="light"] .player-hand-tag.rhs,
+[data-theme="light"] .player-hand-tag.rhb {
+    background: #ecfeff;
+    border-color: #a5f3fc;
+    color: #0891b2;
+}
+
+[data-theme="light"] .player-hand-tag.lhs,
+[data-theme="light"] .player-hand-tag.lhb {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #d97706;
+}
+
+[data-theme="light"] .player-bowling-style-badge {
+    background: #faf5ff;
+    border-color: #d8b4fe;
+    color: #7e22ce;
+}
+
+
+
+[data-theme="light"] .table-limit-badge {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.25);
+    color: #0284c7;
 }

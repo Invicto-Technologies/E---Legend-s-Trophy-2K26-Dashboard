@@ -18,7 +18,11 @@ import {
     MdImage,
     MdCrop,
     MdSync,
-    MdSwapHoriz
+    MdSwapHoriz,
+    MdFormatListNumbered,
+    MdKeyboardArrowUp,
+    MdKeyboardArrowDown,
+    MdSave
 } from 'react-icons/md';
 import { FaCrown, FaBolt } from 'react-icons/fa6';
 import { GiCricketBat, GiCrossedSwords, GiGloves } from 'react-icons/gi';
@@ -57,6 +61,8 @@ const TeamManagement = () => {
     const [editPlayerIcon, setEditPlayerIcon] = useState('all-rounder');
     const [editPlayerImageUrl, setEditPlayerImageUrl] = useState('');
     const [editPlayerRosterType, setEditPlayerRosterType] = useState('Playing XI');
+    const [editPlayerHand, setEditPlayerHand] = useState('RHB');
+    const [editPlayerBowlingStyle, setEditPlayerBowlingStyle] = useState('');
 
     // Captain confirmation modal state
     const [captainToConfirm, setCaptainToConfirm] = useState(null);
@@ -65,6 +71,8 @@ const TeamManagement = () => {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [newPlayerName, setNewPlayerName] = useState('');
     const [newPlayerRole, setNewPlayerRole] = useState('Batter');
+    const [newPlayerHand, setNewPlayerHand] = useState('RHB');
+    const [newPlayerBowlingStyle, setNewPlayerBowlingStyle] = useState('');
     const [newPlayerImageUrl, setNewPlayerImageUrl] = useState('');
     const [isExtraPlayer, setIsExtraPlayer] = useState(false);
 
@@ -106,6 +114,10 @@ const TeamManagement = () => {
     const [swapModalTarget, setSwapModalTarget] = useState(null);
     const [swapSelectedReplacementId, setSwapSelectedReplacementId] = useState('');
 
+    // Reorder Playing XI Modal State
+    const [reorderModalOpen, setReorderModalOpen] = useState(false);
+    const [reorderList, setReorderList] = useState([]);
+
     useEffect(() => {
         const unsub = subscribeTeams((data) => {
             if (data) {
@@ -128,7 +140,8 @@ const TeamManagement = () => {
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
-                if (cropModalOpen) setCropModalOpen(false);
+                if (reorderModalOpen) setReorderModalOpen(false);
+                else if (cropModalOpen) setCropModalOpen(false);
                 else if (addTeamModalOpen) setAddTeamModalOpen(false);
                 else if (editTeamModalOpen) setEditTeamModalOpen(false);
                 else if (editingPlayer) setEditingPlayer(null);
@@ -141,7 +154,7 @@ const TeamManagement = () => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [cropModalOpen, addTeamModalOpen, editTeamModalOpen, editingPlayer, swapModalTarget, addModalOpen, captainToConfirm, deleteTeamTarget, deletePlayerTarget]);
+    }, [reorderModalOpen, cropModalOpen, addTeamModalOpen, editTeamModalOpen, editingPlayer, swapModalTarget, addModalOpen, captainToConfirm, deleteTeamTarget, deletePlayerTarget]);
 
     const activeTeam = teamsData[selectedTeamKey] || {
         name: selectedTeamKey,
@@ -150,7 +163,11 @@ const TeamManagement = () => {
         extraPlayers: {}
     };
 
-    const squadPlayers = Object.values(activeTeam.players || {});
+    const squadPlayers = Object.values(activeTeam.players || {}).sort((a, b) => {
+        const orderA = a.order ?? a.battingOrder ?? 999;
+        const orderB = b.order ?? b.battingOrder ?? 999;
+        return orderA - orderB;
+    });
     const reservePlayers = Object.values(activeTeam.extraPlayers || {});
 
     // Crop & Upload Handlers
@@ -241,6 +258,12 @@ const TeamManagement = () => {
 
                 playerObj.name = editPlayerName.trim();
                 playerObj.role = editPlayerRole;
+                playerObj.hand = editPlayerHand || 'RHB';
+                if (editPlayerRole === 'Bowler' || editPlayerRole === 'All Rounder') {
+                    playerObj.bowlingStyle = editPlayerBowlingStyle ? editPlayerBowlingStyle.trim() : '';
+                } else {
+                    delete playerObj.bowlingStyle;
+                }
                 playerObj.icon = editPlayerIcon;
                 playerObj.imageUrl = editPlayerImageUrl || '';
 
@@ -249,12 +272,95 @@ const TeamManagement = () => {
 
                 await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
                 setEditingPlayer(null);
+                setEditPlayerBowlingStyle('');
                 toastRef.current?.showToast('success', 'Player profile updated!');
             } catch (error) {
                 console.error('Error updating player:', error);
                 toastRef.current?.showToast('error', 'Failed to update player.');
             }
         }, 'Updating Player Profile...', 'Saving player changes to squad in Firebase...');
+    };
+
+    // Quick 1-click move player up/down in the Playing XI table
+    const handleMovePlayerOrder = async (index, direction) => {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= squadPlayers.length) return;
+
+        const newSquad = [...squadPlayers];
+        const temp = newSquad[index];
+        newSquad[index] = newSquad[targetIndex];
+        newSquad[targetIndex] = temp;
+
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
+                updatedTeam.players = updatedTeam.players || {};
+
+                newSquad.forEach((p, idx) => {
+                    const newOrder = idx + 1;
+                    if (updatedTeam.players[p.id]) {
+                        updatedTeam.players[p.id].order = newOrder;
+                        updatedTeam.players[p.id].battingOrder = newOrder;
+                    }
+                });
+
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                toastRef.current?.showToast('success', `Moved ${temp.name} to #${targetIndex + 1} in lineup.`);
+            } catch (err) {
+                console.error('Error reordering player:', err);
+                toastRef.current?.showToast('error', 'Failed to update player order.');
+            }
+        }, 'Reordering XI...', 'Updating Playing XI lineup positions in Firebase...');
+    };
+
+    // Open Reorder Modal
+    const handleOpenReorderModal = () => {
+        setReorderList([...squadPlayers]);
+        setReorderModalOpen(true);
+    };
+
+    // Shift item inside Reorder Modal
+    const handleModalMoveItem = (index, direction) => {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= reorderList.length) return;
+        const updated = [...reorderList];
+        const item = updated.splice(index, 1)[0];
+        updated.splice(targetIndex, 0, item);
+        setReorderList(updated);
+    };
+
+    // Jump item to specific index in Reorder Modal
+    const handleModalMoveToPosition = (currentIndex, targetIndex) => {
+        if (targetIndex === currentIndex || targetIndex < 0 || targetIndex >= reorderList.length) return;
+        const updated = [...reorderList];
+        const item = updated.splice(currentIndex, 1)[0];
+        updated.splice(targetIndex, 0, item);
+        setReorderList(updated);
+    };
+
+    // Save full lineup order from Modal
+    const handleSaveReorderedSquad = async () => {
+        await withProcessing(async () => {
+            try {
+                const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
+                updatedTeam.players = updatedTeam.players || {};
+
+                reorderList.forEach((p, idx) => {
+                    const newOrder = idx + 1;
+                    if (updatedTeam.players[p.id]) {
+                        updatedTeam.players[p.id].order = newOrder;
+                        updatedTeam.players[p.id].battingOrder = newOrder;
+                    }
+                });
+
+                await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
+                toastRef.current?.showToast('success', 'Playing XI team order saved successfully!');
+                setReorderModalOpen(false);
+            } catch (err) {
+                console.error('Error saving reordered squad:', err);
+                toastRef.current?.showToast('error', 'Failed to save lineup order.');
+            }
+        }, 'Saving Playing XI Order...', 'Writing updated batting and team order to Firebase...');
     };
 
     // Atomic 1-to-1 swap between Playing XI and Bench/Reserves
@@ -289,6 +395,13 @@ const TeamManagement = () => {
                 xiPlayer.type = 'Reserve';
                 reservePlayer.type = 'Playing XI';
 
+                // Preserve batting order slot
+                const preservedOrder = xiPlayer.order || xiPlayer.battingOrder || (squadPlayers.length || 1);
+                reservePlayer.order = preservedOrder;
+                reservePlayer.battingOrder = preservedOrder;
+                delete xiPlayer.order;
+                delete xiPlayer.battingOrder;
+
                 delete updatedTeam.players[xiPlayer.id];
                 updatedTeam.extraPlayers[xiPlayer.id] = xiPlayer;
 
@@ -315,14 +428,19 @@ const TeamManagement = () => {
             try {
                 const updatedTeam = JSON.parse(JSON.stringify(activeTeam));
                 const newId = Date.now();
+                const existingSquadCount = Object.keys(activeTeam.players || {}).length;
                 const playerObj = {
                     id: newId,
                     name: newPlayerName.trim(),
                     role: newPlayerRole,
+                    hand: newPlayerHand || 'RHB',
+                    bowlingStyle: (newPlayerRole === 'Bowler' || newPlayerRole === 'All Rounder') && newPlayerBowlingStyle ? newPlayerBowlingStyle.trim() : '',
                     icon: newPlayerRole === 'Bowler' ? 'ball' : newPlayerRole === 'Batter' ? 'bat' : 'all-rounder',
                     imageUrl: newPlayerImageUrl || '',
                     runs: 0,
-                    balls: 0
+                    balls: 0,
+                    order: isExtraPlayer ? 99 : existingSquadCount + 1,
+                    battingOrder: isExtraPlayer ? 99 : existingSquadCount + 1
                 };
 
                 if (isExtraPlayer) {
@@ -336,6 +454,8 @@ const TeamManagement = () => {
                 await updateTeamSquad(selectedTeamKey, updatedTeam, selectedTournamentId);
                 setAddModalOpen(false);
                 setNewPlayerName('');
+                setNewPlayerHand('RHB');
+                setNewPlayerBowlingStyle('');
                 setNewPlayerImageUrl('');
                 toastRef.current.showToast('success', `Added ${newPlayerName} to ${selectedTeamKey}!`);
             } catch (error) {
@@ -665,6 +785,16 @@ const TeamManagement = () => {
                                     </h3>
                                     <p className="tm-block-desc">Active match players representing {selectedTeamKey}</p>
                                 </div>
+                                {squadPlayers.length > 1 && (
+                                    <button
+                                        type="button"
+                                        className="tm-btn-reorder-xi"
+                                        onClick={handleOpenReorderModal}
+                                        title="Reorder Playing XI batting lineup and team positions"
+                                    >
+                                        <MdFormatListNumbered /> Change XI Order
+                                    </button>
+                                )}
                             </div>
 
                             {squadPlayers.length === 0 ? (
@@ -676,7 +806,7 @@ const TeamManagement = () => {
                                     <table className="tm-roster-table">
                                         <thead>
                                             <tr>
-                                                <th style={{ width: '60px' }}>#</th>
+                                                <th style={{ width: '85px' }}>#</th>
                                                 <th>Player Name</th>
                                                 <th>Role</th>
                                                 <th>Designation</th>
@@ -692,7 +822,29 @@ const TeamManagement = () => {
                                                 return (
                                                     <tr key={player.id} className={`tmr-row ${isCaptain ? 'is-captain-row' : ''}`}>
                                                         <td className="tm-col-num">
-                                                            <span className="tmr-table-num">#{index + 1}</span>
+                                                            <div className="tmr-num-control-wrap">
+                                                                <span className="tmr-table-num">#{index + 1}</span>
+                                                                <div className="tmr-order-arrows">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="tmr-order-btn up"
+                                                                        disabled={index === 0}
+                                                                        onClick={() => handleMovePlayerOrder(index, -1)}
+                                                                        title="Move up in batting lineup"
+                                                                    >
+                                                                        <MdKeyboardArrowUp />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="tmr-order-btn down"
+                                                                        disabled={index === squadPlayers.length - 1}
+                                                                        onClick={() => handleMovePlayerOrder(index, 1)}
+                                                                        title="Move down in batting lineup"
+                                                                    >
+                                                                        <MdKeyboardArrowDown />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td className="tm-col-player">
                                                             <div className="tmr-player-cell">
@@ -723,10 +875,25 @@ const TeamManagement = () => {
                                                             </div>
                                                         </td>
                                                         <td className="tm-col-role">
-                                                            <span className={`tmr-role-pill ${roleNormalized}`}>
-                                                                {renderRoleIcon(player.role)}
-                                                                <span>{player.role || 'All Rounder'}</span>
-                                                            </span>
+                                                            {(() => {
+                                                                const handCode = (player.hand === 'LHB' || player.hand === 'LHS' || player.hand === 'Left Hand') ? 'LHB' : 'RHB';
+                                                                return (
+                                                                    <div className="tmr-role-hand-wrap">
+                                                                        <span className={`tmr-role-pill ${roleNormalized}`}>
+                                                                            {renderRoleIcon(player.role)}
+                                                                            <span>{player.role || 'All Rounder'}</span>
+                                                                        </span>
+                                                                        <span className={`tmr-hand-badge ${handCode.toLowerCase()}`} title={handCode === 'LHB' ? 'Left Hand Batter (LHB)' : 'Right Hand Batter (RHB)'}>
+                                                                            {handCode}
+                                                                        </span>
+                                                                        {player.bowlingStyle && (
+                                                                            <span className="tmr-bowling-badge" title={`Bowling Style: ${player.bowlingStyle}`}>
+                                                                                {player.bowlingStyle}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </td>
                                                         <td className="tm-col-status">
                                                             {isCaptain ? (
@@ -754,6 +921,8 @@ const TeamManagement = () => {
                                                                         setEditingPlayer(player);
                                                                         setEditPlayerName(player.name);
                                                                         setEditPlayerRole(player.role || 'All Rounder');
+                                                                        setEditPlayerHand((player.hand === 'LHB' || player.hand === 'LHS' || player.hand === 'Left Hand') ? 'LHB' : 'RHB');
+                                                                        setEditPlayerBowlingStyle(player.bowlingStyle || player.bowlingType || '');
                                                                         setEditPlayerIcon(player.icon || 'all-rounder');
                                                                         setEditPlayerImageUrl(player.imageUrl || '');
                                                                         setEditPlayerRosterType('Playing XI');
@@ -776,7 +945,7 @@ const TeamManagement = () => {
                                                                         }}
                                                                         title="Swap with a reserve player"
                                                                     >
-                                                                        <MdSwapHoriz /> <span>Swap with Reserve</span>
+                                                                        <MdSwapHoriz /> <span>Swap</span>
                                                                     </button>
                                                                 )}
                                                                 <button
@@ -857,10 +1026,25 @@ const TeamManagement = () => {
                                                             </div>
                                                         </td>
                                                         <td className="tm-col-role">
-                                                            <span className={`tmr-role-pill ${roleNormalized}`}>
-                                                                {renderRoleIcon(player.role)}
-                                                                <span>{player.role || 'All Rounder'}</span>
-                                                            </span>
+                                                            {(() => {
+                                                                const handCode = (player.hand === 'LHB' || player.hand === 'LHS' || player.hand === 'Left Hand') ? 'LHB' : 'RHB';
+                                                                return (
+                                                                    <div className="tmr-role-hand-wrap">
+                                                                        <span className={`tmr-role-pill ${roleNormalized}`}>
+                                                                            {renderRoleIcon(player.role)}
+                                                                            <span>{player.role || 'All Rounder'}</span>
+                                                                        </span>
+                                                                        <span className={`tmr-hand-badge ${handCode.toLowerCase()}`} title={handCode === 'LHB' ? 'Left Hand Batter (LHB)' : 'Right Hand Batter (RHB)'}>
+                                                                            {handCode}
+                                                                        </span>
+                                                                        {player.bowlingStyle && (
+                                                                            <span className="tmr-bowling-badge" title={`Bowling Style: ${player.bowlingStyle}`}>
+                                                                                {player.bowlingStyle}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </td>
                                                         <td className="tm-col-status">
                                                             <span className="tmr-status-badge reserve">Bench / Reserve</span>
@@ -889,6 +1073,8 @@ const TeamManagement = () => {
                                                                         setEditingPlayer(player);
                                                                         setEditPlayerName(player.name);
                                                                         setEditPlayerRole(player.role || 'All Rounder');
+                                                                        setEditPlayerHand((player.hand === 'LHB' || player.hand === 'LHS' || player.hand === 'Left Hand') ? 'LHB' : 'RHB');
+                                                                        setEditPlayerBowlingStyle(player.bowlingStyle || player.bowlingType || '');
                                                                         setEditPlayerIcon(player.icon || 'all-rounder');
                                                                         setEditPlayerImageUrl(player.imageUrl || '');
                                                                         setEditPlayerRosterType('Reserve');
@@ -961,6 +1147,43 @@ const TeamManagement = () => {
                                     <option value="Wicket Keeper">Wicket Keeper</option>
                                 </select>
                             </div>
+
+                            <div className="tm-form-group">
+                                <label><GiCricketBat /> Batting Hand (Stance)</label>
+                                <select
+                                    value={editPlayerHand}
+                                    onChange={(e) => setEditPlayerHand(e.target.value)}
+                                    className="tm-select"
+                                >
+                                    <option value="RHB">RHB (Right Hand Batter)</option>
+                                    <option value="LHB">LHB (Left Hand Batter)</option>
+                                </select>
+                                <small className="tm-field-hint">Determines Wagon Wheel scoring orientation (Off / Leg side).</small>
+                            </div>
+
+                            {(editPlayerRole === 'Bowler' || editPlayerRole === 'All Rounder') && (
+                                <div className="tm-form-group">
+                                    <label><MdSportsCricket /> Bowling Style / Type</label>
+                                    <select
+                                        value={editPlayerBowlingStyle}
+                                        onChange={(e) => setEditPlayerBowlingStyle(e.target.value)}
+                                        className="tm-select"
+                                    >
+                                        <option value="">Select Bowling Style (Optional)</option>
+                                        <option value="Right-arm Fast">Right-arm Fast</option>
+                                        <option value="Right-arm Fast Medium">Right-arm Fast Medium</option>
+                                        <option value="Right-arm Medium">Right-arm Medium</option>
+                                        <option value="Right-arm Off Spin">Right-arm Off Spin</option>
+                                        <option value="Right-arm Leg Spin">Right-arm Leg Spin</option>
+                                        <option value="Left-arm Fast">Left-arm Fast</option>
+                                        <option value="Left-arm Fast Medium">Left-arm Fast Medium</option>
+                                        <option value="Left-arm Medium">Left-arm Medium</option>
+                                        <option value="Left-arm Orthodox">Left-arm Orthodox</option>
+                                        <option value="Left-arm Chinaman">Left-arm Chinaman</option>
+                                    </select>
+                                    <small className="tm-field-hint">Displayed in team details and live scoring pages.</small>
+                                </div>
+                            )}
 
                             <div className="tm-form-group">
                                 <label><MdSwapHoriz /> Roster Status</label>
@@ -1177,6 +1400,43 @@ const TeamManagement = () => {
                                     <option value="Wicket Keeper">Wicket Keeper</option>
                                 </select>
                             </div>
+
+                            <div className="tm-form-group">
+                                <label><GiCricketBat /> Batting Hand (Stance)</label>
+                                <select
+                                    value={newPlayerHand}
+                                    onChange={(e) => setNewPlayerHand(e.target.value)}
+                                    className="tm-select"
+                                >
+                                    <option value="RHB">RHB (Right Hand Batter)</option>
+                                    <option value="LHB">LHB (Left Hand Batter)</option>
+                                </select>
+                                <small className="tm-field-hint">Determines Wagon Wheel scoring orientation (Off / Leg side).</small>
+                            </div>
+
+                            {(newPlayerRole === 'Bowler' || newPlayerRole === 'All Rounder') && (
+                                <div className="tm-form-group">
+                                    <label><MdSportsCricket /> Bowling Style / Type</label>
+                                    <select
+                                        value={newPlayerBowlingStyle}
+                                        onChange={(e) => setNewPlayerBowlingStyle(e.target.value)}
+                                        className="tm-select"
+                                    >
+                                        <option value="">Select Bowling Style (Optional)</option>
+                                        <option value="Right-arm Fast">Right-arm Fast</option>
+                                        <option value="Right-arm Fast Medium">Right-arm Fast Medium</option>
+                                        <option value="Right-arm Medium">Right-arm Medium</option>
+                                        <option value="Right-arm Off Spin">Right-arm Off Spin</option>
+                                        <option value="Right-arm Leg Spin">Right-arm Leg Spin</option>
+                                        <option value="Left-arm Fast">Left-arm Fast</option>
+                                        <option value="Left-arm Fast Medium">Left-arm Fast Medium</option>
+                                        <option value="Left-arm Medium">Left-arm Medium</option>
+                                        <option value="Left-arm Orthodox">Left-arm Orthodox</option>
+                                        <option value="Left-arm Chinaman">Left-arm Chinaman</option>
+                                    </select>
+                                    <small className="tm-field-hint">Displayed in team details and live scoring pages.</small>
+                                </div>
+                            )}
 
                             <div className="tm-form-group">
                                 <div className="sm-label-row">
@@ -1587,6 +1847,151 @@ const TeamManagement = () => {
                 onCropComplete={handleCropComplete}
                 onCancel={() => setCropModalOpen(false)}
             />
+
+            {/* Reorder Playing XI Modal */}
+            {reorderModalOpen && (
+                <div className="tm-modal-overlay" onClick={() => setReorderModalOpen(false)}>
+                    <div className="tm-modal-card pro-team-modal tm-reorder-modal-card" onClick={(e) => e.stopPropagation()}>
+                        <div className="tm-modal-header">
+                            <div className="tm-modal-header-left">
+                                <div className="tm-modal-header-icon reorder-icon">
+                                    <MdFormatListNumbered />
+                                </div>
+                                <div>
+                                    <h3>Change Playing XI Order</h3>
+                                    <p className="tm-modal-sub">Set batting lineup and team positioning (#1 to #{reorderList.length}) for {selectedTeamKey}</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="tm-close-btn"
+                                onClick={() => setReorderModalOpen(false)}
+                            >
+                                <MdClose />
+                            </button>
+                        </div>
+
+                        <div className="tm-reorder-notice-box">
+                            <small>
+                                💡 Tip: Use the position dropdown to jump a player directly to any slot (e.g., opener #1), or use the Up/Down buttons to adjust order.
+                            </small>
+                        </div>
+
+                        <div className="tm-reorder-list">
+                            {reorderList.map((player, index) => {
+                                const isCaptain = activeTeam.captain && (player.name.trim().toLowerCase() === activeTeam.captain.trim().toLowerCase());
+                                const roleNormalized = (player.role || 'all rounder').toLowerCase().replace(/[\s-_]/g, '');
+                                const playerImg = player.imageUrl || player.image || player.photo;
+                                const handCode = (player.hand === 'LHB' || player.hand === 'LHS' || player.hand === 'Left Hand') ? 'LHB' : 'RHB';
+
+                                return (
+                                    <div key={player.id} className={`tm-reorder-item ${isCaptain ? 'is-captain-item' : ''}`}>
+                                        <div className="tm-reorder-left">
+                                            <div className="tm-reorder-pos-badge">#{index + 1}</div>
+                                            <div className={`tmr-table-avatar ${playerImg ? 'has-photo' : ''}`}>
+                                                {playerImg ? (
+                                                    <img
+                                                        src={playerImg}
+                                                        alt={player.name}
+                                                        onError={(e) => {
+                                                            e.target.style.display = 'none';
+                                                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <span style={playerImg ? { display: 'none' } : {}}>
+                                                    {player.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || <MdPerson />}
+                                                </span>
+                                                {isCaptain && (
+                                                    <span className="tmr-table-crown" title="Team Captain">
+                                                        <FaCrown />
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="tm-reorder-info">
+                                                <div className="tm-reorder-name-row">
+                                                    <span className="tm-reorder-player-name">{player.name}</span>
+                                                    {isCaptain && <span className="tmr-captain-tag">Captain</span>}
+                                                </div>
+                                                <div className="tm-reorder-meta-row">
+                                                    <span className={`tmr-role-pill ${roleNormalized}`}>
+                                                        {renderRoleIcon(player.role)}
+                                                        <span>{player.role || 'All Rounder'}</span>
+                                                    </span>
+                                                    <span className={`tmr-hand-badge ${handCode.toLowerCase()}`}>
+                                                        {handCode}
+                                                    </span>
+                                                    {player.bowlingStyle && (
+                                                        <span className="tmr-bowling-badge">
+                                                            {player.bowlingStyle}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="tm-reorder-controls">
+                                            <div className="tm-reorder-pos-select-wrap">
+                                                <label>Pos:</label>
+                                                <select
+                                                    value={index}
+                                                    onChange={(e) => handleModalMoveToPosition(index, parseInt(e.target.value, 10))}
+                                                    className="tm-reorder-select-pos"
+                                                    title="Jump to position"
+                                                >
+                                                    {reorderList.map((_, optIdx) => (
+                                                        <option key={optIdx} value={optIdx}>
+                                                            #{optIdx + 1}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="tm-reorder-arrow-buttons">
+                                                <button
+                                                    type="button"
+                                                    className="tm-reorder-shift-btn"
+                                                    disabled={index === 0}
+                                                    onClick={() => handleModalMoveItem(index, -1)}
+                                                    title="Move Up"
+                                                >
+                                                    <MdKeyboardArrowUp />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="tm-reorder-shift-btn"
+                                                    disabled={index === reorderList.length - 1}
+                                                    onClick={() => handleModalMoveItem(index, 1)}
+                                                    title="Move Down"
+                                                >
+                                                    <MdKeyboardArrowDown />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="tm-modal-actions">
+                            <button
+                                type="button"
+                                className="cx-btn-secondary"
+                                onClick={() => setReorderModalOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="cx-btn-confirm primary"
+                                onClick={handleSaveReorderedSquad}
+                            >
+                                <MdSave /> Save Lineup Order
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <Footer />
         </div>

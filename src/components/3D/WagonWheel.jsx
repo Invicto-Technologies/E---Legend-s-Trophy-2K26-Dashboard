@@ -68,7 +68,8 @@ const WagonWheel = ({
     const outerRadius = (size / 2) - 20;
     const innerCircleRadius = outerRadius * 0.58;
 
-    const zones = batsmanHand === 'Left Hand' ? WAGON_WHEEL_ZONES_LHB : WAGON_WHEEL_ZONES_RHB;
+    const isLeftHand = batsmanHand === 'Left Hand' || batsmanHand === 'LHS' || batsmanHand === 'LHB' || batsmanHand === 'Left' || String(batsmanHand).toUpperCase().includes('LEFT') || String(batsmanHand).toUpperCase() === 'LHS' || String(batsmanHand).toUpperCase() === 'LHB';
+    const zones = isLeftHand ? WAGON_WHEEL_ZONES_LHB : WAGON_WHEEL_ZONES_RHB;
 
     // Filter out dot balls (runs === 0) and extras - ONLY draw lines for bat scoring runs (1, 2, 3, 4, 6)
     const scoringShots = shots.filter(s => {
@@ -85,13 +86,15 @@ const WagonWheel = ({
     });
 
     return (
-        <div className="wagon-wheel-container" style={{ width: size, maxWidth: '100%' }}>
+        <div className="wagon-wheel-container">
             {/* Header info */}
             {batsmanName && (
                 <div className="wagon-wheel-header">
                     <div>
                         <h4>{batsmanName}</h4>
-                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{batsmanHand} Batsman</span>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                            {isLeftHand ? 'LHB • Left Hand' : 'RHB • Right Hand'} Batsman
+                        </span>
                     </div>
                     <span className="wagon-shots-count">{scoringShots.length} Scoring Shots</span>
                 </div>
@@ -122,9 +125,8 @@ const WagonWheel = ({
             {/* SVG Visualizer */}
             <div className="wagon-wheel-svg-wrap">
                 <svg
-                    width={size}
-                    height={size}
                     viewBox={`0 0 ${size} ${size}`}
+                    style={{ width: '100%', maxWidth: `${size}px`, height: 'auto', aspectRatio: '1 / 1', display: 'block' }}
                     className="wagon-wheel-svg"
                 >
                     <defs>

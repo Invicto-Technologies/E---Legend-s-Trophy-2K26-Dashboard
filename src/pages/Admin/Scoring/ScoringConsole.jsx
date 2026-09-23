@@ -299,6 +299,183 @@ const ScoringConsole = () => {
         )?.[1] || {};
     };
 
+    // Helper to order batting performance list according to when batters come out to the ground
+    const getBattersInGroundArrivalOrder = (teamData, playersList) => {
+        if (!playersList || playersList.length === 0) return [];
+        if (!teamData) return playersList;
+
+        const arrivalOrder = [];
+        const addedIds = new Set();
+
+        const addPlayerId = (pid) => {
+            if (!pid) return;
+            const sId = String(pid);
+            if (!addedIds.has(sId)) {
+                addedIds.add(sId);
+                arrivalOrder.push(sId);
+            }
+        };
+
+        const isCurrentlyAtCrease = (p) => {
+            return (teamData.ballFaceBatsman && String(teamData.ballFaceBatsman.id) === String(p.id)) ||
+                (teamData.otherSideBatsman && String(teamData.otherSideBatsman.id) === String(p.id)) ||
+                p.status === 'batting';
+        };
+
+        const hasBatted = (p) => {
+            return isCurrentlyAtCrease(p) ||
+                Number(p.balls || 0) > 0 ||
+                Number(p.runs || 0) > 0 ||
+                (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat') ||
+                (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
+        };
+
+        // 1. Build an inferred arrival map from historical partnerships & fall of wickets
+        const inferredMap = {};
+
+        // A. Completed partnerships in ascending order
+        const sortedPartnerships = Object.values(teamData.partnerships || {})
+            .filter(Boolean)
+            .sort((a, b) => Number(a.wicketNumber || 0) - Number(b.wicketNumber || 0));
+
+        sortedPartnerships.forEach((part, idx) => {
+            const wNum = Number(part.wicketNumber || idx + 1);
+            if (wNum === 1) {
+                if (part.batsman1?.id && inferredMap[String(part.batsman1.id)] === undefined) {
+                    inferredMap[String(part.batsman1.id)] = 1;
+                }
+                if (part.batsman2?.id && inferredMap[String(part.batsman2.id)] === undefined) {
+                    inferredMap[String(part.batsman2.id)] = 2;
+                }
+            } else {
+                if (part.batsman1?.id && inferredMap[String(part.batsman1.id)] === undefined) {
+                    inferredMap[String(part.batsman1.id)] = wNum + 1;
+                }
+                if (part.batsman2?.id && inferredMap[String(part.batsman2.id)] === undefined) {
+                    inferredMap[String(part.batsman2.id)] = wNum + 1;
+                }
+            }
+        });
+
+        // B. Fall of Wickets in chronological order
+        const sortedFow = Object.values(teamData.fallOfWickets || {}).filter(Boolean);
+        sortedFow.forEach((fow, idx) => {
+            const wNum = idx + 1;
+            let pId = null;
+            if (fow.outBatsman?.id) {
+                pId = String(fow.outBatsman.id);
+            } else if (fow.batsman) {
+                const cleanName = fow.batsman.trim().toLowerCase();
+                const matched = playersList.find(p => p.name && p.name.trim().toLowerCase() === cleanName);
+                if (matched) pId = String(matched.id);
+            }
+            if (pId && inferredMap[pId] === undefined) {
+                inferredMap[pId] = wNum === 1 ? 1 : wNum + 1;
+            }
+        });
+
+        // Determine the max arrival rank among all previously arrived batters
+        let maxKnownArrival = 2;
+        playersList.forEach(p => {
+            const sId = String(p.id);
+            const order = Number(p.groundArrivalOrder || inferredMap[sId] || 0);
+            if (order > maxKnownArrival) maxKnownArrival = order;
+        });
+        const totalWickets = Number(teamData.totalWickets || 0);
+        if (totalWickets + 1 > maxKnownArrival) {
+            maxKnownArrival = totalWickets + 1;
+        }
+
+        // C. Current Crease Batters
+        const strikerId = teamData.ballFaceBatsman?.id ? String(teamData.ballFaceBatsman.id) : null;
+        const nonStrikerId = teamData.otherSideBatsman?.id ? String(teamData.otherSideBatsman.id) : null;
+
+        if (strikerId && nonStrikerId) {
+            if (totalWickets === 0) {
+                if (inferredMap[strikerId] === undefined) inferredMap[strikerId] = 1;
+                if (inferredMap[nonStrikerId] === undefined) inferredMap[nonStrikerId] = 2;
+            } else {
+                // The new incoming batter must always appear AFTER the last ground-coming player (maxKnownArrival + 1)
+                const sPlayer = playersList.find(p => String(p.id) === strikerId);
+                const nsPlayer = playersList.find(p => String(p.id) === nonStrikerId);
+                const sHasOrder = Number(sPlayer?.groundArrivalOrder || inferredMap[strikerId] || 0) > 0;
+                const nsHasOrder = Number(nsPlayer?.groundArrivalOrder || inferredMap[nonStrikerId] || 0) > 0;
+
+                if (sHasOrder && !nsHasOrder) {
+                    inferredMap[nonStrikerId] = maxKnownArrival + 1;
+                } else if (nsHasOrder && !sHasOrder) {
+                    inferredMap[strikerId] = maxKnownArrival + 1;
+                } else if (!sHasOrder && !nsHasOrder) {
+                    const sBalls = Number(sPlayer?.balls || 0) + Number(sPlayer?.runs || 0);
+                    const nsBalls = Number(nsPlayer?.balls || 0) + Number(nsPlayer?.runs || 0);
+                    if (sBalls > 0 && nsBalls === 0) {
+                        inferredMap[nonStrikerId] = maxKnownArrival + 1;
+                    } else if (nsBalls > 0 && sBalls === 0) {
+                        inferredMap[strikerId] = maxKnownArrival + 1;
+                    }
+                }
+            }
+        }
+
+        const getEffectiveArrivalRank = (p) => {
+            // Priority 1: Explicit groundArrivalOrder
+            if (p.groundArrivalOrder !== undefined && p.groundArrivalOrder !== null && Number(p.groundArrivalOrder) > 0) {
+                return Number(p.groundArrivalOrder);
+            }
+            // Priority 2: Inferred map
+            const sId = String(p.id);
+            if (inferredMap[sId] !== undefined) return inferredMap[sId];
+            // Priority 3: Batting order
+            if (p.battingOrder !== undefined && p.battingOrder !== null && Number(p.battingOrder) > 0) {
+                return Number(p.battingOrder);
+            }
+            return 999;
+        };
+
+        // 2. Active/participated batters sorted strictly by arrival order
+        const activeBatters = [...playersList]
+            .filter(hasBatted)
+            .sort((a, b) => {
+                const rankA = getEffectiveArrivalRank(a);
+                const rankB = getEffectiveArrivalRank(b);
+                if (rankA !== rankB) return rankA - rankB;
+                return (Number(a.lineupOrder ?? 999)) - (Number(b.lineupOrder ?? 999));
+            });
+
+        activeBatters.forEach(p => addPlayerId(p.id));
+
+        // 3. Map in exact ground arrival order
+        const arrived = [];
+        arrivalOrder.forEach(id => {
+            const found = playersList.find(p => String(p.id) === String(id));
+            if (found) arrived.push(found);
+        });
+
+        // 4. Remaining unbatted players MUST be sorted strictly by initial team line up order
+        const unbatted = playersList
+            .filter(p => !addedIds.has(String(p.id)))
+            .sort((a, b) => {
+                const orderA = (a.lineupOrder !== undefined && a.lineupOrder !== null)
+                    ? Number(a.lineupOrder)
+                    : ((a.order !== undefined && a.order !== null)
+                        ? Number(a.order)
+                        : ((a.initialOrder !== undefined && a.initialOrder !== null)
+                            ? Number(a.initialOrder)
+                            : 999));
+                const orderB = (b.lineupOrder !== undefined && b.lineupOrder !== null)
+                    ? Number(b.lineupOrder)
+                    : ((b.order !== undefined && b.order !== null)
+                        ? Number(b.order)
+                        : ((b.initialOrder !== undefined && b.initialOrder !== null)
+                            ? Number(b.initialOrder)
+                            : 999));
+                if (orderA !== orderB) return orderA - orderB;
+                return (Number(a.id) || 0) - (Number(b.id) || 0);
+            });
+
+        return [...arrived, ...unbatted];
+    };
+
     // Helper to robustly resolve player type (Playing XI vs Reserve)
     const resolvePlayerType = (p, teamObj, isLocked = false, rosterIndex = 0) => {
         if (isLocked) return 'Playing XI';
@@ -328,10 +505,17 @@ const ScoringConsole = () => {
     // Helper to construct structured player roster for a team
     const buildPlayers = (teamObj, defaultPrefix = 'Player') => {
         const result = {};
-        const squadList = Object.values(teamObj?.players || {}).map((p, idx) => ({
-            ...p,
-            type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve')
-        }));
+        const squadList = Object.values(teamObj?.players || {})
+            .sort((a, b) => {
+                const orderA = (a.order !== undefined && a.order !== null) ? Number(a.order) : ((a.battingOrder !== undefined && a.battingOrder !== null) ? Number(a.battingOrder) : 999);
+                const orderB = (b.order !== undefined && b.order !== null) ? Number(b.order) : ((b.battingOrder !== undefined && b.battingOrder !== null) ? Number(b.battingOrder) : 999);
+                return orderA - orderB;
+            })
+            .map((p, idx) => ({
+                ...p,
+                lineupOrder: idx + 1,
+                type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve')
+            }));
         const extraList = Object.values(teamObj?.extraPlayers || {}).map(p => ({
             ...p,
             type: p.type || 'Reserve'
@@ -345,6 +529,7 @@ const ScoringConsole = () => {
                     name: p.name || `${defaultPrefix} Player ${idx + 1}`,
                     imageUrl: p.imageUrl || p.ImageURL || p.imageuRL || p.image || p.photo || '',
                     role: p.role || 'All Rounder',
+                    lineupOrder: p.lineupOrder || idx + 1,
                     runs: p.runs || 0,
                     balls: p.balls || 0,
                     boundaries: { fours: p.fours || 0, sixes: p.sixes || 0, singles: 0, twos: 0 },
@@ -418,11 +603,23 @@ const ScoringConsole = () => {
             t1OtherSide = (chosenNonStrikerId && t1Players[chosenNonStrikerId]) || p1List[1] || p1List[0] || null;
             if (t1BallFace) {
                 t1BallFace.status = 'batting';
-                if (t1Players[t1BallFace.id]) t1Players[t1BallFace.id].status = 'batting';
+                t1BallFace.groundArrivalOrder = 1;
+                t1BallFace.battingOrder = 1;
+                if (t1Players[t1BallFace.id]) {
+                    t1Players[t1BallFace.id].status = 'batting';
+                    t1Players[t1BallFace.id].groundArrivalOrder = 1;
+                    t1Players[t1BallFace.id].battingOrder = 1;
+                }
             }
             if (t1OtherSide) {
                 t1OtherSide.status = 'batting';
-                if (t1Players[t1OtherSide.id]) t1Players[t1OtherSide.id].status = 'batting';
+                t1OtherSide.groundArrivalOrder = 2;
+                t1OtherSide.battingOrder = 2;
+                if (t1Players[t1OtherSide.id]) {
+                    t1Players[t1OtherSide.id].status = 'batting';
+                    t1Players[t1OtherSide.id].groundArrivalOrder = 2;
+                    t1Players[t1OtherSide.id].battingOrder = 2;
+                }
             }
             t2Bowler = (chosenBowlerId && t2Players[chosenBowlerId]) || p2List[0] || null;
             if (t2Bowler) {
@@ -441,11 +638,23 @@ const ScoringConsole = () => {
             t2OtherSide = (chosenNonStrikerId && t2Players[chosenNonStrikerId]) || p2List[1] || p2List[0] || null;
             if (t2BallFace) {
                 t2BallFace.status = 'batting';
-                if (t2Players[t2BallFace.id]) t2Players[t2BallFace.id].status = 'batting';
+                t2BallFace.groundArrivalOrder = 1;
+                t2BallFace.battingOrder = 1;
+                if (t2Players[t2BallFace.id]) {
+                    t2Players[t2BallFace.id].status = 'batting';
+                    t2Players[t2BallFace.id].groundArrivalOrder = 1;
+                    t2Players[t2BallFace.id].battingOrder = 1;
+                }
             }
             if (t2OtherSide) {
                 t2OtherSide.status = 'batting';
-                if (t2Players[t2OtherSide.id]) t2Players[t2OtherSide.id].status = 'batting';
+                t2OtherSide.groundArrivalOrder = 2;
+                t2OtherSide.battingOrder = 2;
+                if (t2Players[t2OtherSide.id]) {
+                    t2Players[t2OtherSide.id].status = 'batting';
+                    t2Players[t2OtherSide.id].groundArrivalOrder = 2;
+                    t2Players[t2OtherSide.id].battingOrder = 2;
+                }
             }
             t1Bowler = (chosenBowlerId && t1Players[chosenBowlerId]) || p1List[0] || null;
             if (t1Bowler) {
@@ -764,13 +973,42 @@ const ScoringConsole = () => {
                         'common/status': tossStatusText
                     };
                     if (matchData?.team1?.players) updates['team1/players'] = matchData.team1.players;
-                    if (matchData?.team2?.players) updates['team2/players'] = matchData.team2.players;
+                    // Check if previous opening batters changed before batting any ball
+                    const prevStrikerId = matchData?.[bKey]?.ballFaceBatsman?.id;
+                    const prevNonStrikerId = matchData?.[bKey]?.otherSideBatsman?.id;
+                    if (prevStrikerId && String(prevStrikerId) !== String(newStriker?.id) && String(prevStrikerId) !== String(newNonStriker?.id)) {
+                        const prevP = matchData?.[bKey]?.players?.[prevStrikerId];
+                        if (prevP && (prevP.balls || 0) === 0 && (prevP.runs || 0) === 0) {
+                            updates[`${bKey}/players/${prevStrikerId}/status`] = 'yet to bat';
+                            updates[`${bKey}/players/${prevStrikerId}/dismissal`] = '';
+                            updates[`${bKey}/players/${prevStrikerId}/battingOrder`] = null;
+                            updates[`${bKey}/players/${prevStrikerId}/groundArrivalOrder`] = null;
+                        }
+                    }
+                    if (prevNonStrikerId && String(prevNonStrikerId) !== String(newStriker?.id) && String(prevNonStrikerId) !== String(newNonStriker?.id)) {
+                        const prevP = matchData?.[bKey]?.players?.[prevNonStrikerId];
+                        if (prevP && (prevP.balls || 0) === 0 && (prevP.runs || 0) === 0) {
+                            updates[`${bKey}/players/${prevNonStrikerId}/status`] = 'yet to bat';
+                            updates[`${bKey}/players/${prevNonStrikerId}/dismissal`] = '';
+                            updates[`${bKey}/players/${prevNonStrikerId}/battingOrder`] = null;
+                            updates[`${bKey}/players/${prevNonStrikerId}/groundArrivalOrder`] = null;
+                        }
+                    }
+
                     if (newStriker) {
                         updates[`${bKey}/ballFaceBatsman`] = newStriker;
+                        updates[`${bKey}/players/${newStriker.id}/status`] = 'batting';
+                        updates[`${bKey}/players/${newStriker.id}/dismissal`] = '';
+                        updates[`${bKey}/players/${newStriker.id}/battingOrder`] = 1;
+                        updates[`${bKey}/players/${newStriker.id}/groundArrivalOrder`] = 1;
                         setStrikerId(newStriker.id);
                     }
                     if (newNonStriker) {
                         updates[`${bKey}/otherSideBatsman`] = newNonStriker;
+                        updates[`${bKey}/players/${newNonStriker.id}/status`] = 'batting';
+                        updates[`${bKey}/players/${newNonStriker.id}/dismissal`] = '';
+                        updates[`${bKey}/players/${newNonStriker.id}/battingOrder`] = 2;
+                        updates[`${bKey}/players/${newNonStriker.id}/groundArrivalOrder`] = 2;
                         setNonStrikerId(newNonStriker.id);
                     }
                     if (newBowler) {
@@ -909,9 +1147,21 @@ const ScoringConsole = () => {
                 const selBowler = bowlSquad.find(p => String(p.id) === String(chosenBowlerId)) || bowlSquad[0] || { name: 'Opening Bowler', id: chosenBowlerId || 1 };
 
                 selStriker.status = 'batting';
+                selStriker.groundArrivalOrder = 1;
+                selStriker.battingOrder = 1;
                 selNonStriker.status = 'batting';
-                if (newMatch[bKey].players[selStriker.id]) newMatch[bKey].players[selStriker.id].status = 'batting';
-                if (newMatch[bKey].players[selNonStriker.id]) newMatch[bKey].players[selNonStriker.id].status = 'batting';
+                selNonStriker.groundArrivalOrder = 2;
+                selNonStriker.battingOrder = 2;
+                if (newMatch[bKey].players[selStriker.id]) {
+                    newMatch[bKey].players[selStriker.id].status = 'batting';
+                    newMatch[bKey].players[selStriker.id].groundArrivalOrder = 1;
+                    newMatch[bKey].players[selStriker.id].battingOrder = 1;
+                }
+                if (newMatch[bKey].players[selNonStriker.id]) {
+                    newMatch[bKey].players[selNonStriker.id].status = 'batting';
+                    newMatch[bKey].players[selNonStriker.id].groundArrivalOrder = 2;
+                    newMatch[bKey].players[selNonStriker.id].battingOrder = 2;
+                }
 
                 newMatch[bKey].ballFaceBatsman = selStriker;
                 newMatch[bKey].otherSideBatsman = selNonStriker;
@@ -1649,10 +1899,13 @@ const ScoringConsole = () => {
     const battingTeamObj = findTeamData(battingTeamData.name) || findTeamData(currentBattingTeamKey === 'team1' ? t1Name : t2Name) || {};
     const playersList = rawPlayersList.map((p, idx) => {
         const squadPlayer = battingTeamObj?.players?.[p.id] || Object.values(battingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+        const rawHand = squadPlayer?.hand || p.hand || 'RHB';
+        const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
         return {
             ...p,
             type: resolvePlayerType(p, battingTeamObj, false, idx),
-            hand: squadPlayer?.hand || p.hand || 'Right Hand'
+            hand: normHand,
+            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
         };
     });
     const playingXI = playersList.filter(p => p.type === 'Playing XI');
@@ -1663,10 +1916,13 @@ const ScoringConsole = () => {
     const bowlingTeamObj = findTeamData(bowlingTeamData.name) || findTeamData(currentBowlingTeamKey === 'team1' ? t1Name : t2Name) || {};
     const bowlingPlayersList = rawBowlingPlayersList.map((p, idx) => {
         const squadPlayer = bowlingTeamObj?.players?.[p.id] || Object.values(bowlingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+        const rawHand = squadPlayer?.hand || p.hand || 'RHB';
+        const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
         return {
             ...p,
             type: resolvePlayerType(p, bowlingTeamObj, false, idx),
-            hand: squadPlayer?.hand || p.hand || 'Right Hand'
+            hand: normHand,
+            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
         };
     });
     const bowlingReserves = bowlingPlayersList.filter(p => p.type === 'Reserve');
@@ -1684,21 +1940,46 @@ const ScoringConsole = () => {
     const tabBattingTeamObj = findTeamData(tabBattingTeamData.name) || findTeamData(tabBattingTeamName) || {};
     const tabPlayersList = rawTabPlayersList.map((p, idx) => {
         const squadPlayer = tabBattingTeamObj?.players?.[p.id] || Object.values(tabBattingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+        const rawHand = squadPlayer?.hand || p.hand || 'RHB';
+        const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
+        const lineupOrder = (p.lineupOrder !== undefined && p.lineupOrder !== null)
+            ? Number(p.lineupOrder)
+            : ((p.order !== undefined && p.order !== null)
+                ? Number(p.order)
+                : ((squadPlayer?.order !== undefined && squadPlayer?.order !== null)
+                    ? Number(squadPlayer.order)
+                    : ((squadPlayer?.battingOrder !== undefined && squadPlayer?.battingOrder !== null)
+                        ? Number(squadPlayer.battingOrder)
+                        : idx + 1)));
+
         return {
             ...p,
+            lineupOrder,
             type: resolvePlayerType(p, tabBattingTeamObj, false, idx),
-            hand: squadPlayer?.hand || p.hand || 'Right Hand'
+            hand: normHand,
+            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
         };
     });
-    const tabPlayingXI = tabPlayersList.filter(p => p.type === 'Playing XI');
+    const rawTabPlayingXI = tabPlayersList
+        .filter(p => p.type === 'Playing XI')
+        .sort((a, b) => (a.lineupOrder ?? 999) - (b.lineupOrder ?? 999));
+    const tabPlayingXI = getBattersInGroundArrivalOrder(tabBattingTeamData, rawTabPlayingXI);
     const tabReserves = tabPlayersList.filter(p => p.type === 'Reserve');
 
     const rawTabBowlersList = Object.values(tabBowlingTeamData.bowlers || {});
     const tabBowlingTeamObj = findTeamData(tabBowlingTeamData.name) || findTeamData(tabBowlingTeamName) || {};
-    const tabBowlersList = rawTabBowlersList.filter(b => {
-        const type = resolvePlayerType(b, tabBowlingTeamObj, false, 0);
-        return type === 'Playing XI';
-    });
+    const tabBowlersList = rawTabBowlersList
+        .filter(b => {
+            const type = resolvePlayerType(b, tabBowlingTeamObj, false, 0);
+            return type === 'Playing XI';
+        })
+        .map(b => {
+            const squadPlayer = tabBowlingTeamObj?.players?.[b.id] || Object.values(tabBowlingTeamObj?.players || {}).find(sp => sp.nic === b.nic || sp.name === b.name);
+            return {
+                ...b,
+                bowlingStyle: squadPlayer?.bowlingStyle || b.bowlingStyle || ''
+            };
+        });
 
     // Partnerships
     const cp = battingTeamData.currentPartnership;
@@ -1711,31 +1992,52 @@ const ScoringConsole = () => {
 
     const secondBatTeamObjForSwitch = findTeamData(matchData[secondBatTeamKeyForSwitch]?.name) || findTeamData(secondBatTeamNameForSwitch) || {};
     const rawSecondBatList = Object.values(matchData[secondBatTeamKeyForSwitch]?.players || {});
-    const secondBatResolvedList = rawSecondBatList.map((p, idx) => ({
-        ...p,
-        type: resolvePlayerType(p, secondBatTeamObjForSwitch, false, idx)
-    }));
+    const secondBatResolvedList = rawSecondBatList.map((p, idx) => {
+        const squadPlayer = secondBatTeamObjForSwitch?.players?.[p.id] || Object.values(secondBatTeamObjForSwitch?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+        return {
+            ...p,
+            type: resolvePlayerType(p, secondBatTeamObjForSwitch, false, idx),
+            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
+        };
+    });
     const secondBatXI = secondBatResolvedList.filter(p => p.type === 'Playing XI');
     const secondBatOpeningSquad = secondBatXI.length > 0 ? secondBatXI : (rawSecondBatList.length > 0 ? rawSecondBatList : getTeamPlayerList(secondBatTeamNameForSwitch));
 
     const firstBatTeamObjForSwitch = findTeamData(matchData[firstBatTeamKeyForSwitch]?.name) || findTeamData(firstBatTeamNameForSwitch) || {};
     const rawFirstBatList = Object.values(matchData[firstBatTeamKeyForSwitch]?.players || {});
-    const firstBatResolvedList = rawFirstBatList.map((p, idx) => ({
-        ...p,
-        type: resolvePlayerType(p, firstBatTeamObjForSwitch, false, idx)
-    }));
+    const firstBatResolvedList = rawFirstBatList.map((p, idx) => {
+        const squadPlayer = firstBatTeamObjForSwitch?.players?.[p.id] || Object.values(firstBatTeamObjForSwitch?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
+        return {
+            ...p,
+            type: resolvePlayerType(p, firstBatTeamObjForSwitch, false, idx),
+            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
+        };
+    });
     const firstBatXI = firstBatResolvedList.filter(p => p.type === 'Playing XI');
     const firstBatOpeningSquad = firstBatXI.length > 0 ? firstBatXI : (rawFirstBatList.length > 0 ? rawFirstBatList : getTeamPlayerList(firstBatTeamNameForSwitch));
 
     // Active players on the crease for scoring (Prioritizing Playing XI)
-    const activeBattingSquad = playingXI.length > 0 ? playingXI : Object.values(matchData[currentBattingTeamKey]?.players || {});
+    const activeBattingSquad = playersList.length > 0 ? playersList : Object.values(matchData[currentBattingTeamKey]?.players || {});
     const activeBowlingSquad = bowlingPlayersList.filter(p => p.type === 'Playing XI').length > 0
         ? bowlingPlayersList.filter(p => p.type === 'Playing XI')
         : Object.values(matchData[currentBowlingTeamKey]?.bowlers || matchData[currentBowlingTeamKey]?.players || {});
 
-    const striker = activeBattingSquad.find(p => String(p.id) === String(strikerId)) || (battingTeamData.ballFaceBatsman && activeBattingSquad.find(p => String(p.id) === String(battingTeamData.ballFaceBatsman.id))) || activeBattingSquad.find(p => !p.dismissal && p.status !== 'out') || activeBattingSquad[0] || { name: 'Striker', runs: 0, balls: 0, id: 1 };
-    const nonStriker = activeBattingSquad.find(p => String(p.id) === String(nonStrikerId)) || (battingTeamData.otherSideBatsman && activeBattingSquad.find(p => String(p.id) === String(battingTeamData.otherSideBatsman.id))) || activeBattingSquad.find(p => String(p.id) !== String(striker?.id) && !p.dismissal && p.status !== 'out') || activeBattingSquad[1] || { name: 'Non-Striker', runs: 0, balls: 0, id: 2 };
+    const striker = (strikerId != null && strikerId !== '')
+        ? (activeBattingSquad.find(p => String(p.id) === String(strikerId)) || battingTeamData.players?.[strikerId] || { name: 'Striker', runs: 0, balls: 0, id: strikerId })
+        : (showNextBatterModal || battingTeamData.ballFaceBatsman?.id == null
+            ? { id: '', name: 'Select Batsman...', runs: 0, balls: 0 }
+            : (battingTeamData.ballFaceBatsman?.id ? battingTeamData.ballFaceBatsman : activeBattingSquad.find(p => !p.dismissal && p.status !== 'out') || activeBattingSquad[0] || { name: 'Striker', runs: 0, balls: 0, id: 1 }));
+
+    const nonStriker = (nonStrikerId != null && nonStrikerId !== '')
+        ? (activeBattingSquad.find(p => String(p.id) === String(nonStrikerId)) || battingTeamData.players?.[nonStrikerId] || { name: 'Non-Striker', runs: 0, balls: 0, id: nonStrikerId })
+        : (showNextBatterModal || battingTeamData.otherSideBatsman?.id == null
+            ? { id: '', name: 'Select Batsman...', runs: 0, balls: 0 }
+            : (battingTeamData.otherSideBatsman?.id ? battingTeamData.otherSideBatsman : activeBattingSquad.find(p => String(p.id) !== String(striker?.id) && !p.dismissal && p.status !== 'out') || activeBattingSquad[1] || { name: 'Non-Striker', runs: 0, balls: 0, id: 2 }));
+
     const bowler = activeBowlingSquad.find(p => String(p.id) === String(bowlerId)) || (bowlingTeamData.bowler && activeBowlingSquad.find(p => String(p.id) === String(bowlingTeamData.bowler.id))) || activeBowlingSquad[0] || { name: 'Bowler', overs: 0, runs: 0, wickets: 0, id: 1 };
+
+    const isStrikerLHB = String(striker?.hand || '').toUpperCase() === 'LHB' || String(striker?.hand || '').toUpperCase() === 'LHS' || String(striker?.hand || '').toLowerCase().includes('left');
+    const isNonStrikerLHB = String(nonStriker?.hand || '').toUpperCase() === 'LHB' || String(nonStriker?.hand || '').toUpperCase() === 'LHS' || String(nonStriker?.hand || '').toLowerCase().includes('left');
 
     // Crease locking conditions:
     // - Striker/Non-Striker locked once they've faced balls or batted (or partnership deliveries occurred)
@@ -1863,7 +2165,8 @@ const ScoringConsole = () => {
     };
 
     const getActiveSectors = (batsmanHand) => {
-        if (batsmanHand === 'Left Hand') {
+        const isLeft = batsmanHand === 'Left Hand' || batsmanHand === 'LHS' || batsmanHand === 'LHB' || batsmanHand === 'Left' || String(batsmanHand).toUpperCase().includes('LEFT') || String(batsmanHand).toUpperCase() === 'LHS' || String(batsmanHand).toUpperCase() === 'LHB';
+        if (isLeft) {
             return [
                 { name: "Mid-on", key: "Midon", startAngle: 0, endAngle: 45 },
                 { name: "Mid-wicket", key: "Midwicket", startAngle: 45, endAngle: 90 },
@@ -2128,12 +2431,16 @@ const ScoringConsole = () => {
             // Next Batter & Strike Rotation Resolution
             let nextStrikerId = strikerId;
             let nextNonStrikerId = nonStrikerId;
+            let isOutStriker = false;
+            let remainingBatter = null;
+            let outPlayer = null;
 
             // Handle Wicket
             if (isWicket) {
                 bTeam.totalWickets = (bTeam.totalWickets || 0) + 1;
-                const outPlayer = bTeam.players?.[outBatterId];
-                const isOutStriker = String(outBatterId) === String(striker.id);
+                outPlayer = bTeam.players?.[outBatterId];
+                isOutStriker = String(outBatterId) === String(striker.id);
+                remainingBatter = isOutStriker ? nonStriker : striker;
 
                 if (outPlayer) {
                     let dismissText = '';
@@ -2190,14 +2497,19 @@ const ScoringConsole = () => {
                     over: getOversString(bTeam)
                 };
 
-                // Check available incoming batsmen from playing XI (strictly excluding out players and current crease batters)
-                const remainingBatter = isOutStriker ? nonStriker : striker;
-                const availableIncomingBatters = playingXI.filter(p => {
-                    const isOut = isDismissedPlayer(p);
-                    const isCurrentCrease = String(p.id) === String(striker.id) || String(p.id) === String(nonStriker.id);
+                // Check available incoming batsmen (strictly excluding out players and current crease batters)
+                const allCandidatePlayers = (playingXI && playingXI.length > 0)
+                    ? [...playingXI, ...playersList.filter(p => !playingXI.some(xi => String(xi.id) === String(p.id)))]
+                    : (playersList.length > 0 ? playersList : Object.values(bTeam.players || {}));
+
+                const availableIncomingBatters = allCandidatePlayers.filter(p => {
+                    if (!p) return false;
+                    const pIdStr = p.id != null ? String(p.id) : null;
+                    const isOut = isDismissedPlayer(p) || (outBatterId != null && pIdStr === String(outBatterId));
+                    const isCurrentCrease = remainingBatter?.id != null && pIdStr === String(remainingBatter.id);
                     return !isOut && !isCurrentCrease;
                 });
-                const isAllOut = bTeam.totalWickets >= (playingXI.length - 1) || bTeam.totalWickets >= 10 || availableIncomingBatters.length === 0;
+                const isAllOut = bTeam.totalWickets >= (playingXI.length > 0 ? (playingXI.length - 1) : 10) || bTeam.totalWickets >= 10 || availableIncomingBatters.length === 0;
 
                 if (isAllOut) {
                     toastRef.current?.showToast('warning', `All Out! ${bTeam.name || 'Batting Team'} innings complete.`);
@@ -2229,7 +2541,7 @@ const ScoringConsole = () => {
                     // Trigger compulsory Next Batsman Selection Modal (cannot be closed without setting next batsman)
                     setNextBatterModalData({
                         isOutStriker,
-                        outBatter: outPlayer ? { id: outPlayer.id, name: outPlayer.name, dismissal: outPlayer.dismissal } : { id: outBatterId, name: striker.name, dismissal: 'out' },
+                        outBatter: outPlayer ? { id: outPlayer.id, name: outPlayer.name, dismissal: outPlayer.dismissal } : { id: outBatterId, name: (isOutStriker ? striker.name : nonStriker.name), dismissal: 'out' },
                         wicketNumber: bTeam.totalWickets,
                         battingTeamKey: currentBattingTeamKey,
                         remainingBatter,
@@ -2240,27 +2552,15 @@ const ScoringConsole = () => {
                     setSelectedNextBatterId('');
                     setShowNextBatterModal(true);
 
-                    // Set a temporary fallback candidate to keep local state safe until scorer chooses
-                    const fallbackBatter = availableIncomingBatters[0];
-                    if (fallbackBatter) {
-                        if (defaultStrikeRole === 'striker') {
-                            nextStrikerId = fallbackBatter.id;
-                            nextNonStrikerId = remainingBatter.id;
-                        } else {
-                            nextStrikerId = remainingBatter.id;
-                            nextNonStrikerId = fallbackBatter.id;
-                        }
-                        bTeam.currentPartnership = {
-                            batsman1: defaultStrikeRole === 'striker' ? fallbackBatter : remainingBatter,
-                            batsman2: defaultStrikeRole === 'striker' ? remainingBatter : fallbackBatter,
-                            batsman1Runs: 0,
-                            batsman1Balls: 0,
-                            batsman2Runs: 0,
-                            batsman2Balls: 0,
-                            startScore: bTeam.totalRuns,
-                            startBalls: bTeam.totalBalls
-                        };
+                    // Vacate dismissed batsman's spot so admin chooses incoming batsman from yet-to-bat list
+                    if (isOutStriker) {
+                        nextStrikerId = null;
+                        nextNonStrikerId = remainingBatter.id;
+                    } else {
+                        nextStrikerId = remainingBatter.id;
+                        nextNonStrikerId = null;
                     }
+                    bTeam.currentPartnership = null;
                 }
             } else {
                 // According to WD, NB, BYE, and LB: strike rotation depends on physical runs run beyond mandatory penalty (or normal bat runs)
@@ -2384,8 +2684,18 @@ const ScoringConsole = () => {
             }
 
             const currentBatSquad = Object.values(bTeam.players || {});
-            bTeam.ballFaceBatsman = currentBatSquad.find(p => p.id === nextStrikerId) || bTeam.players?.[nextStrikerId] || striker;
-            bTeam.otherSideBatsman = currentBatSquad.find(p => p.id === nextNonStrikerId) || bTeam.players?.[nextNonStrikerId] || nonStriker;
+            if (isWicket) {
+                bTeam.ballFaceBatsman = isOutStriker
+                    ? { id: null, name: 'Select Batsman...', runs: 0, balls: 0 }
+                    : (currentBatSquad.find(p => String(p.id) === String(remainingBatter.id)) || bTeam.players?.[remainingBatter.id] || remainingBatter);
+
+                bTeam.otherSideBatsman = !isOutStriker
+                    ? { id: null, name: 'Select Batsman...', runs: 0, balls: 0 }
+                    : (currentBatSquad.find(p => String(p.id) === String(remainingBatter.id)) || bTeam.players?.[remainingBatter.id] || remainingBatter);
+            } else {
+                bTeam.ballFaceBatsman = currentBatSquad.find(p => p.id === nextStrikerId) || bTeam.players?.[nextStrikerId] || striker;
+                bTeam.otherSideBatsman = currentBatSquad.find(p => p.id === nextNonStrikerId) || bTeam.players?.[nextNonStrikerId] || nonStriker;
+            }
             bowlTeam.bowler = bowlTeam.bowlers?.[bowlerId] || bowler;
 
             setMatchData(updated);
@@ -2398,7 +2708,9 @@ const ScoringConsole = () => {
                 liveScore: {
                     matchTitle: activeMatchTitle,
                     firstBat: common.firstBat,
-                    status: `${striker.name} ${striker.runs}* | ${bowler.name} bowling`,
+                    status: isWicket
+                        ? `Wicket! (${outPlayer?.name || 'Batsman'} out) | ${bowler.name} bowling`
+                        : `${striker.name} ${striker.runs}* | ${bowler.name} bowling`,
                     team1: {
                         name: updated.team1?.name,
                         overs: updated.team1?.overs ?? 0,
@@ -2536,54 +2848,155 @@ const ScoringConsole = () => {
         if (!matchData || !activeMatchTitle) return;
         const bKey = isTeam1Batting ? 'team1' : 'team2';
         const updated = JSON.parse(JSON.stringify(matchData));
-        const bSquad = Object.values(updated[bKey]?.players || {});
-        const newPlayerObj = bSquad.find(p => String(p.id) === String(newPlayerId));
+        updated[bKey] = updated[bKey] || {};
+        updated[bKey].players = updated[bKey].players || {};
+
+        const bSquad = Object.values(updated[bKey].players || {});
+        const teamRoster = playersList.length > 0 ? playersList : bSquad;
+        const newPlayerObj = bSquad.find(p => String(p.id) === String(newPlayerId)) || teamRoster.find(p => String(p.id) === String(newPlayerId));
         if (!newPlayerObj) return;
-        if (role === 'striker' && String(newPlayerId) === String(nonStrikerId)) return;
-        if (role === 'nonStriker' && String(newPlayerId) === String(strikerId)) return;
+
+        // Disallow choosing the other batter at the crease
+        if (role === 'striker' && nonStrikerId != null && String(newPlayerId) === String(nonStrikerId)) return;
+        if (role === 'nonStriker' && strikerId != null && String(newPlayerId) === String(strikerId)) return;
         if (newPlayerObj.dismissal || newPlayerObj.status === 'out') return;
 
         await withProcessing(async () => {
-            // Current batsman before changing
+            // Previous batter at this crease position
             const previousPlayerObj = role === 'striker' ? updated[bKey]?.ballFaceBatsman : updated[bKey]?.otherSideBatsman;
             const prevId = previousPlayerObj?.id;
+            const prevP = (prevId && updated[bKey].players[prevId]) ? updated[bKey].players[prevId] : null;
+            const prevHasBatted = prevP ? (Number(prevP.balls || 0) > 0 || Number(prevP.runs || 0) > 0) : false;
+            const prevSlotOrder = prevP ? Number(prevP.groundArrivalOrder || prevP.battingOrder || (role === 'striker' ? 1 : 2)) : (role === 'striker' ? 1 : 2);
 
             const updates = {};
 
-            // If changing away from previous batsman, and that previous batsman has not been dismissed,
-            // reset their status to 'yet to bat' so 3 batsmen don't show as 'batting'!
-            if (prevId && prevId !== newPlayerId && updated[bKey]?.players?.[prevId]) {
-                if (!updated[bKey].players[prevId].dismissal) {
-                    updated[bKey].players[prevId].status = 'yet to bat';
-                    updates[`${bKey}/players/${prevId}/status`] = 'yet to bat';
+            // If changing away from previous batsman, check if they batted any balls
+            if (prevId && String(prevId) !== String(newPlayerId) && prevP) {
+                const wasDismissed = Boolean(
+                    (prevP.dismissal && prevP.dismissal.trim() !== '' && prevP.dismissal.trim().toLowerCase() !== 'yet to bat') ||
+                    prevP.status === 'out'
+                );
+
+                if (!wasDismissed) {
+                    if (!prevHasBatted) {
+                        // Batter was replaced before batting any ball -> reset completely to 'yet to bat'
+                        prevP.status = 'yet to bat';
+                        prevP.dismissal = '';
+                        delete prevP.battingOrder;
+                        delete prevP.groundArrivalOrder;
+                        updates[`${bKey}/players/${prevId}/status`] = 'yet to bat';
+                        updates[`${bKey}/players/${prevId}/dismissal`] = '';
+                        updates[`${bKey}/players/${prevId}/battingOrder`] = null;
+                        updates[`${bKey}/players/${prevId}/groundArrivalOrder`] = null;
+                    } else {
+                        // Batter already faced deliveries -> not out, but stepped off crease
+                        prevP.status = 'not out';
+                        updates[`${bKey}/players/${prevId}/status`] = 'not out';
+                    }
                 }
             }
 
-            // Set the newly selected batsman to 'batting'
-            if (updated[bKey]?.players?.[newPlayerId]) {
-                updated[bKey].players[newPlayerId].status = 'batting';
-                updates[`${bKey}/players/${newPlayerId}/status`] = 'batting';
+            // Ensure new chosen batter is registered in players map
+            if (!updated[bKey].players[newPlayerId]) {
+                updated[bKey].players[newPlayerId] = {
+                    ...newPlayerObj,
+                    runs: 0,
+                    balls: 0,
+                    fours: 0,
+                    sixes: 0,
+                    boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                    strikeRate: '0.00',
+                    dismissal: '',
+                    status: 'batting'
+                };
             }
-            newPlayerObj.status = 'batting';
 
-            updated[bKey] = updated[bKey] || {};
+            // Determine ground arrival order for new batter
+            let assignedArrivalOrder;
+            if (updated[bKey].players[newPlayerId]?.groundArrivalOrder && Number(updated[bKey].players[newPlayerId].groundArrivalOrder) > 0) {
+                assignedArrivalOrder = Number(updated[bKey].players[newPlayerId].groundArrivalOrder);
+            } else if (!prevHasBatted && prevP) {
+                assignedArrivalOrder = prevSlotOrder;
+            } else {
+                const existingArrivals = Object.values(updated[bKey].players || {})
+                    .filter(p => {
+                        const isCrease = (updated[bKey].ballFaceBatsman && String(updated[bKey].ballFaceBatsman.id) === String(p.id)) ||
+                                         (updated[bKey].otherSideBatsman && String(updated[bKey].otherSideBatsman.id) === String(p.id)) ||
+                                         p.status === 'batting';
+                        const hasBattedCheck = Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0 || (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat');
+                        return isCrease || hasBattedCheck || (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
+                    })
+                    .map(p => Number(p.groundArrivalOrder || 0))
+                    .filter(n => n > 0);
+                const currentMaxArrival = Math.max(
+                    2,
+                    (updated[bKey].totalWickets || 0) + 1,
+                    ...existingArrivals
+                );
+                assignedArrivalOrder = currentMaxArrival + 1;
+            }
+
+            updated[bKey].players[newPlayerId].groundArrivalOrder = assignedArrivalOrder;
+            updated[bKey].players[newPlayerId].battingOrder = assignedArrivalOrder;
+            updates[`${bKey}/players/${newPlayerId}/groundArrivalOrder`] = assignedArrivalOrder;
+            updates[`${bKey}/players/${newPlayerId}/battingOrder`] = assignedArrivalOrder;
+
+            // Mark new chosen batter as batting / not out
+            updated[bKey].players[newPlayerId].status = 'batting';
+            updated[bKey].players[newPlayerId].dismissal = '';
+            updates[`${bKey}/players/${newPlayerId}/status`] = 'batting';
+            updates[`${bKey}/players/${newPlayerId}/dismissal`] = '';
+
+            const chosenBatterObj = updated[bKey].players[newPlayerId];
+
             if (role === 'striker') {
-                updated[bKey].ballFaceBatsman = newPlayerObj;
+                updated[bKey].ballFaceBatsman = chosenBatterObj;
+                setStrikerId(newPlayerId);
                 if (updated[bKey].currentPartnership) {
-                    updated[bKey].currentPartnership.batsman1 = newPlayerObj;
+                    updated[bKey].currentPartnership.batsman1 = chosenBatterObj;
                 }
             } else {
-                updated[bKey].otherSideBatsman = newPlayerObj;
+                updated[bKey].otherSideBatsman = chosenBatterObj;
+                setNonStrikerId(newPlayerId);
                 if (updated[bKey].currentPartnership) {
-                    updated[bKey].currentPartnership.batsman2 = newPlayerObj;
+                    updated[bKey].currentPartnership.batsman2 = chosenBatterObj;
                 }
             }
 
-            updates[`${bKey}/${role === 'striker' ? 'ballFaceBatsman' : 'otherSideBatsman'}`] = newPlayerObj;
-            updates[`${bKey}/currentPartnership`] = updated[bKey].currentPartnership;
+            updates[`${bKey}/${role === 'striker' ? 'ballFaceBatsman' : 'otherSideBatsman'}`] = chosenBatterObj;
+            if (updated[bKey].currentPartnership) {
+                updates[`${bKey}/currentPartnership`] = updated[bKey].currentPartnership;
+            }
 
             setMatchData(updated);
             await updateMatchData(activeMatchTitle, updates, selectedTournamentId);
+
+            // Sync LiveData
+            const activeBowlerName = bowler?.name || 'Bowler';
+            await updateLiveData({
+                isLive: 1,
+                currentMatchPath: activeMatchTitle,
+                liveScore: {
+                    matchTitle: activeMatchTitle,
+                    firstBat: common.firstBat,
+                    status: `${role === 'striker' ? chosenBatterObj.name : (updated[bKey]?.ballFaceBatsman?.name || chosenBatterObj.name)} on strike | ${activeBowlerName} bowling`,
+                    team1: {
+                        name: updated.team1?.name,
+                        overs: updated.team1?.overs ?? 0,
+                        score: updated.team1?.totalRuns ?? 0,
+                        wicket: updated.team1?.totalWickets ?? 0
+                    },
+                    team2: {
+                        name: updated.team2?.name,
+                        overs: updated.team2?.overs ?? 0,
+                        score: updated.team2?.totalRuns ?? 0,
+                        wicket: updated.team2?.totalWickets ?? 0
+                    }
+                }
+            });
+
+            toastRef.current?.showToast('success', `${chosenBatterObj.name} is now ${role === 'striker' ? 'Striker' : 'Non-Striker'} (Not out).`);
         }, 'Updating Crease Batter...', 'Assigning new batsman to the crease...');
     };
 
@@ -2705,11 +3118,23 @@ const ScoringConsole = () => {
                 openingNewBowler = { id: fallback.id, name: fallback.name, overs: 0, runs: 0, wickets: 0, economy: '0.00' };
             }
 
-            // Set status 'batting' for openers
+            // Set status 'batting' and ground arrival order for openers
             openingBatter1.status = 'batting';
+            openingBatter1.groundArrivalOrder = 1;
+            openingBatter1.battingOrder = 1;
             openingBatter2.status = 'batting';
-            if (updated[secondBatTeamKey]?.players?.[openingBatter1.id]) updated[secondBatTeamKey].players[openingBatter1.id].status = 'batting';
-            if (updated[secondBatTeamKey]?.players?.[openingBatter2.id]) updated[secondBatTeamKey].players[openingBatter2.id].status = 'batting';
+            openingBatter2.groundArrivalOrder = 2;
+            openingBatter2.battingOrder = 2;
+            if (updated[secondBatTeamKey]?.players?.[openingBatter1.id]) {
+                updated[secondBatTeamKey].players[openingBatter1.id].status = 'batting';
+                updated[secondBatTeamKey].players[openingBatter1.id].groundArrivalOrder = 1;
+                updated[secondBatTeamKey].players[openingBatter1.id].battingOrder = 1;
+            }
+            if (updated[secondBatTeamKey]?.players?.[openingBatter2.id]) {
+                updated[secondBatTeamKey].players[openingBatter2.id].status = 'batting';
+                updated[secondBatTeamKey].players[openingBatter2.id].groundArrivalOrder = 2;
+                updated[secondBatTeamKey].players[openingBatter2.id].battingOrder = 2;
+            }
 
             // Register bowler in bowlers dictionary
             updated[firstBatTeamKey].bowlers = updated[firstBatTeamKey].bowlers || {};
@@ -3599,6 +4024,9 @@ const ScoringConsole = () => {
                                 <div className="sc-cb-top-line">
                                     <div className="sc-cb-label-wrap">
                                         <span className="sc-crease-label">STRIKER (*)</span>
+                                        <span className={`sc-hand-pill ${isStrikerLHB ? 'lhb' : 'rhb'}`} title={`Batting Stance: ${isStrikerLHB ? 'Left Hand Batter (LHB)' : 'Right Hand Batter (RHB)'}`}>
+                                            {isStrikerLHB ? 'LHB' : 'RHB'}
+                                        </span>
                                         <button
                                             type="button"
                                             className="sc-crease-wheeler-btn"
@@ -3609,16 +4037,21 @@ const ScoringConsole = () => {
                                         </button>
                                     </div>
                                     <select
-                                        value={striker.id}
+                                        value={striker.id || ''}
                                         disabled={isStrikerLocked}
                                         onChange={(e) => {
-                                            const newId = Number(e.target.value);
+                                            const val = e.target.value;
+                                            if (!val) return;
+                                            const newId = Number(val);
                                             setStrikerId(newId);
                                             handleManualBatterChange(newId, 'striker');
                                         }}
                                         className={`sc-crease-select compact ${isStrikerLocked ? 'sc-select-locked' : ''}`}
                                         title={isStrikerLocked ? "Batter has faced deliveries / batted. Selection locked." : "Select or change Striker"}
                                     >
+                                        {!striker.id && (
+                                            <option value="" disabled>-- Select Striker --</option>
+                                        )}
                                         {activeBattingSquad.map(p => {
                                             if (!p) return null;
                                             const pStats = battingTeamData.players?.[p.id] || p;
@@ -3662,6 +4095,9 @@ const ScoringConsole = () => {
                                 <div className="sc-cb-top-line">
                                     <div className="sc-cb-label-wrap">
                                         <span className="sc-crease-label">NON-STRIKER</span>
+                                        <span className={`sc-hand-pill ${isNonStrikerLHB ? 'lhb' : 'rhb'}`} title={`Batting Stance: ${isNonStrikerLHB ? 'Left Hand Batter (LHB)' : 'Right Hand Batter (RHB)'}`}>
+                                            {isNonStrikerLHB ? 'LHB' : 'RHB'}
+                                        </span>
                                         <button
                                             type="button"
                                             className="sc-crease-wheeler-btn"
@@ -3672,16 +4108,21 @@ const ScoringConsole = () => {
                                         </button>
                                     </div>
                                     <select
-                                        value={nonStriker.id}
+                                        value={nonStriker.id || ''}
                                         disabled={isNonStrikerLocked}
                                         onChange={(e) => {
-                                            const newId = Number(e.target.value);
+                                            const val = e.target.value;
+                                            if (!val) return;
+                                            const newId = Number(val);
                                             setNonStrikerId(newId);
                                             handleManualBatterChange(newId, 'nonStriker');
                                         }}
                                         className={`sc-crease-select compact ${isNonStrikerLocked ? 'sc-select-locked' : ''}`}
                                         title={isNonStrikerLocked ? "Batter has faced deliveries / batted. Selection locked." : "Select or change Non-Striker"}
                                     >
+                                        {!nonStriker.id && (
+                                            <option value="" disabled>-- Select Non-Striker --</option>
+                                        )}
                                         {activeBattingSquad.map(p => {
                                             if (!p) return null;
                                             const pStats = battingTeamData.players?.[p.id] || p;
@@ -3723,7 +4164,14 @@ const ScoringConsole = () => {
                             {/* Bowler Row Card */}
                             <div className="sc-crease-box bowler compact-row">
                                 <div className="sc-cb-top-line">
-                                    <span className="sc-crease-label">BOWLER (🔴)</span>
+                                    <div className="sc-cb-label-wrap">
+                                        <span className="sc-crease-label">BOWLER (🔴)</span>
+                                        {bowler.bowlingStyle && (
+                                            <span className="sc-bowler-style-badge" title={`Bowling Style: ${bowler.bowlingStyle}`}>
+                                                {bowler.bowlingStyle}
+                                            </span>
+                                        )}
+                                    </div>
                                     <select
                                         value={bowler.id}
                                         disabled={isBowlerLocked}
@@ -3815,7 +4263,7 @@ const ScoringConsole = () => {
                                         <>
                                             <div className="sc-embedded-wheeler-header">
                                                 <span className="sc-ew-title">
-                                                    <MdTrackChanges className="sc-ew-icon" /> SHOT PLACEMENT WHEELER
+                                                    <MdTrackChanges className="sc-ew-icon" /> SHOT PLACEMENT WHEELER ({isStrikerLHB ? 'LHB • Left Hand' : 'RHB • Right Hand'})
                                                 </span>
                                                 {selectedShotZone ? (
                                                     <div className="sc-selected-zone-tag">
@@ -4337,28 +4785,62 @@ const ScoringConsole = () => {
                                 <thead>
                                     <tr>
                                         <th>Batter</th>
-                                        <th className="text-center">R</th>
-                                        <th className="text-center">B</th>
-                                        <th className="text-center">4s</th>
-                                        <th className="text-center">6s</th>
-                                        <th className="text-center">SR</th>
-                                        <th className="text-center">Wheel</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>R</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>B</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>4s</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>6s</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>SR</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>Wheel</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {tabPlayingXI.length > 0 ? (
                                         tabPlayingXI.map(p => {
-                                            const isStriker = tabBattingTeamData.ballFaceBatsman && tabBattingTeamData.ballFaceBatsman.id === p.id;
-                                            const isNonStriker = tabBattingTeamData.otherSideBatsman && tabBattingTeamData.otherSideBatsman.id === p.id;
-                                            const isCurrentlyBatting = isStriker || isNonStriker;
-                                            const isOut = !!(p.dismissal && p.dismissal.trim() !== '' && !isCurrentlyBatting);
+                                            const isStriker = (tabBattingTeamData.ballFaceBatsman && String(tabBattingTeamData.ballFaceBatsman.id) === String(p.id)) ||
+                                                (tabBattingTeamKey === currentBattingTeamKey && strikerId != null && String(strikerId) === String(p.id));
+                                            const isNonStriker = (tabBattingTeamData.otherSideBatsman && String(tabBattingTeamData.otherSideBatsman.id) === String(p.id)) ||
+                                                (tabBattingTeamKey === currentBattingTeamKey && nonStrikerId != null && String(nonStrikerId) === String(p.id));
+                                            const isCurrentlyBatting = isStriker || isNonStriker || p.status === 'batting';
+                                            const isOut = Boolean(
+                                                !isCurrentlyBatting &&
+                                                (
+                                                    (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat') ||
+                                                    p.status === 'out' ||
+                                                    Object.values(tabBattingTeamData.fallOfWickets || {}).some(f => {
+                                                        if (!f) return false;
+                                                        const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                                                        const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                                                        const pIdStr = p.id != null ? String(p.id) : null;
+                                                        const pNameClean = (p.name || '').trim().toLowerCase();
+                                                        return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
+                                                    })
+                                                )
+                                            );
+
+                                            let dismissalDisplay = 'Yet to bat';
+                                            if (isCurrentlyBatting) {
+                                                dismissalDisplay = 'Not out';
+                                            } else if (isOut) {
+                                                dismissalDisplay = (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat')
+                                                    ? p.dismissal
+                                                    : 'out';
+                                            } else if (Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0) {
+                                                dismissalDisplay = 'Not out';
+                                            } else {
+                                                dismissalDisplay = 'Yet to bat';
+                                            }
+
                                             return (
-                                                <tr key={p.id} className={isCurrentlyBatting ? 'cx-row-active-batting' : ''} style={isOut ? { opacity: 0.55 } : {}}>
-                                                    <td className="cx-player-name-cell">
+                                                <tr
+                                                    key={p.id}
+                                                    className={`${isCurrentlyBatting ? 'cx-row-active-batting' : ''} ${isOut ? 'cx-row-out-batter' : ''}`}
+                                                    style={isOut ? { color: '#94a3b8', fontStyle: 'italic', opacity: 0.8 } : {}}
+                                                >
+                                                    <td className="cx-player-name-cell" style={isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}}>
                                                         <div className="cx-pname-line">
-                                                            <strong>{p.name}</strong>
-                                                            <span className={`cx-scorecard-player-hand ${p.hand === 'Left Hand' ? 'lhb' : 'rhb'}`}>
-                                                                {p.hand === 'Left Hand' ? 'LHB' : 'RHB'}
+                                                            <strong style={isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}}>{p.name}</strong>
+                                                            <span className={`cx-scorecard-player-hand ${(p.hand === 'LHB' || p.hand === 'LHS' || p.hand === 'Left Hand' || String(p.hand || '').toLowerCase().includes('left')) ? 'lhb' : 'rhb'}`}>
+                                                                {(p.hand === 'LHB' || p.hand === 'LHS' || p.hand === 'Left Hand' || String(p.hand || '').toLowerCase().includes('left')) ? 'LHB' : 'RHB'}
                                                             </span>
                                                             {isStriker && (
                                                                 <span className="cx-striker-symbol" title="On Strike">
@@ -4366,16 +4848,16 @@ const ScoringConsole = () => {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="cx-dismissal-text">
-                                                            {p.dismissal || (isCurrentlyBatting ? 'Not out' : (p.runs || p.balls ? 'Not out' : 'Yet to bat'))}
+                                                        <div className="cx-dismissal-text" style={isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}}>
+                                                            {dismissalDisplay}
                                                         </div>
                                                     </td>
-                                                    <td className="cx-stat-highlight text-center">{p.runs || 0}</td>
-                                                    <td className="text-center">{p.balls || 0}</td>
-                                                    <td className="text-center">{p.boundaries?.fours || 0}</td>
-                                                    <td className="text-center">{p.boundaries?.sixes || 0}</td>
-                                                    <td className="text-center">{p.strikeRate || '0.00'}</td>
-                                                    <td className="text-center">
+                                                    <td className="cx-stat-highlight text-center" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.runs || 0}</td>
+                                                    <td className="text-center" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.balls || 0}</td>
+                                                    <td className="text-center" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.boundaries?.fours || 0}</td>
+                                                    <td className="text-center" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.boundaries?.sixes || 0}</td>
+                                                    <td className="text-center" style={{ textAlign: 'center', ...(isOut ? { color: '#94a3b8', fontStyle: 'italic' } : {}) }}>{p.strikeRate || '0.00'}</td>
+                                                    <td className="text-center" style={{ textAlign: 'center' }}>
                                                         <button className="cx-btn-wagonwheel" onClick={() => handleOpenWWheel(p)}>
                                                             <MdPieChart />
                                                         </button>
@@ -4440,10 +4922,10 @@ const ScoringConsole = () => {
                                 <thead>
                                     <tr>
                                         <th>Bowler</th>
-                                        <th className="text-center">O</th>
-                                        <th className="text-center">R</th>
-                                        <th className="text-center">W</th>
-                                        <th className="text-center">Econ</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>O</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>R</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>W</th>
+                                        <th className="text-center" style={{ textAlign: 'center' }}>Econ</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -4451,17 +4933,22 @@ const ScoringConsole = () => {
                                         tabBowlersList.map(b => (
                                             <tr key={b.id} className={matchData[currentBowlingTeamKey]?.bowler?.id === b.id ? 'cx-row-active-bowling' : ''}>
                                                 <td className="cx-player-name-cell">
-                                                    <strong>{b.name}</strong>
-                                                    {matchData[currentBowlingTeamKey]?.bowler?.id === b.id && (
-                                                        <span className="active-bowler-dot" title="Active Bowler">
-                                                            <span className="bowler-pulse-dot" />
-                                                        </span>
+                                                    <div className="cx-pname-line">
+                                                        <strong>{b.name}</strong>
+                                                        {matchData[currentBowlingTeamKey]?.bowler?.id === b.id && (
+                                                            <span className="active-bowler-dot" title="Active Bowler">
+                                                                <span className="bowler-pulse-dot" />
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {b.bowlingStyle && (
+                                                        <span className="cx-bowler-style-sub">{b.bowlingStyle}</span>
                                                     )}
                                                 </td>
-                                                <td className="text-center">{b.overs || '0.0'}</td>
-                                                <td className="text-center">{b.runs || 0}</td>
-                                                <td className="cx-stat-highlight text-center">{b.wickets || 0}</td>
-                                                <td className="text-center">{b.economy || '0.00'}</td>
+                                                <td className="text-center" style={{ textAlign: 'center' }}>{b.overs || '0.0'}</td>
+                                                <td className="text-center" style={{ textAlign: 'center' }}>{b.runs || 0}</td>
+                                                <td className="cx-stat-highlight text-center" style={{ textAlign: 'center' }}>{b.wickets || 0}</td>
+                                                <td className="text-center" style={{ textAlign: 'center' }}>{b.economy || '0.00'}</td>
                                             </tr>
                                         ))
                                     ) : (
@@ -4707,7 +5194,7 @@ const ScoringConsole = () => {
                                     <div>
                                         <h3>{selectedBatsmanForWheel.name}'s Shot Zone Analysis</h3>
                                         <p className="cx-ww-modal-sub">
-                                            {selectedBatsmanForWheel.hand || 'Right Hand'} Batsman • Visual Wagon Wheel
+                                            {(selectedBatsmanForWheel.hand === 'LHB' || selectedBatsmanForWheel.hand === 'LHS' || String(selectedBatsmanForWheel.hand || '').toLowerCase().includes('left')) ? 'LHB • Left Hand' : 'RHB • Right Hand'} Batsman • Visual Wagon Wheel
                                         </p>
                                     </div>
                                     <button className="cx-btn-close-ww" onClick={() => setShowWWheelModal(false)}>
@@ -4719,7 +5206,7 @@ const ScoringConsole = () => {
                                     <WagonWheel
                                         shots={extractedShots}
                                         batsmanName={selectedBatsmanForWheel.name}
-                                        batsmanHand={selectedBatsmanForWheel.hand || 'Right Hand'}
+                                        batsmanHand={selectedBatsmanForWheel.hand || 'RHB'}
                                         size={380}
                                     />
                                 </div>
@@ -4730,7 +5217,7 @@ const ScoringConsole = () => {
 
                 {/* SHOT PLACEMENT QUICK MODAL (Interactive Wagon Wheeler) */}
                 {showWagonPlacementModal && pendingBallEvent && (() => {
-                    const activeSectors = getActiveSectors(striker.hand || 'Right Hand');
+                    const activeSectors = getActiveSectors(striker.hand || 'RHB');
                     return (
                         <div className="sc-modal-overlay" onClick={() => setShowWagonPlacementModal(false)}>
                             <div className="sc-modal-card sc-wagon-wheeler-card" onClick={(e) => e.stopPropagation()}>
@@ -4741,7 +5228,7 @@ const ScoringConsole = () => {
                                         </div>
                                         <h3>Select Batted Area</h3>
                                         <p className="sc-modal-sub">
-                                            {striker.name} ({striker.hand || 'Right Hand'} Batsman) • <strong>{pendingBallEvent.extraType === 'No Ball' ? `+${pendingBallEvent.extraRuns} Bat Run(s) off No Ball` : `${pendingBallEvent.runs} Run(s)`}</strong>
+                                            {striker.name} ({isStrikerLHB ? 'LHB • Left Hand' : 'RHB • Right Hand'} Batsman) • <strong>{pendingBallEvent.extraType === 'No Ball' ? `+${pendingBallEvent.extraRuns} Bat Run(s) off No Ball` : `${pendingBallEvent.runs} Run(s)`}</strong>
                                         </p>
                                     </div>
                                     <button className="cx-btn-close-ww" onClick={() => setShowWagonPlacementModal(false)} title="Close">
@@ -5236,33 +5723,57 @@ const ScoringConsole = () => {
                             <div className="sc-nb-body">
                                 <div className="sc-nb-field">
                                     <label>
-                                        Available Batsmen from {matchData[nextBatterModalData.battingTeamKey]?.name || 'Batting Team'} (Playing XI)
+                                        Available Batsmen from {matchData[nextBatterModalData.battingTeamKey]?.name || 'Batting Team'} (Yet to Bat)
                                     </label>
                                     <div className="sc-nb-batters-grid">
                                         {(() => {
                                             const bTeamData = matchData[nextBatterModalData.battingTeamKey] || {};
-                                            const eligibleBatters = playingXI.filter(p => {
+                                            const outBatterIdStr = nextBatterModalData.outBatter?.id != null ? String(nextBatterModalData.outBatter.id) : null;
+                                            const remainingBatterIdStr = nextBatterModalData.remainingBatter?.id != null ? String(nextBatterModalData.remainingBatter.id) : null;
+
+                                            // Pool all squad players: Playing XI first, then any unbatted squad/reserve players
+                                            const allCandidatePlayers = (playingXI && playingXI.length > 0)
+                                                ? [...playingXI, ...playersList.filter(p => !playingXI.some(xi => String(xi.id) === String(p.id)))]
+                                                : (playersList.length > 0 ? playersList : Object.values(bTeamData.players || {}));
+
+                                            // Filter strictly for ALL YET TO BAT batters:
+                                            // 1. Exclude the out batter
+                                            // 2. Exclude surviving batter at crease
+                                            // 3. Exclude any player with recorded dismissal in fallOfWickets or partnerships
+                                            const eligibleBatters = allCandidatePlayers.filter(p => {
                                                 if (!p) return false;
                                                 const pStats = bTeamData.players?.[p.id] || p;
                                                 const pIdStr = p.id != null ? String(p.id) : null;
                                                 const pNameClean = (p.name || '').trim().toLowerCase();
-                                                const isOut = Boolean(
+
+                                                // 1. Batter who just got out
+                                                if (outBatterIdStr && pIdStr && pIdStr === outBatterIdStr) return false;
+
+                                                // 2. Batter currently remaining at crease
+                                                if (remainingBatterIdStr && pIdStr && pIdStr === remainingBatterIdStr) return false;
+
+                                                // 3. Any batter already dismissed in this match
+                                                const isDismissed = Boolean(
                                                     p.dismissal ||
                                                     p.status === 'out' ||
                                                     pStats?.dismissal ||
                                                     pStats?.status === 'out' ||
-                                                    (nextBatterModalData.outBatter?.id != null && pIdStr === String(nextBatterModalData.outBatter.id)) ||
                                                     Object.values(bTeamData.fallOfWickets || {}).some(f => {
                                                         if (!f) return false;
                                                         const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
                                                         const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
                                                         return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
+                                                    }) ||
+                                                    Object.values(bTeamData.partnerships || {}).some(part => {
+                                                        if (!part || !part.outBatsman) return false;
+                                                        const partOutId = part.outBatsman.id != null ? String(part.outBatsman.id) : null;
+                                                        const partOutName = (part.outBatsman.name || '').trim().toLowerCase();
+                                                        return (partOutId && pIdStr && partOutId === pIdStr) || (partOutName && pNameClean && partOutName === pNameClean);
                                                     })
                                                 );
-                                                const isCurrentCrease = (nextBatterModalData.remainingBatter?.id != null && pIdStr === String(nextBatterModalData.remainingBatter.id)) ||
-                                                    (striker?.id != null && pIdStr === String(striker.id) && pIdStr !== String(nextBatterModalData.outBatter?.id)) ||
-                                                    (nonStriker?.id != null && pIdStr === String(nonStriker.id) && pIdStr !== String(nextBatterModalData.outBatter?.id));
-                                                return !isOut && !isCurrentCrease;
+                                                if (isDismissed) return false;
+
+                                                return true;
                                             });
 
                                             if (eligibleBatters.length === 0) {
@@ -5273,11 +5784,11 @@ const ScoringConsole = () => {
                                                 );
                                             }
 
-                                            return eligibleBatters.map(p => {
+                                            return eligibleBatters.map((p, idx) => {
                                                 const isSelected = String(p.id) === String(selectedNextBatterId);
-                                                const pStats = bTeamData.players?.[p.id] || p;
                                                 const role = p.role || p.playerRole || 'Batsman';
                                                 const batStyle = p.battingStyle || p.batStyle || p.hand || '';
+                                                const isReserve = p.type === 'Reserve';
 
                                                 return (
                                                     <button
@@ -5287,14 +5798,14 @@ const ScoringConsole = () => {
                                                         onClick={() => setSelectedNextBatterId(p.id)}
                                                     >
                                                         <div className="sc-nb-bname">
+                                                            <span className="sc-nb-order-num">#{idx + 1}</span>
                                                             <strong>{p.name}</strong>
                                                             {batStyle && <span className="sc-nb-style-tag">{batStyle}</span>}
+                                                            {isReserve && <span className="sc-nb-res-tag">RES</span>}
                                                         </div>
                                                         <div className="sc-nb-bstats">
                                                             <span>{role}</span>
-                                                            {pStats.runs !== undefined && (
-                                                                <span> • {pStats.runs}r ({pStats.balls || 0}b)</span>
-                                                            )}
+                                                            <span className="sc-nb-yet-to-bat-pill">Yet to bat</span>
                                                         </div>
                                                     </button>
                                                 );
@@ -5332,10 +5843,18 @@ const ScoringConsole = () => {
                                         onClick={async () => {
                                             if (!selectedNextBatterId) return;
                                             await withProcessing(async () => {
-                                                const newBatterObj = playingXI.find(p => String(p.id) === String(selectedNextBatterId)) || { id: selectedNextBatterId, name: 'Incoming Batsman' };
+                                                const allCandidatePlayers = (playingXI && playingXI.length > 0)
+                                                    ? [...playingXI, ...playersList.filter(p => !playingXI.some(xi => String(xi.id) === String(p.id)))]
+                                                    : (playersList.length > 0 ? playersList : Object.values(matchData[nextBatterModalData.battingTeamKey]?.players || {}));
+
+                                                const newBatterObj = allCandidatePlayers.find(p => String(p.id) === String(selectedNextBatterId)) ||
+                                                    playingXI.find(p => String(p.id) === String(selectedNextBatterId)) ||
+                                                    playersList.find(p => String(p.id) === String(selectedNextBatterId)) ||
+                                                    { id: selectedNextBatterId, name: 'Incoming Batsman' };
+
                                                 const bTeamKey = nextBatterModalData.battingTeamKey;
                                                 const incomingBatterId = selectedNextBatterId;
-                                                const remainingBatterId = nextBatterModalData.remainingBatter?.id || (nextBatterModalData.isOutStriker ? nonStriker.id : striker.id);
+                                                const remainingBatterId = nextBatterModalData.remainingBatter?.id;
 
                                                 let finalStrikerId, finalNonStrikerId;
                                                 if (nextBatterStrikeRole === 'striker') {
@@ -5363,9 +5882,34 @@ const ScoringConsole = () => {
                                                         };
                                                     }
                                                     bTeam.players[incomingBatterId].status = 'batting';
+                                                    
+                                                    // Determine next ground arrival order
+                                                    const existingArrivals = Object.values(bTeam.players || {})
+                                                        .filter(p => {
+                                                            const isCrease = (bTeam.ballFaceBatsman && String(bTeam.ballFaceBatsman.id) === String(p.id)) ||
+                                                                             (bTeam.otherSideBatsman && String(bTeam.otherSideBatsman.id) === String(p.id)) ||
+                                                                             p.status === 'batting';
+                                                            const hasBattedCheck = Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0 || (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat');
+                                                            return isCrease || hasBattedCheck || (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
+                                                        })
+                                                        .map(p => Number(p.groundArrivalOrder || 0))
+                                                        .filter(n => n > 0);
 
-                                                    if (bTeam.players[remainingBatterId]) {
+                                                    const nextArrivalOrder = Math.max(
+                                                        2,
+                                                        (bTeam.totalWickets || 0) + 1,
+                                                        ...existingArrivals
+                                                    ) + 1;
+
+                                                    bTeam.players[incomingBatterId].groundArrivalOrder = nextArrivalOrder;
+                                                    bTeam.players[incomingBatterId].battingOrder = nextArrivalOrder;
+
+                                                    if (remainingBatterId && bTeam.players[remainingBatterId]) {
                                                         bTeam.players[remainingBatterId].status = 'batting';
+                                                        if (!bTeam.players[remainingBatterId].groundArrivalOrder || Number(bTeam.players[remainingBatterId].groundArrivalOrder) <= 0) {
+                                                            bTeam.players[remainingBatterId].groundArrivalOrder = Math.max(1, nextArrivalOrder - 1);
+                                                            bTeam.players[remainingBatterId].battingOrder = Math.max(1, nextArrivalOrder - 1);
+                                                        }
                                                     }
                                                     if (nextBatterModalData.outBatter?.id && bTeam.players[nextBatterModalData.outBatter.id]) {
                                                         bTeam.players[nextBatterModalData.outBatter.id].status = 'out';
@@ -5374,8 +5918,8 @@ const ScoringConsole = () => {
                                                     setStrikerId(finalStrikerId);
                                                     setNonStrikerId(finalNonStrikerId);
 
-                                                    bTeam.ballFaceBatsman = bTeam.players[finalStrikerId] || playingXI.find(p => String(p.id) === String(finalStrikerId)) || { id: finalStrikerId, name: 'Striker' };
-                                                    bTeam.otherSideBatsman = bTeam.players[finalNonStrikerId] || playingXI.find(p => String(p.id) === String(finalNonStrikerId)) || { id: finalNonStrikerId, name: 'Non-Striker' };
+                                                    bTeam.ballFaceBatsman = bTeam.players[finalStrikerId] || allCandidatePlayers.find(p => String(p.id) === String(finalStrikerId)) || { id: finalStrikerId, name: 'Striker' };
+                                                    bTeam.otherSideBatsman = bTeam.players[finalNonStrikerId] || allCandidatePlayers.find(p => String(p.id) === String(finalNonStrikerId)) || { id: finalNonStrikerId, name: 'Non-Striker' };
 
                                                     bTeam.currentPartnership = {
                                                         batsman1: bTeam.ballFaceBatsman,
@@ -5470,6 +6014,7 @@ const ScoringConsole = () => {
                                                 >
                                                     <div className="sc-nb-bname">
                                                         <strong>{p.name}</strong>
+                                                        {p.bowlingStyle && <span className="sc-nb-style-sub">{p.bowlingStyle}</span>}
                                                         {isJustBowled && <span className="sc-nb-law-tag">Just Bowled (Law 17.1)</span>}
                                                     </div>
                                                     <div className="sc-nb-bstats">
