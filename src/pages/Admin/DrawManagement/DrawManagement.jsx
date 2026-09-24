@@ -14,7 +14,8 @@ import {
     subscribeLiveData,
     buildPlayersRoster,
     buildInitialMatchPayload,
-    deleteMatchData
+    deleteMatchData,
+    deleteMatchCompletely
 } from '../../../services/rtdbService';
 import {
     MdCalendarToday,
@@ -22,8 +23,8 @@ import {
     MdPlayArrow,
     MdCheck,
     MdCheckCircle,
+    MdRadioButtonUnchecked,
     MdSettings,
-    MdPeople,
     MdDragIndicator,
     MdAdd,
     MdDelete,
@@ -37,7 +38,8 @@ import {
     MdDeleteSweep,
     MdEdit,
     MdEmojiEvents,
-    MdAutoAwesome
+    MdAutoAwesome,
+    MdVisibilityOff
 } from 'react-icons/md';
 import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import PageLoader from '../../../components/common/PageLoader/PageLoader';
@@ -57,9 +59,11 @@ const DrawManagement = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [teamsData, setTeamsData] = useState({});
     const [drawType, setDrawType] = useState('league'); // 'league' or 'elimination'
+    const [selectedDrawTeams, setSelectedDrawTeams] = useState(DEFAULT_TEAMS); // Teams selected to be included in generated draw
     const [generatedMatches, setGeneratedMatches] = useState([]);
     const [editingMatch, setEditingMatch] = useState(null);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+    const [confirmUnpublishOpen, setConfirmUnpublishOpen] = useState(false);
     const [unscheduledWarningOpen, setUnscheduledWarningOpen] = useState(false);
     const [matchToDelete, setMatchToDelete] = useState(null);
     const [clearDrawConfirmOpen, setClearDrawConfirmOpen] = useState(false);
@@ -67,6 +71,7 @@ const DrawManagement = () => {
     const [isEditingEnabled, setIsEditingEnabled] = useState(false); // Controls edit unlock when published
     const [liveData, setLiveData] = useState(null);
     const [liveMatchBlockedModal, setLiveMatchBlockedModal] = useState(null);
+    const [unpublishedMatchModal, setUnpublishedMatchModal] = useState(null);
 
     // Team Drag and Drop state (Individual team slot swapping)
     const [draggedTeamInfo, setDraggedTeamInfo] = useState(null); // { matchId, slot: 'team1'|'team2', teamName }
@@ -97,11 +102,17 @@ const DrawManagement = () => {
                 const status = Number(data.isFixtures);
                 setFixturesStatus(status);
             }
-            if (data?.finishedMatches) {
+            // If draw is unpublished or in draft, prioritize draftMatches so admin sees their work-in-progress; otherwise load published/finished
+            const isDrawDraft = Number(data?.isFixtures) === 0 || data?.isDraft;
+            const matchesSource = (isDrawDraft && data?.draftMatches)
+                ? data.draftMatches
+                : (data?.finishedMatches || data?.publishedMatches);
+
+            if (matchesSource) {
                 // Initialize matches list with team1 and team2, filtering any duplicates
-                const rawList = Array.isArray(data.finishedMatches)
-                    ? data.finishedMatches.filter(Boolean)
-                    : Object.values(data.finishedMatches).filter(Boolean);
+                const rawList = Array.isArray(matchesSource)
+                    ? matchesSource.filter(Boolean)
+                    : Object.values(matchesSource).filter(Boolean);
 
                 const seenKeys = new Set();
                 const list = [];
@@ -145,6 +156,46 @@ const DrawManagement = () => {
     }, [selectedTournamentId]);
 
     const availableTeamKeys = Object.keys(teamsData).length > 0 ? Object.keys(teamsData) : DEFAULT_TEAMS;
+    const availableTeamKeysStr = availableTeamKeys.join(',');
+
+    // Synchronize selectedDrawTeams whenever availableTeamKeys change
+    useEffect(() => {
+        if (availableTeamKeys.length > 0) {
+            setSelectedDrawTeams(prev => {
+                const valid = (prev || []).filter(k => availableTeamKeys.includes(k));
+                return valid.length > 0 ? valid : availableTeamKeys;
+            });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [availableTeamKeysStr]);
+
+    const handleToggleDrawTeam = (teamKey) => {
+        if (!isEditingEnabled) {
+            toastRef.current.showToast('warning', "Click 'Enable Editing' in the header to modify participating teams.");
+            return;
+        }
+        if (hasAnyMatchStarted) {
+            toastRef.current.showToast('warning', "Teams cannot be modified because tournament matches have already started.");
+            return;
+        }
+        setSelectedDrawTeams(prev => {
+            if (prev.includes(teamKey)) {
+                return prev.filter(k => k !== teamKey);
+            } else {
+                return [...prev, teamKey];
+            }
+        });
+    };
+
+    const handleSelectAllDrawTeams = () => {
+        if (!isEditingEnabled || hasAnyMatchStarted) return;
+        setSelectedDrawTeams([...availableTeamKeys]);
+    };
+
+    const handleClearDrawTeams = () => {
+        if (!isEditingEnabled || hasAnyMatchStarted) return;
+        setSelectedDrawTeams([]);
+    };
 
     const currentLiveTitle = (liveData?.currentMatchPath
         ? liveData.currentMatchPath.split('/').pop()
@@ -234,9 +285,17 @@ const DrawManagement = () => {
     const detectedSF1Winner = sf1Match ? detectMatchWinner(sf1Match) : '';
     const detectedSF2Winner = sf2Match ? detectMatchWinner(sf2Match) : '';
 
-    const nonFinalMatches = generatedMatches.filter(m => m.id !== finalMatch?.id);
+    const isSpecialMatch = (m) => {
+        if (!m) return false;
+        if (m.isSpecial || m.matchType === 'special') return true;
+        const title = String(m.title || '').trim().toLowerCase();
+        return title.includes('special');
+    };
+
+    // Special exhibition matches do NOT block or affect tournament championship Final progression
+    const nonFinalMatches = generatedMatches.filter(m => m.id !== finalMatch?.id && !isSpecialMatch(m));
     const completedNonFinalMatches = nonFinalMatches.filter(m => isMatchFinished(m, liveData));
-    const allNonFinalMatchesFinished = nonFinalMatches.length > 0 && completedNonFinalMatches.length === nonFinalMatches.length;
+    const allNonFinalMatchesFinished = nonFinalMatches.length === 0 || completedNonFinalMatches.length === nonFinalMatches.length;
 
     const isFinalStartedOrDone = finalMatch ? isMatchStartedOrConcluded(finalMatch) : false;
     const canSetupFinalists = Boolean(finalMatch && !isFinalStartedOrDone);
@@ -270,7 +329,7 @@ const DrawManagement = () => {
 
     const handleAutoFillDetectedWinners = () => {
         if (!allNonFinalMatchesFinished) {
-            toastRef.current.showToast('warning', `Finalists auto-fill is locked: all tournament matches prior to the Final must be completed first (${completedNonFinalMatches.length} of ${nonFinalMatches.length} completed).`);
+            toastRef.current.showToast('warning', `Finalists auto-fill is locked: all tournament matches prior to the Final must be completed first (${completedNonFinalMatches.length} of ${nonFinalMatches.length} completed). Special matches are excluded.`);
             return;
         }
         if (!isEditingEnabled) {
@@ -295,7 +354,7 @@ const DrawManagement = () => {
 
     const handleSaveFinalists = async (team1Choice, team2Choice) => {
         if (!allNonFinalMatchesFinished) {
-            toastRef.current.showToast('error', `Cannot configure finalists: all tournament matches prior to the Final must be completed first (${completedNonFinalMatches.length} of ${nonFinalMatches.length} completed).`);
+            toastRef.current.showToast('error', `Cannot configure finalists: all tournament matches prior to the Final must be completed first (${completedNonFinalMatches.length} of ${nonFinalMatches.length} completed). Special matches are excluded.`);
             return;
         }
         if (!isEditingEnabled) {
@@ -467,7 +526,11 @@ const DrawManagement = () => {
             toastRef.current.showToast('error', 'Cannot re-generate draw: tournament matches have already started or concluded.');
             return;
         }
-        const tList = [...availableTeamKeys];
+        if (selectedDrawTeams.length < 2) {
+            toastRef.current.showToast('error', 'Please select at least 2 teams from the available list to generate a tournament draw.');
+            return;
+        }
+        const tList = [...selectedDrawTeams];
         const newMatches = [];
 
         if (drawType === 'league') {
@@ -502,42 +565,104 @@ const DrawManagement = () => {
             });
         } else {
             // Elimination Bracket
-            newMatches.push({
-                id: Date.now() + 1,
-                title: 'Semi-Final 1',
-                teams: `${tList[0]} vs ${tList[3] || tList[1]}`,
-                date: '',
-                time: '',
-                venue: 'Faculty Cricket Grounds',
-                team1: tList[0],
-                team2: tList[3] || tList[1]
-            });
-            newMatches.push({
-                id: Date.now() + 2,
-                title: 'Semi-Final 2',
-                teams: `${tList[1]} vs ${tList[2] || tList[0]}`,
-                date: '',
-                time: '',
-                venue: 'Faculty Cricket Grounds',
-                team1: tList[1],
-                team2: tList[2] || tList[0]
-            });
-            newMatches.push({
-                id: Date.now() + 3,
-                title: 'Final',
-                teams: 'Winner SF1 vs Winner SF2',
-                date: '',
-                time: '',
-                venue: 'Faculty Cricket Grounds',
-                team1: 'Winner SF1',
-                team2: 'Winner SF2'
-            });
+            if (tList.length === 2) {
+                newMatches.push({
+                    id: Date.now() + 1,
+                    title: 'Final',
+                    teams: `${tList[0]} vs ${tList[1]}`,
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: tList[0],
+                    team2: tList[1]
+                });
+            } else if (tList.length <= 4) {
+                newMatches.push({
+                    id: Date.now() + 1,
+                    title: 'Semi-Final 1',
+                    teams: `${tList[0]} vs ${tList[3] || tList[1]}`,
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: tList[0],
+                    team2: tList[3] || tList[1]
+                });
+                newMatches.push({
+                    id: Date.now() + 2,
+                    title: 'Semi-Final 2',
+                    teams: `${tList[1]} vs ${tList[2] || tList[0]}`,
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: tList[1],
+                    team2: tList[2] || tList[0]
+                });
+                newMatches.push({
+                    id: Date.now() + 3,
+                    title: 'Final',
+                    teams: 'Winner SF1 vs Winner SF2',
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: 'Winner SF1',
+                    team2: 'Winner SF2'
+                });
+            } else {
+                let matchIdx = 1;
+                for (let i = 0; i < tList.length; i += 2) {
+                    const teamA = tList[i];
+                    const teamB = tList[i + 1];
+                    if (teamB) {
+                        newMatches.push({
+                            id: Date.now() + matchIdx,
+                            title: `Quarter-Final ${matchIdx}`,
+                            teams: `${teamA} vs ${teamB}`,
+                            date: '',
+                            time: '',
+                            venue: 'Faculty Cricket Grounds',
+                            team1: teamA,
+                            team2: teamB
+                        });
+                        matchIdx++;
+                    }
+                }
+                newMatches.push({
+                    id: Date.now() + matchIdx,
+                    title: 'Semi-Final 1',
+                    teams: 'Winner QF1 vs Winner QF2',
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: 'Winner QF1',
+                    team2: 'Winner QF2'
+                });
+                newMatches.push({
+                    id: Date.now() + matchIdx + 1,
+                    title: 'Semi-Final 2',
+                    teams: `Winner QF3 vs ${matchIdx > 3 ? 'Winner QF4' : (tList[tList.length - 1] || 'Winner QF3')}`,
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: 'Winner QF3',
+                    team2: matchIdx > 3 ? 'Winner QF4' : (tList[tList.length - 1] || 'Winner QF3')
+                });
+                newMatches.push({
+                    id: Date.now() + matchIdx + 2,
+                    title: 'Final',
+                    teams: 'Winner SF1 vs Winner SF2',
+                    date: '',
+                    time: '',
+                    venue: 'Faculty Cricket Grounds',
+                    team1: 'Winner SF1',
+                    team2: 'Winner SF2'
+                });
+            }
         }
 
         newMatches.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
         setGeneratedMatches(newMatches);
         setFixturesStatus(0); // Newly generated draw is Unpublished until admin publishes
-        toastRef.current.showToast('success', `Generated ${newMatches.length} fixtures (${drawType.toUpperCase()}). Match dates & times are unset. You can shift teams by dragging, schedule each match, then Save Draft or Publish.`);
+        toastRef.current.showToast('success', `Generated ${newMatches.length} fixtures for ${tList.length} teams (${drawType.toUpperCase()}). Match dates & times are unset. You can shift teams by dragging, schedule each match, then Save Draft or Publish.`);
     };
 
     // Helper: Semi-finals and Finals cannot be re-ordered by drag-drop, but teams CAN be selected when not started
@@ -564,7 +689,7 @@ const DrawManagement = () => {
         }
         const isFinal = finalMatch && finalMatch.id === matchId;
         if (isFinal && !allNonFinalMatchesFinished) {
-            toastRef.current.showToast('error', `Cannot configure finalists: all tournament matches prior to the Final must be completed first (${completedNonFinalMatches.length} of ${nonFinalMatches.length} completed).`);
+            toastRef.current.showToast('error', `Cannot configure finalists: all tournament matches prior to the Final must be completed first (${completedNonFinalMatches.length} of ${nonFinalMatches.length} completed). Special matches are excluded.`);
             return;
         }
 
@@ -823,17 +948,29 @@ const DrawManagement = () => {
     };
 
     // Confirmed deletion of fixture box
-    const handleConfirmDeleteMatch = () => {
+    const handleConfirmDeleteMatch = async () => {
         if (!matchToDelete) return;
         if (!isEditingEnabled) {
             toastRef.current.showToast('warning', "Editing is locked. Click 'Enable Editing' in the header to delete matches.");
             setMatchToDelete(null);
             return;
         }
-        setGeneratedMatches(prev => prev.filter(m => m.id !== matchToDelete.id));
+
+        const match = matchToDelete;
+        setGeneratedMatches(prev => prev.filter(m => m.id !== match.id));
         setFixturesStatus(0);
-        toastRef.current.showToast('info', `Fixture "${matchToDelete.title}" removed from draw.`);
         setMatchToDelete(null);
+
+        await withProcessing(async () => {
+            try {
+                // Completely delete match from FixturesData and {tournament_name}/{match_name} folder in RTDB
+                await deleteMatchCompletely(match, selectedTournamentId);
+                toastRef.current.showToast('info', `Fixture "${match.title}" completely deleted from fixtures data and tournament records.`);
+            } catch (err) {
+                console.error('Error deleting match from database:', err);
+                toastRef.current.showToast('warning', `Fixture removed locally, but database cleanup had an issue: ${err.message}`);
+            }
+        }, 'Deleting Match Fixture...', `Removing "${match.title}" from fixtures data and match records...`);
     };
 
     // Confirmed clearing of entire draw
@@ -848,18 +985,27 @@ const DrawManagement = () => {
             setClearDrawConfirmOpen(false);
             return;
         }
+        const matchesToClear = [...generatedMatches];
         setGeneratedMatches([]);
         setFixturesStatus(0);
         setClearDrawConfirmOpen(false);
         await withProcessing(async () => {
             try {
+                // Remove each unstarted match from FixturesData and {tournament_name}/{match_name} folder
+                for (const m of matchesToClear) {
+                    if (!isMatchStartedOrConcluded(m)) {
+                        await deleteMatchCompletely(m, selectedTournamentId);
+                    }
+                }
                 await updateFixturesData({
                     isFixtures: 0,
                     isDraft: true,
                     finishedMatches: {},
+                    publishedMatches: {},
+                    draftMatches: null,
                     updatedAt: new Date().toISOString()
                 }, selectedTournamentId);
-                toastRef.current.showToast('info', 'Tournament draw cleared.');
+                toastRef.current.showToast('info', 'Tournament draw and match records cleared.');
             } catch (err) {
                 console.error('Clear draw error:', err);
                 toastRef.current.showToast('info', 'Draw cleared locally.');
@@ -1017,12 +1163,37 @@ const DrawManagement = () => {
         }
 
         // 3. Update FixturesData
-        await updateFixturesData({
-            isFixtures: isPublished ? 1 : 0,
-            isDraft: !isPublished,
-            finishedMatches: finishedMatchesMap,
-            [isPublished ? 'publishedAt' : 'updatedAt']: new Date().toISOString()
-        }, selectedTournamentId);
+        if (isPublished) {
+            await updateFixturesData({
+                isFixtures: 1,
+                isDraft: false,
+                publishedMatches: finishedMatchesMap,
+                finishedMatches: finishedMatchesMap,
+                draftMatches: null,
+                publishedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }, selectedTournamentId);
+        } else {
+            // UNPUBLISHED / DRAFT:
+            // Store complete fixture list in draftMatches for admin editing
+            // In finishedMatches and publishedMatches, only preserve completed or currently live matches
+            // Newly changed scheduled fixtures remain in draftMatches and are NOT exposed to public users
+            const publishedSafeMatches = {};
+            Object.values(finishedMatchesMap).forEach(fm => {
+                if (fm.finished === 1 || fm.isLive === 1) {
+                    publishedSafeMatches[fm.id] = fm;
+                }
+            });
+
+            await updateFixturesData({
+                isFixtures: 0,
+                isDraft: true,
+                draftMatches: finishedMatchesMap,
+                finishedMatches: publishedSafeMatches,
+                publishedMatches: publishedSafeMatches,
+                updatedAt: new Date().toISOString()
+            }, selectedTournamentId);
+        }
 
         return finishedMatchesMap;
     };
@@ -1127,6 +1298,21 @@ const DrawManagement = () => {
         }, 'Publishing Live Draw...', 'Broadcasting official fixtures, match schedules and live telemetry...');
     };
 
+    // Unpublish Draw (Hides scheduled fixtures from public users on Home & Fixtures screens while keeping completed/live data safe)
+    const handleUnpublishDraw = async () => {
+        await withProcessing(async () => {
+            try {
+                await syncDrawFixturesToRtdb(generatedMatches, false);
+                setFixturesStatus(0);
+                setConfirmUnpublishOpen(false);
+                toastRef.current.showToast('info', 'Tournament draw unpublished! Scheduled fixtures are now hidden from public screens until re-published.');
+            } catch (error) {
+                console.error('Unpublish error:', error);
+                toastRef.current.showToast('error', 'Failed to unpublish draw.');
+            }
+        }, 'Unpublishing Draw...', 'Hiding scheduled fixtures from public screens while keeping completed records safe...');
+    };
+
     const unscheduledMatchesCount = generatedMatches.filter(m => !m.date || !m.time).length;
 
     if (isLoading && generatedMatches.length === 0) {
@@ -1201,6 +1387,16 @@ const DrawManagement = () => {
                                 >
                                     <MdSave /> Save Draft
                                 </button>
+                                {fixturesStatus === 1 && (
+                                    <button
+                                        type="button"
+                                        className="dm-unpublish-btn"
+                                        onClick={() => setConfirmUnpublishOpen(true)}
+                                        title="Unpublish draw to hide scheduled fixtures from public users while editing"
+                                    >
+                                        <MdVisibilityOff /> Unpublish Draw
+                                    </button>
+                                )}
                             </>
                         )}
 
@@ -1244,15 +1440,68 @@ const DrawManagement = () => {
                         </select>
                     </div>
 
-                    <div className="dm-control-item">
-                        <label>Batches ({availableTeamKeys.length})</label>
-                        <div className="batch-chips-wrap">
-                            {availableTeamKeys.map(k => (
-                                <span key={k} className="batch-chip">
-                                    <MdPeople /> {k}
-                                </span>
-                            ))}
+                    <div className="dm-control-item dm-teams-selector-item">
+                        <div className="dm-control-label-row">
+                            <label>
+                                Participating Teams ({selectedDrawTeams.length} of {availableTeamKeys.length} selected)
+                            </label>
+                            {isEditingEnabled && !hasAnyMatchStarted && (
+                                <div className="dm-chip-actions">
+                                    <button
+                                        type="button"
+                                        className="dm-chip-action-btn"
+                                        onClick={handleSelectAllDrawTeams}
+                                        title="Select all available teams for draw"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="dm-chip-action-sep">•</span>
+                                    <button
+                                        type="button"
+                                        className="dm-chip-action-btn"
+                                        onClick={handleClearDrawTeams}
+                                        title="Deselect all teams"
+                                    >
+                                        Deselect
+                                    </button>
+                                </div>
+                            )}
                         </div>
+                        <div className="batch-chips-wrap">
+                            {availableTeamKeys.map(k => {
+                                const isSelected = selectedDrawTeams.includes(k);
+                                return (
+                                    <button
+                                        key={k}
+                                        type="button"
+                                        className={`batch-chip ${isSelected ? 'selected' : 'unselected'} ${!isEditingEnabled || hasAnyMatchStarted ? 'disabled' : ''}`}
+                                        onClick={() => handleToggleDrawTeam(k)}
+                                        disabled={!isEditingEnabled || hasAnyMatchStarted}
+                                        title={
+                                            !isEditingEnabled
+                                                ? "Click 'Enable Editing' in the header to select teams"
+                                                : hasAnyMatchStarted
+                                                    ? "Teams cannot be changed because tournament has already started"
+                                                    : isSelected
+                                                        ? `Click to exclude ${k} from tournament draw`
+                                                        : `Click to include ${k} in tournament draw`
+                                        }
+                                    >
+                                        {isSelected ? (
+                                            <MdCheckCircle className="chip-check-icon" />
+                                        ) : (
+                                            <MdRadioButtonUnchecked className="chip-uncheck-icon" />
+                                        )}
+                                        <span className="chip-name">{k}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {selectedDrawTeams.length < 2 && isEditingEnabled && !hasAnyMatchStarted && (
+                            <span className="dm-teams-warning">
+                                ⚠️ Please select at least 2 teams to generate a tournament draw.
+                            </span>
+                        )}
                     </div>
 
                     <div className="dm-control-actions">
@@ -1334,7 +1583,7 @@ const DrawManagement = () => {
                                 <div className="dm-fsc-locked-banner">
                                     <MdLock />
                                     <span>
-                                        <strong>Finalists Setup Locked:</strong> All matches prior to the Championship Final must finish first ({completedNonFinalMatches.length} of {nonFinalMatches.length} matches completed).
+                                        <strong>Finalists Setup Locked:</strong> All tournament matches prior to the Championship Final must finish first ({completedNonFinalMatches.length} of {nonFinalMatches.length} matches completed). Special matches are excluded and do not block the Final.
                                     </span>
                                 </div>
                             ) : !isEditingEnabled ? (
@@ -1356,12 +1605,12 @@ const DrawManagement = () => {
                                             <h3 className="dm-fsc-title">Tournament Finalists Setup</h3>
                                             <span className={`dm-fsc-stage-pill ${allNonFinalMatchesFinished ? 'all-done' : 'sf-pending'}`}>
                                                 {allNonFinalMatchesFinished
-                                                    ? 'All Previous Matches Completed'
-                                                    : `Waiting on Matches (${completedNonFinalMatches.length}/${nonFinalMatches.length})`}
+                                                    ? 'Tournament Matches Completed'
+                                                    : `Waiting on Tournament Matches (${completedNonFinalMatches.length}/${nonFinalMatches.length})`}
                                             </span>
                                         </div>
                                         <p className="dm-fsc-subtitle">
-                                            Confirm or assign <strong>Winner SF1</strong> and <strong>Winner SF2</strong> for the Grand Final ({finalMatch.title}).
+                                            Confirm or assign <strong>Winner SF1</strong> and <strong>Winner SF2</strong> for the Grand Final ({finalMatch.title}). Special matches do not block the Championship Final.
                                         </p>
                                     </div>
                                 </div>
@@ -1373,7 +1622,7 @@ const DrawManagement = () => {
                                         onClick={handleAutoFillDetectedWinners}
                                         title={
                                             !allNonFinalMatchesFinished
-                                                ? `Finalists locked until all matches finish (${completedNonFinalMatches.length}/${nonFinalMatches.length})`
+                                                ? `Finalists locked until tournament matches finish (${completedNonFinalMatches.length}/${nonFinalMatches.length})`
                                                 : !isEditingEnabled
                                                     ? "Click 'Enable Editing' in the header to auto-fill finalists"
                                                     : "Fill dropdowns with detected Semi-Final winners"
@@ -1634,7 +1883,7 @@ const DrawManagement = () => {
                                                                             onChange={e => handleFinalTeamSelect(match.id, 'team1', e.target.value)}
                                                                             title={
                                                                                 isFinalMatch && !allNonFinalMatchesFinished
-                                                                                    ? `All previous matches must finish first (${completedNonFinalMatches.length}/${nonFinalMatches.length})`
+                                                                                    ? `All tournament matches must finish first (special matches excluded: ${completedNonFinalMatches.length}/${nonFinalMatches.length})`
                                                                                     : !isEditingEnabled
                                                                                         ? "Click 'Enable Editing' to select team"
                                                                                         : "Select Team 1 for this match"
@@ -1659,7 +1908,7 @@ const DrawManagement = () => {
                                                                             onChange={e => handleFinalTeamSelect(match.id, 'team2', e.target.value)}
                                                                             title={
                                                                                 isFinalMatch && !allNonFinalMatchesFinished
-                                                                                    ? `All previous matches must finish first (${completedNonFinalMatches.length}/${nonFinalMatches.length})`
+                                                                                    ? `All tournament matches must finish first (special matches excluded: ${completedNonFinalMatches.length}/${nonFinalMatches.length})`
                                                                                     : !isEditingEnabled
                                                                                         ? "Click 'Enable Editing' to select team"
                                                                                         : "Select Team 2 for this match"
@@ -1807,6 +2056,14 @@ const DrawManagement = () => {
                                                             onClick={() => navigate(`/admin/scoring?match=${match.title}`)}
                                                         >
                                                             <MdPlayArrow /> Resume Live Scoring
+                                                        </button>
+                                                    ) : fixturesStatus !== 1 ? (
+                                                        <button
+                                                            className="dmm-score-btn unpublished"
+                                                            onClick={() => setUnpublishedMatchModal(match.title)}
+                                                            title="Tournament draw is unpublished. Click to publish the draw and enable scoring."
+                                                        >
+                                                            <MdLock /> Draw Unpublished
                                                         </button>
                                                     ) : (
                                                         <button
@@ -2129,6 +2386,19 @@ const DrawManagement = () => {
                 onCancel={() => setConfirmPublishOpen(false)}
             />
 
+            {/* Unpublish Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={confirmUnpublishOpen}
+                title="Unpublish Tournament Draw?"
+                message="Unpublishing this draw will hide scheduled fixtures from public users on the Home screen and Fixtures screen while you make changes. All completed match records and in-progress live games will remain safe."
+                detail="Draw status will switch from Published to Unpublished Draft. You can re-publish anytime when ready."
+                confirmText="Unpublish Draw"
+                cancelText="Keep Published"
+                type="danger"
+                onConfirm={handleUnpublishDraw}
+                onCancel={() => setConfirmUnpublishOpen(false)}
+            />
+
             {/* Delete Fixture Box Confirmation Modal */}
             <ConfirmationModal
                 isOpen={Boolean(matchToDelete)}
@@ -2172,6 +2442,22 @@ const DrawManagement = () => {
                     }
                 }}
                 onCancel={() => setLiveMatchBlockedModal(null)}
+            />
+
+            {/* Draw Unpublished Scoring Locked Modal */}
+            <ConfirmationModal
+                isOpen={Boolean(unpublishedMatchModal)}
+                title="Draw Unpublished — Scoring Locked"
+                message={`Match scoring cannot start for "${unpublishedMatchModal}" because the tournament draw is currently unpublished.`}
+                detail="Matches can only be scored once the tournament draw is published. Publishing the draw officially broadcasts fixtures and unlocks the live scoring console."
+                confirmText="Publish Draw Now"
+                cancelText="Dismiss"
+                type="warning"
+                onConfirm={() => {
+                    setUnpublishedMatchModal(null);
+                    handleRequestPublish();
+                }}
+                onCancel={() => setUnpublishedMatchModal(null)}
             />
 
             <Footer />

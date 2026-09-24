@@ -211,7 +211,7 @@ const ScoringConsole = () => {
     // 1. Fetch published matches strictly from published draw
     useEffect(() => {
         const unsubFix = subscribeFixtures((data) => {
-            const published = data?.isFixtures === 1;
+            const published = data?.isFixtures === 1 && !data?.isDraft;
             setIsDrawPublished(published);
             if (published && data?.finishedMatches) {
                 const list = Array.isArray(data.finishedMatches)
@@ -227,11 +227,27 @@ const ScoringConsole = () => {
                 }
             } else {
                 setPublishedMatches([]);
+                setSelectedMatchTitle('');
             }
         }, selectedTournamentId);
 
         return () => unsubFix();
     }, [selectedTournamentId, initialMatch]);
+
+    // Alert if user navigated directly with a match parameter while the draw is unpublished
+    useEffect(() => {
+        if (initialMatch && !isDrawPublished && publishedMatches.length === 0) {
+            const timer = setTimeout(() => {
+                if (!isDrawPublished) {
+                    toastRef.current?.showToast(
+                        'warning',
+                        `Cannot score "${initialMatch}": Tournament draw is unpublished. Fixtures must be published in Draw Management before starting match scoring.`
+                    );
+                }
+            }, 600);
+            return () => clearTimeout(timer);
+        }
+    }, [initialMatch, isDrawPublished, publishedMatches.length]);
 
     // 1b. Automatically redirect to active match scoring board if a match is live in this tournament
     useEffect(() => {
@@ -790,6 +806,14 @@ const ScoringConsole = () => {
 
     // 1. Initiate start or switch match scoring -> Triggers Toss Setup Modal
     const handleInitiateStartScoring = async (overrideTitle) => {
+        if (!isDrawPublished) {
+            toastRef.current?.showToast(
+                'error',
+                'Cannot start match scoring: The tournament draw is currently unpublished. Please publish the draw in Draw Management before starting match scoring.'
+            );
+            return;
+        }
+
         const targetTitle = typeof overrideTitle === 'string' ? overrideTitle : selectedMatchTitle;
         if (!targetTitle) {
             toastRef.current?.showToast('warning', 'Please select a match from the published draw first.');
@@ -945,6 +969,14 @@ const ScoringConsole = () => {
 
     // 3. Confirm Toss & Execute Match Launch or Update
     const handleConfirmTossAndStart = async () => {
+        if (!isEditingTossOnly && !isDrawPublished) {
+            toastRef.current?.showToast(
+                'error',
+                'Cannot start match scoring: The tournament draw is currently unpublished. Please publish the draw in Draw Management before starting match scoring.'
+            );
+            return;
+        }
+
         if (!pendingStartFixture) return;
         const fixture = pendingStartFixture;
         const targetTitle = fixture.targetTitle || fixture.title;

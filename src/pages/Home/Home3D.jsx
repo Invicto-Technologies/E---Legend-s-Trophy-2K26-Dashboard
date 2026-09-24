@@ -186,12 +186,30 @@ const Home3D = () => {
             if (loadedCount >= 2) setIsLoading(false);
         };
 
-        const unsubLive = subscribeLiveData((data) => {
-            setLiveData(data);
-            markLoaded();
-        });
         let fixturesList = [];
         let upcomingList = [];
+        let latestLiveData = null;
+        let latestFixturesData = null;
+
+        const updateFixturesList = (data, live) => {
+            if (!data) {
+                fixturesList = [];
+                return;
+            }
+            const isPublished = Number(data?.isFixtures) === 1 && !data?.isDraft;
+            const rawSource = (data?.publishedMatches && Object.keys(data.publishedMatches).length > 0)
+                ? data.publishedMatches
+                : data?.finishedMatches;
+            const matchesSource = Object.values(rawSource || {});
+            if (isPublished) {
+                fixturesList = matchesSource;
+            } else {
+                // When match draw is unpublished, newly changed scheduled fixtures must not display on home screen
+                // Only completed matches and actively live matches remain visible
+                fixturesList = matchesSource.filter(m => isMatchFinished(m) || isMatchCurrentlyLive(m, live));
+            }
+        };
+
         const combineAndSetMatches = () => {
             const raw = [...fixturesList, ...upcomingList];
             const seen = new Set();
@@ -208,14 +226,28 @@ const Home3D = () => {
             setAllMatches(list);
         };
 
+        const unsubLive = subscribeLiveData((data) => {
+            latestLiveData = data;
+            setLiveData(data);
+            if (latestFixturesData) {
+                updateFixturesList(latestFixturesData, data);
+                combineAndSetMatches();
+            }
+            markLoaded();
+        });
+
         const unsubFixtures = subscribeFixtures((data) => {
-            fixturesList = Object.values(data?.finishedMatches || {});
+            latestFixturesData = data;
+            updateFixturesList(data, latestLiveData);
             combineAndSetMatches();
             markLoaded();
         });
 
         const unsubUpcoming = subscribeUpcoming((data) => {
-            upcomingList = Object.values(data?.upcomingMatches || data?.matches || {});
+            const isUpcomingActive = data?.isUpcoming !== 0 && data?.isUpcoming !== false;
+            upcomingList = isUpcomingActive
+                ? Object.values(data?.upcomingMatches || data?.matches || {})
+                : [];
             combineAndSetMatches();
         });
         const unsubStories = subscribeStories((data) => {
@@ -673,7 +705,7 @@ const Home3D = () => {
                                         shouldStart={statsAppeared}
                                     />
                                 </span>
-                                <span className="stat-label">Faculty Batches</span>
+                                <span className="stat-label">Faculty Teams</span>
                             </div>
                             <span className="stat-glimmer" />
                         </TiltCard>
@@ -758,7 +790,7 @@ const Home3D = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="home-matches-empty-state">
+                            <div className="home-matches-empty-state transparent-art-bg cricket-watermark-art">
                                 <div className="home-empty-icon-wrap">
                                     <MdCalendarToday />
                                 </div>
@@ -792,7 +824,7 @@ const Home3D = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="home-matches-empty-state">
+                            <div className="home-matches-empty-state transparent-art-bg cricket-watermark-art">
                                 <div className="home-empty-icon-wrap completed">
                                     <MdSportsCricket />
                                 </div>
@@ -826,29 +858,31 @@ const Home3D = () => {
                         <div className="stories-grid">
                             {stories.slice(0, 3).map((story) => {
                                 const storyText = story.description || story.content || '';
-                                const storyImg = story.ImageURL || story.imageUrl || story.image || story.coverImage;
+                                const rawImg = (story.ImageURL || story.imageUrl || story.image || story.coverImage || '').trim();
+                                const storyImg = rawImg || stadiumBgUrl;
                                 const isLongStory = storyText.length > 100;
 
                                 return (
                                     <TiltCard
                                         key={story.id}
-                                        className={`story-card ${storyImg ? 'has-cover-image' : ''} ${isLongStory ? 'has-read-more' : ''}`}
+                                        className={`story-card has-cover-image transparent-art-bg cricket-watermark-art ${isLongStory ? 'has-read-more' : ''}`}
                                         maxTilt={8}
-                                        onClick={() => (isLongStory || storyImg) && setActiveStoryModal(story)}
-                                        style={{ cursor: (isLongStory || storyImg) ? 'pointer' : 'default' }}
+                                        onClick={() => setActiveStoryModal(story)}
+                                        style={{ cursor: 'pointer' }}
                                     >
-                                        {storyImg && (
-                                            <div className="story-card-cover-wrap">
-                                                <img
-                                                    src={storyImg}
-                                                    alt={story.topic || 'Story Cover'}
-                                                    className="story-card-cover-img"
-                                                    loading="lazy"
-                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                                />
-                                                <div className="story-card-cover-gradient" />
-                                            </div>
-                                        )}
+                                        <div className="story-card-cover-wrap">
+                                            <img
+                                                src={storyImg}
+                                                alt={story.topic || 'Story Cover'}
+                                                className="story-card-cover-img"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    e.currentTarget.onerror = null;
+                                                    e.currentTarget.src = stadiumBgUrl;
+                                                }}
+                                            />
+                                            <div className="story-card-cover-gradient" />
+                                        </div>
                                         <div className="story-card-content">
                                             <div className="story-card-top">
                                                 <span className="story-time">{story.time}</span>
@@ -1068,14 +1102,15 @@ const Home3D = () => {
                         </button>
                         <span className="modal-story-time">{activeStoryModal.time}</span>
                         <h2 className="modal-story-title">{activeStoryModal.topic}</h2>
-                        {(activeStoryModal.ImageURL || activeStoryModal.imageUrl || activeStoryModal.image || activeStoryModal.coverImage) && (
-                            <img
-                                src={activeStoryModal.ImageURL || activeStoryModal.imageUrl || activeStoryModal.image || activeStoryModal.coverImage}
-                                alt={activeStoryModal.topic}
-                                className="modal-story-img"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            />
-                        )}
+                        <img
+                            src={((activeStoryModal.ImageURL || activeStoryModal.imageUrl || activeStoryModal.image || activeStoryModal.coverImage || '').trim()) || stadiumBgUrl}
+                            alt={activeStoryModal.topic || 'Tournament Story'}
+                            className="modal-story-img"
+                            onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = stadiumBgUrl;
+                            }}
+                        />
                         <p className="modal-story-body">{activeStoryModal.description || activeStoryModal.content}</p>
                     </div>
                 </div>,

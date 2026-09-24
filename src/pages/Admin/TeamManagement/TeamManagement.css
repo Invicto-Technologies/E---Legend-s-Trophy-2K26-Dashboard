@@ -1373,8 +1373,9 @@
 .tmo-crest-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    border-radius: 16px;
+    object-fit: contain;
+    border-radius: 14px;
+    padding: 3px;
 }
 
 .tmo-crest-placeholder {
@@ -1651,7 +1652,8 @@
 .tm-preview-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    padding: 2px;
 }
 
 .tm-preview-placeholder {

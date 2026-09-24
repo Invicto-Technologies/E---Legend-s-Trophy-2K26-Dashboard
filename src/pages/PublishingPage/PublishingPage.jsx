@@ -4,7 +4,8 @@ import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
 import {
     subscribeActiveTournament,
-    incrementDownloadCount
+    incrementDownloadCount,
+    subscribeDownloadCount
 } from '../../services/rtdbService';
 import {
     MdDownload,
@@ -51,6 +52,107 @@ const PublishingPage = () => {
     const [showComingSoonModal, setShowComingSoonModal] = useState(false);
     const [comingSoonPlatform, setComingSoonPlatform] = useState('Android APK');
     const [expandedPrivacyCards, setExpandedPrivacyCards] = useState({});
+    const [apkDownloadUrl, setApkDownloadUrl] = useState(null);
+    const [apkFileName, setApkFileName] = useState('');
+    const [apkReleaseTag, setApkReleaseTag] = useState('');
+    const [isDownloadingApk, setIsDownloadingApk] = useState(false);
+    const [downloadCount, setDownloadCount] = useState(0);
+    const [ghDownloadCount, setGhDownloadCount] = useState(0);
+
+    // Realtime download count subscription
+    useEffect(() => {
+        const unsub = subscribeDownloadCount((count) => {
+            if (typeof count === 'number' && !isNaN(count)) {
+                setDownloadCount(count);
+            }
+        });
+        return () => unsub && unsub();
+    }, []);
+
+    // Auto-detect latest release .apk from this GitHub repository
+    useEffect(() => {
+        let isMounted = true;
+        const fetchLatestReleaseApk = async () => {
+            try {
+                const res = await fetch('https://api.github.com/repos/Invicto-Technologies/E---Legend-s-Trophy-2K26-Dashboard/releases');
+                if (!res.ok) return;
+                const releases = await res.json();
+                if (Array.isArray(releases) && isMounted) {
+                    for (const rel of releases) {
+                        const apkAsset = (rel.assets || []).find(a => a.name && a.name.toLowerCase().endsWith('.apk'));
+                        if (apkAsset) {
+                            setApkDownloadUrl(apkAsset.browser_download_url);
+                            setApkFileName(apkAsset.name);
+                            setApkReleaseTag(rel.tag_name || rel.name);
+                            if (typeof apkAsset.download_count === 'number' && apkAsset.download_count > 0) {
+                                setGhDownloadCount(apkAsset.download_count);
+                            }
+                            break;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Could not auto-fetch GitHub release APK:', err);
+            }
+        };
+
+        fetchLatestReleaseApk();
+        return () => { isMounted = false; };
+    }, []);
+
+    const handleDownloadApk = async () => {
+        setIsDownloadingApk(true);
+        try {
+            let targetUrl = apkDownloadUrl;
+            let targetName = apkFileName;
+
+            // If not cached yet, query GitHub API on click
+            if (!targetUrl) {
+                const res = await fetch('https://api.github.com/repos/Invicto-Technologies/E---Legend-s-Trophy-2K26-Dashboard/releases');
+                if (res.ok) {
+                    const releases = await res.json();
+                    if (Array.isArray(releases)) {
+                        for (const rel of releases) {
+                            const apkAsset = (rel.assets || []).find(a => a.name && a.name.toLowerCase().endsWith('.apk'));
+                            if (apkAsset) {
+                                targetUrl = apkAsset.browser_download_url;
+                                targetName = apkAsset.name;
+                                setApkDownloadUrl(targetUrl);
+                                setApkFileName(targetName);
+                                setApkReleaseTag(rel.tag_name || rel.name);
+                                if (typeof apkAsset.download_count === 'number' && apkAsset.download_count > 0) {
+                                    setGhDownloadCount(apkAsset.download_count);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (targetUrl) {
+                setDownloadCount(prev => prev + 1);
+                incrementDownloadCount();
+                const link = document.createElement('a');
+                link.href = targetUrl;
+                link.setAttribute('download', targetName || 'e-legends-trophy.apk');
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                return;
+            }
+
+            // If no APK asset is found on any GitHub release yet, show the Coming Soon popup
+            handleOpenComingSoon('Android APK');
+        } catch (error) {
+            console.warn('Error downloading release APK:', error);
+            handleOpenComingSoon('Android APK');
+        } finally {
+            setIsDownloadingApk(false);
+        }
+    };
 
     const togglePrivacyCard = (id) => {
         setExpandedPrivacyCards(prev => ({
@@ -96,6 +198,8 @@ const PublishingPage = () => {
             alert("App link copied to clipboard!");
         }
     };
+
+    const totalDirectDownloads = Math.max(downloadCount, ghDownloadCount);
 
     if (isLoading && !activeTournament) {
         return (
@@ -143,43 +247,17 @@ const PublishingPage = () => {
                             instant boundary alerts, batch standings, and tournament news right in your pocket.
                         </p>
 
-                        <div className="pub-meta-strip">
-                            <div className="meta-pill">
-                                <span className="meta-dot live-dot" />
-                                <span>Realtime RTDB Sync</span>
-                            </div>
-                            <div className="meta-pill">
-                                <MdSecurity className="meta-icon" />
-                                <span>Verified & Safe</span>
-                            </div>
-                        </div>
-
                         <div className="pub-actions-group">
-                            <a
-                                href="https://appgallery.cloud.huawei.com/ag/n/app/C118946767?locale=en_GB&source=appshare&subsource=C118946767&shareTo=com.whatsapp&shareFrom=appmarket&shareIds=a98c1c348a614c3c8df18d69f6b2c745_com.whatsapp&callType=SHARE"
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <button
+                                type="button"
                                 className="pub-appgallery-btn"
                                 id="download-appgallery-btn"
-                                onClick={() => incrementDownloadCount()}
+                                onClick={() => handleOpenComingSoon('Huawei AppGallery')}
                             >
                                 <SiAppgallery className="btn-appgallery-icon" />
                                 <div className="btn-play-texts">
                                     <span className="btn-play-eyebrow">EXPLORE IT ON</span>
                                     <span className="btn-play-main">AppGallery</span>
-                                </div>
-                            </a>
-
-                            <button
-                                className="pub-download-btn"
-                                onClick={() => handleOpenComingSoon('Android APK')}
-                                id="download-apk-btn"
-                                type="button"
-                            >
-                                <MdDownload className="btn-dl-icon" />
-                                <div className="btn-dl-texts">
-                                    <span className="btn-main-text">ANDROID APK</span>
-                                    <span className="btn-sub-text">Direct install (Releasing soon)</span>
                                 </div>
                             </button>
 
@@ -193,6 +271,27 @@ const PublishingPage = () => {
                                 <div className="btn-play-texts">
                                     <span className="btn-play-eyebrow">GET IT ON</span>
                                     <span className="btn-play-main">Google Play</span>
+                                </div>
+                            </button>
+
+                            <button
+                                className={`pub-download-btn ${isDownloadingApk ? 'downloading' : ''}`}
+                                onClick={handleDownloadApk}
+                                id="download-apk-btn"
+                                type="button"
+                                title={apkDownloadUrl ? `Download ${apkFileName || 'APK'} (${apkReleaseTag}) • ${totalDirectDownloads.toLocaleString()} direct downloads` : `Download Android APK • ${totalDirectDownloads.toLocaleString()} direct downloads`}
+                            >
+                                <MdDownload className="btn-dl-icon" />
+                                <div className="btn-dl-texts">
+                                    <span className="btn-main-text">ANDROID APK</span>
+                                    <span className="btn-sub-text">
+                                        {apkDownloadUrl
+                                            ? `Direct install (${apkReleaseTag || '.apk'})`
+                                            : 'Direct install (.apk)'}
+                                    </span>
+                                    <span className="btn-downloads-count">
+                                        <span>{totalDirectDownloads.toLocaleString()}+ downloads</span>
+                                    </span>
                                 </div>
                             </button>
 
@@ -819,6 +918,8 @@ const PublishingPage = () => {
                             <div className="pub-modal-icon-glow">
                                 {comingSoonPlatform === 'Google Play Store' ? (
                                     <FaGooglePlay className="pub-modal-platform-icon" />
+                                ) : comingSoonPlatform === 'Huawei AppGallery' ? (
+                                    <SiAppgallery className="pub-modal-platform-icon" style={{ color: '#ef4444' }} />
                                 ) : (
                                     <MdAndroid className="pub-modal-platform-icon" />
                                 )}
@@ -826,7 +927,19 @@ const PublishingPage = () => {
                             <span className="pub-modal-tag">OFFICIAL RELEASE IN PROGRESS</span>
                             <h2 className="pub-modal-title">E-Legends Mobile App Releasing Soon!</h2>
                             <p className="pub-modal-subtitle">
-                                The official tournament mobile app for <strong>{comingSoonPlatform}</strong> is currently undergoing final staging and compliance testing. Direct download &amp; Play Store installation will unlock on Matchday 1!
+                                {comingSoonPlatform === 'Huawei AppGallery' ? (
+                                    <>
+                                        The official tournament mobile app for <strong>Huawei AppGallery</strong> is currently undergoing final staging and store verification. AppGallery listing will unlock soon!
+                                    </>
+                                ) : comingSoonPlatform === 'Google Play Store' ? (
+                                    <>
+                                        The official tournament mobile app for <strong>Google Play Store</strong> is currently undergoing review. Direct Play Store installation will unlock on Matchday 1!
+                                    </>
+                                ) : (
+                                    <>
+                                        The official <strong>Android APK</strong> is being built and prepared for this repository. Once a release with the .apk asset is published in this repository, clicking the Android APK button will download it automatically.
+                                    </>
+                                )}
                             </p>
                         </div>
 

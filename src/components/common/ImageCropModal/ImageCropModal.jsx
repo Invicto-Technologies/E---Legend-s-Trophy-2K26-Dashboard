@@ -17,6 +17,7 @@ const ImageCropModal = ({
     onCancel
 }) => {
     const [imageObj, setImageObj] = useState(null);
+    const [currentCropShape, setCurrentCropShape] = useState(cropShape);
     const [zoom, setZoom] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -28,6 +29,11 @@ const ImageCropModal = ({
     const containerRef = useRef(null);
 
     const VIEWPORT_SIZE = 300; // Size of the interactive crop box in pixels
+
+    // Sync cropShape prop when modal opens or prop changes
+    useEffect(() => {
+        setCurrentCropShape(cropShape);
+    }, [cropShape, isOpen]);
 
     // Load Image
     useEffect(() => {
@@ -82,7 +88,7 @@ const ImageCropModal = ({
 
             pCtx.clearRect(0, 0, pWidth, pHeight);
 
-            if (cropShape === 'circle') {
+            if (currentCropShape === 'circle') {
                 pCtx.beginPath();
                 pCtx.arc(pWidth / 2, pHeight / 2, Math.min(pWidth, pHeight) / 2, 0, Math.PI * 2);
                 pCtx.clip();
@@ -91,7 +97,7 @@ const ImageCropModal = ({
             pCtx.drawImage(canvas, 0, 0, pWidth, pHeight);
             setPreviewDataUrl(pCanvas.toDataURL('image/png'));
         }
-    }, [imageObj, zoom, offset, aspectRatio, cropShape]);
+    }, [imageObj, zoom, offset, aspectRatio, currentCropShape]);
 
     useEffect(() => {
         drawCanvas();
@@ -158,7 +164,7 @@ const ImageCropModal = ({
 
         const ctx = exportCanvas.getContext('2d');
 
-        if (cropShape === 'circle') {
+        if (currentCropShape === 'circle') {
             ctx.beginPath();
             ctx.arc(exportWidth / 2, exportHeight / 2, Math.min(exportWidth, exportHeight) / 2, 0, Math.PI * 2);
             ctx.clip();
@@ -229,7 +235,7 @@ const ImageCropModal = ({
                         <canvas ref={canvasRef} className="icm-crop-canvas" />
 
                         {/* Visible Area Guide & Mask */}
-                        <div className={`icm-crop-mask ${cropShape === 'circle' ? 'is-circle' : 'is-rect'}`}>
+                        <div className={`icm-crop-mask ${currentCropShape === 'circle' ? 'is-circle' : 'is-rect'}`}>
                             <div className="icm-mask-grid">
                                 <span className="grid-line horizontal" />
                                 <span className="grid-line vertical" />
@@ -241,8 +247,8 @@ const ImageCropModal = ({
                     <div className="icm-preview-column">
                         <span className="icm-preview-label">Live Visible Preview</span>
                         <div
-                            className={`icm-preview-bubble ${cropShape === 'circle' ? 'circle' : 'rounded'}`}
-                            style={cropShape !== 'circle' ? { width: '130px', height: `${Math.round(130 / (aspectRatio || 1))}px` } : {}}
+                            className={`icm-preview-bubble ${currentCropShape === 'circle' ? 'circle' : 'rounded'}`}
+                            style={currentCropShape !== 'circle' ? { width: '130px', height: `${Math.round(130 / (aspectRatio || 1))}px` } : {}}
                         >
                             {previewDataUrl ? (
                                 <img src={previewDataUrl} alt="Crop preview" />
@@ -259,6 +265,25 @@ const ImageCropModal = ({
 
                 {/* Controls Bar */}
                 <div className="icm-controls-bar">
+                    <div className="icm-shape-switch">
+                        <button
+                            type="button"
+                            className={`icm-shape-btn ${currentCropShape === 'rect' ? 'active' : ''}`}
+                            onClick={() => setCurrentCropShape('rect')}
+                            title="Crop as Square / Rectangle (Full Logo)"
+                        >
+                            Square / Logo
+                        </button>
+                        <button
+                            type="button"
+                            className={`icm-shape-btn ${currentCropShape === 'circle' ? 'active' : ''}`}
+                            onClick={() => setCurrentCropShape('circle')}
+                            title="Crop as Circle (Player Avatar)"
+                        >
+                            Circle
+                        </button>
+                    </div>
+
                     <div className="icm-zoom-control">
                         <button
                             type="button"

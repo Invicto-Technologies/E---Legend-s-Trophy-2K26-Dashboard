@@ -50,10 +50,10 @@
 .pub-hero-section {
     position: relative;
     z-index: 1;
-    min-height: 85vh;
+    min-height: 75vh;
     display: flex;
     align-items: center;
-    padding: 140px 0 80px 0;
+    padding: 100px 0 80px 0;
     overflow: hidden;
 }
 
@@ -277,6 +277,33 @@
     font-weight: 500;
 }
 
+.btn-downloads-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #bae6fd;
+    margin-top: 3px;
+    letter-spacing: 0.25px;
+    opacity: 0.95;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    font-style: italic;
+}
+
+.btn-downloads-count .btn-count-icon {
+    font-size: 0.72rem;
+    color: #7dd3fc;
+}
+
+[data-theme="light"] .btn-downloads-count {
+    color: #e0f2fe;
+}
+
+[data-theme="light"] .btn-downloads-count .btn-count-icon {
+    color: #bae6fd;
+}
+
 .pub-playstore-btn {
     display: flex;
     align-items: center;
@@ -342,6 +369,8 @@
     color: var(--text-main);
     text-decoration: none;
     cursor: pointer;
+    font-family: inherit;
+    text-align: left;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 18px rgba(206, 14, 45, 0.12);
     position: relative;
@@ -1328,6 +1357,10 @@
 
     .pub-download-btn .btn-sub-text {
         font-size: 0.68rem !important;
+    }
+
+    .pub-download-btn .btn-downloads-count {
+        font-size: 0.60rem !important;
     }
 
     .pub-download-btn .btn-dl-icon {

@@ -91,9 +91,21 @@ const Rankings3D = () => {
 
     const labels = resolveTournamentLabels(activeTournament);
 
-    // 1. Points Table Sorting
-    const pointsList = (rankingData?.pointsTable || [])
-        .filter(Boolean)
+    // 1. Points Table Sorting (Show available database data even if all zero)
+    let rawPoints = (rankingData?.pointsTable || []).filter(Boolean);
+    if (rawPoints.length === 0 && teamsData && Object.keys(teamsData).length > 0) {
+        rawPoints = Object.keys(teamsData).map((key) => ({
+            id: key,
+            team: teamsData[key]?.name || key,
+            played: 0,
+            won: 0,
+            lost: 0,
+            nr: 0,
+            nrr: 0,
+            pts: 0,
+        }));
+    }
+    const pointsList = rawPoints
         .sort((a, b) => {
             if (b.pts !== a.pts) return b.pts - a.pts;
             return b.nrr - a.nrr;

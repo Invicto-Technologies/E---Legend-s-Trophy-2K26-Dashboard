@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set, push, remove } from 'firebase/database';
 import { database } from '../../components/firebase';
+import { deleteMatchCompletely } from '../../services/rtdbService';
 import './UpcomingMatches.css';
 
 const UpcomingMatches = () => {
@@ -370,9 +371,11 @@ const UpcomingMatches = () => {
     const deleteMatch = async (matchId) => {
         if (window.confirm('Are you sure you want to delete this match?')) {
             try {
+                const targetMatch = upcomingMatches[matchId] || { id: matchId };
+                await deleteMatchCompletely(targetMatch);
                 const matchRef = ref(database, `UpcomingMatchData/upcomingMatches/${matchId}`);
                 await remove(matchRef);
-                alert('Match deleted successfully!');
+                alert('Match deleted successfully from fixtures and tournament records!');
             } catch (error) {
                 console.error('Error deleting match:', error);
                 alert('Failed to delete match');

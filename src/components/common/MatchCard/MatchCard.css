@@ -31,17 +31,17 @@
     border-top: 3px solid var(--accent-cyan);
 }
 
-/* Special Match Unique Aesthetic (Warm amber / royal gradient background) */
+/* Special Match Unique Aesthetic (Supportive Royal Sapphire / Electric Blue Palette) */
 .pro-match-card.is-special-match {
-    background: linear-gradient(145deg, rgba(38, 22, 10, 0.9) 0%, rgba(24, 14, 38, 0.94) 50%, rgba(14, 10, 24, 0.98) 100%) !important;
-    border: 1px solid rgba(245, 158, 11, 0.38) !important;
-    border-top: 3.5px solid #f59e0b !important;
-    box-shadow: 0 10px 32px rgba(245, 158, 11, 0.12), 0 0 25px rgba(217, 119, 6, 0.08) !important;
+    background: linear-gradient(145deg, rgba(15, 23, 42, 0.96) 0%, rgba(26, 44, 82, 0.92) 50%, rgba(11, 15, 25, 0.98) 100%) !important;
+    border: 1px solid rgba(56, 189, 248, 0.45) !important;
+    border-top: 3.5px solid #38bdf8 !important;
+    box-shadow: 0 10px 32px rgba(14, 165, 233, 0.16), 0 0 25px rgba(59, 130, 246, 0.12) !important;
 }
 
 .pro-match-card.is-special-match:hover {
-    border-color: rgba(245, 158, 11, 0.65) !important;
-    box-shadow: 0 14px 40px rgba(245, 158, 11, 0.22), 0 0 35px rgba(245, 158, 11, 0.16) !important;
+    border-color: rgba(56, 189, 248, 0.8) !important;
+    box-shadow: 0 14px 42px rgba(14, 165, 233, 0.28), 0 0 35px rgba(59, 130, 246, 0.22) !important;
 }
 
 .pro-match-card.is-special-match::before {
@@ -51,7 +51,7 @@
     left: 0;
     right: 0;
     height: 100px;
-    background: radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.18), transparent 75%);
+    background: radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.22), transparent 75%);
     pointer-events: none;
     z-index: 0;
 }
@@ -183,11 +183,12 @@
 .pmc-team-crest {
     width: 32px;
     height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1.5px solid rgba(59, 130, 246, 0.3);
+    border-radius: 7px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.3);
     flex-shrink: 0;
+    padding: 1px;
 }
 
 .pmc-team-avatar-fallback {
@@ -411,11 +412,12 @@
 .pmc-single-crest {
     width: 32px;
     height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1.5px solid rgba(0, 240, 255, 0.35);
+    border-radius: 7px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(0, 240, 255, 0.3);
     flex-shrink: 0;
+    padding: 1px;
 }
 
 .pmc-single-avatar {
@@ -528,15 +530,15 @@
 }
 
 [data-theme="light"] .pro-match-card.is-special-match {
-    background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 45%, #fff7ed 100%) !important;
-    border: 1px solid rgba(217, 119, 6, 0.35) !important;
-    border-top: 3.5px solid #d97706 !important;
-    box-shadow: 0 10px 25px rgba(217, 119, 6, 0.12) !important;
+    background: linear-gradient(145deg, #f0f9ff 0%, #e0f2fe 50%, #f8fafc 100%) !important;
+    border: 1px solid rgba(2, 132, 199, 0.35) !important;
+    border-top: 3.5px solid #0284c7 !important;
+    box-shadow: 0 10px 25px rgba(2, 132, 199, 0.12) !important;
 }
 
 [data-theme="light"] .pro-match-card.is-special-match:hover {
-    border-color: rgba(217, 119, 6, 0.55) !important;
-    box-shadow: 0 14px 32px rgba(217, 119, 6, 0.18) !important;
+    border-color: rgba(2, 132, 199, 0.65) !important;
+    box-shadow: 0 14px 32px rgba(2, 132, 199, 0.2) !important;
 }
 
 [data-theme="light"] .pmc-stage-badge {

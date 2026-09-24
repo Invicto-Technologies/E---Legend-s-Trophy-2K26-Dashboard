@@ -189,7 +189,7 @@ const TeamManagement = () => {
                 setCropShape('circle');
             } else {
                 setCropTitle('Crop Batch Crest Logo');
-                setCropShape('circle');
+                setCropShape('rect');
             }
             setCropModalOpen(true);
         };

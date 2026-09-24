@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { database } from '../../components/firebase';
+import stadiumBgUrl from '../../Images/cricket_stadium_bg.jpg';
 import './TopStories.css';
 
 const TopStories = () => {
@@ -367,29 +368,46 @@ const TopStories = () => {
 
                     <div className="stories-grid">
                         {Object.keys(allStories).length > 0 ? (
-                            getSortedStories().map(([key, story]) => (
-                                <div key={key} className="story-card">
-                                    <div className="story-time">{story.time}</div>
-                                    <h3 className="story-topic">{story.topic}</h3>
-                                    <p className="story-description">{story.description}</p>
-                                    <div className="story-actions">
-                                        <button
-                                            onClick={() => setEditingStory({ ...story, id: key })}
-                                            className="edit-btn"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => deleteStory(key)}
-                                            className="delete-btn"
-                                        >
-                                            Delete
-                                        </button>
+                            getSortedStories().map(([key, story]) => {
+                                const storyImg = story.ImageURL || story.imageUrl || story.image || story.coverImage || stadiumBgUrl;
+                                return (
+                                    <div key={key} className="story-card transparent-art-bg cricket-watermark-art">
+                                        <div className="story-thumb-wrap">
+                                            <img
+                                                src={storyImg}
+                                                alt={story.topic || 'Story Cover'}
+                                                className="story-cover-img"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    e.currentTarget.onerror = null;
+                                                    e.currentTarget.src = stadiumBgUrl;
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="story-card-body">
+                                            <div className="story-time">{story.time}</div>
+                                            <h3 className="story-topic">{story.topic}</h3>
+                                            <p className="story-description">{story.description}</p>
+                                            <div className="story-actions">
+                                                <button
+                                                    onClick={() => setEditingStory({ ...story, id: key })}
+                                                    className="edit-btn"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteStory(key)}
+                                                    className="delete-btn"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         ) : (
-                            <p className="no-stories">No stories available</p>
+                            <p className="no-stories transparent-art-bg cricket-watermark-art">No stories available</p>
                         )}
                     </div>
                 </>

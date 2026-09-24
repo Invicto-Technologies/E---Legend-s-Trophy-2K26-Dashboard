@@ -72,10 +72,27 @@ const Fixtures3D = () => {
     const labels = resolveTournamentLabels(activeTournament);
     const isMatchLive = Boolean(liveData?.isLive);
 
-    // Combine matches from finishedMatches (where published draw lives) and upcomingData (supporting both upcomingMatches and matches)
+    // Combine matches from published draw and upcomingData (supporting both upcomingMatches and matches)
+    const isDrawPublished = Number(fixturesData?.isFixtures) === 1 && !fixturesData?.isDraft;
+    const isUpcomingActive = upcomingData?.isUpcoming !== 0 && upcomingData?.isUpcoming !== false;
+
+    // When draw is published, display all published fixtures.
+    // When draw is unpublished (draft), newly changed scheduled fixtures MUST NOT display in fixtures screen!
+    // Only completed matches and currently live matches remain visible.
+    const rawMatchesObj = (fixturesData?.publishedMatches && Object.keys(fixturesData.publishedMatches).length > 0)
+        ? fixturesData.publishedMatches
+        : fixturesData?.finishedMatches;
+    const fixturesMatchesList = isDrawPublished
+        ? Object.values(rawMatchesObj || {})
+        : Object.values(rawMatchesObj || {}).filter(m => isMatchFinished(m) || isMatchCurrentlyLive(m, liveData));
+
+    const upcomingMatchesList = isUpcomingActive
+        ? Object.values(upcomingData?.upcomingMatches || upcomingData?.matches || {})
+        : [];
+
     const allMatchesRaw = [
-        ...Object.values(fixturesData?.finishedMatches || {}),
-        ...Object.values(upcomingData?.upcomingMatches || upcomingData?.matches || {})
+        ...fixturesMatchesList,
+        ...upcomingMatchesList
     ];
 
     // Deduplicate matches

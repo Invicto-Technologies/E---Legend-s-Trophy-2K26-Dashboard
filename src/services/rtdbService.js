@@ -722,12 +722,129 @@ export const setMatchData = async (matchTitle, data, customTourneyId) => {
     return set(matchRef, data);
 };
 
-export const deleteMatchData = async (matchKey, customTourneyId) => {
-    if (!matchKey) return;
-    const cleanTitle = String(matchKey || '').replace(/^\//, '').split('/').pop();
+/**
+ * Completely delete a match from RTDB:
+ * 1. Removes from {tournament_name}/{match_name} (Tournaments/${targetKey}/${cleanTitle} and numeric ID node if distinct)
+ * 2. Removes from FixturesData (finishedMatches, publishedMatches, draftMatches) under both targetKey and root
+ * 3. Removes from UpcomingMatchData (upcomingMatches) under both targetKey and root
+ */
+export const deleteMatchCompletely = async (matchOrKey, customTourneyId) => {
+    if (!matchOrKey) return;
+
     const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
-    const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
-    return remove(matchRef);
+
+    const matchId = matchOrKey?.id ? String(matchOrKey.id).trim() : (typeof matchOrKey === 'string' ? matchOrKey.trim() : '');
+    const matchTitle = matchOrKey?.title || matchOrKey?.name || (typeof matchOrKey === 'string' ? matchOrKey : '');
+    const cleanTitle = decodeURIComponent(String(matchTitle || matchId || '')).replace(/^\//, '').split('/').pop().trim();
+    const normTitle = cleanTitle.toLowerCase();
+    const normId = matchId.toLowerCase();
+
+    const teamsStr = String(matchOrKey?.teams || '').toLowerCase();
+    const [t1 = '', t2 = ''] = teamsStr.split(' vs ').map(s => s.trim());
+
+    // 1. Delete root match node in Tournaments/${targetKey}/${cleanTitle}
+    if (cleanTitle) {
+        try {
+            await remove(ref(database, `Tournaments/${targetKey}/${cleanTitle}`));
+        } catch (err) {
+            console.warn(`Could not remove Tournaments/${targetKey}/${cleanTitle}:`, err);
+        }
+    }
+
+    // Also delete Tournaments/${targetKey}/${matchId} if distinct from cleanTitle
+    if (matchId && matchId !== cleanTitle) {
+        try {
+            await remove(ref(database, `Tournaments/${targetKey}/${matchId}`));
+        } catch (err) {
+            console.warn(`Could not remove Tournaments/${targetKey}/${matchId}:`, err);
+        }
+    }
+
+    // 2. Helper to remove from a fixtures collection (finishedMatches, publishedMatches, draftMatches)
+    const removeFromFixturesCollection = async (collectionPath) => {
+        try {
+            const colRef = ref(database, collectionPath);
+            const snap = await get(colRef);
+            const map = snap.val();
+            if (!map || typeof map !== 'object') return;
+
+            const keysToRemove = [];
+
+            // Direct key hits
+            if (matchId && map[matchId] !== undefined) keysToRemove.push(matchId);
+            if (cleanTitle && map[cleanTitle] !== undefined && !keysToRemove.includes(cleanTitle)) keysToRemove.push(cleanTitle);
+
+            // Deep scan for match by id, title, or teams
+            Object.entries(map).forEach(([k, item]) => {
+                if (!item || keysToRemove.includes(k)) return;
+                const itemTitle = String(item.title || item.name || '').trim().toLowerCase();
+                const itemId = String(item.id || k).trim().toLowerCase();
+                const itemTeams = String(item.teams || '').trim().toLowerCase();
+
+                const isSameId = (normId && itemId === normId) || (normTitle && itemId === normTitle);
+                const isSameTitle = (normTitle && itemTitle === normTitle) || (normId && itemTitle === normId);
+                const isSameTeams = t1 && t2 && itemTeams.includes(t1) && itemTeams.includes(t2);
+
+                if (isSameId || isSameTitle || isSameTeams) {
+                    keysToRemove.push(k);
+                }
+            });
+
+            for (const k of keysToRemove) {
+                await remove(ref(database, `${collectionPath}/${k}`));
+            }
+        } catch (err) {
+            console.warn(`Error removing from ${collectionPath}:`, err);
+        }
+    };
+
+    // Remove from all FixturesData collections
+    await removeFromFixturesCollection(`Tournaments/${targetKey}/FixturesData/finishedMatches`);
+    await removeFromFixturesCollection(`Tournaments/${targetKey}/FixturesData/publishedMatches`);
+    await removeFromFixturesCollection(`Tournaments/${targetKey}/FixturesData/draftMatches`);
+    await removeFromFixturesCollection(`FixturesData/finishedMatches`);
+
+    // 3. Remove from UpcomingMatchData
+    const removeFromUpcomingCollection = async (upcomingPath) => {
+        try {
+            const upRef = ref(database, upcomingPath);
+            const snap = await get(upRef);
+            const upMap = snap.val();
+            if (!upMap || typeof upMap !== 'object') return;
+
+            const keysToRemove = [];
+            if (matchId && upMap[matchId] !== undefined) keysToRemove.push(matchId);
+            if (cleanTitle && upMap[cleanTitle] !== undefined && !keysToRemove.includes(cleanTitle)) keysToRemove.push(cleanTitle);
+
+            Object.entries(upMap).forEach(([k, item]) => {
+                if (!item || keysToRemove.includes(k)) return;
+                const itemTitle = String(item.title || item.name || '').trim().toLowerCase();
+                const itemId = String(item.id || k).trim().toLowerCase();
+                const itemTeams = String(item.teams || '').trim().toLowerCase();
+
+                const isSameId = (normId && itemId === normId) || (normTitle && itemId === normTitle);
+                const isSameTitle = (normTitle && itemTitle === normTitle) || (normId && itemTitle === normId);
+                const isSameTeams = t1 && t2 && itemTeams.includes(t1) && itemTeams.includes(t2);
+
+                if (isSameId || isSameTitle || isSameTeams) {
+                    keysToRemove.push(k);
+                }
+            });
+
+            for (const k of keysToRemove) {
+                await remove(ref(database, `${upcomingPath}/${k}`));
+            }
+        } catch (err) {
+            console.warn(`Error removing from ${upcomingPath}:`, err);
+        }
+    };
+
+    await removeFromUpcomingCollection(`Tournaments/${targetKey}/UpcomingMatchData/upcomingMatches`);
+    await removeFromUpcomingCollection(`UpcomingMatchData/upcomingMatches`);
+};
+
+export const deleteMatchData = async (matchKey, customTourneyId) => {
+    return deleteMatchCompletely(matchKey, customTourneyId);
 };
 
 /* ==========================================================================

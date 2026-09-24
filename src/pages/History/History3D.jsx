@@ -23,6 +23,7 @@ import {
     MdArrowForward
 } from 'react-icons/md';
 import PageLoader from '../../components/common/PageLoader/PageLoader';
+import stadiumBgUrl from '../../Images/cricket_stadium_bg.jpg';
 import './History3D.css';
 
 const History3D = () => {
@@ -483,15 +484,41 @@ const History3D = () => {
                     {/* Tab 4: Stories */}
                     {activeTab === 'stories' && (
                         <div className="history-stories-deck">
-                            <div className="stories-archive-grid">
-                                {stories.map((story) => (
-                                    <div key={story.id} className="history-story-card">
-                                        <span className="story-archive-time">{story.time}</span>
-                                        <h4 className="story-archive-topic">{story.topic}</h4>
-                                        <p className="story-archive-desc">{story.description}</p>
-                                    </div>
-                                ))}
-                            </div>
+                            {stories.length === 0 ? (
+                                <div className="history-empty-deck transparent-art-bg cricket-watermark-art">
+                                    <MdNewspaper style={{ fontSize: '2.5rem', color: 'var(--primary-blue-light)' }} />
+                                    <h4>No Historical Stories Recorded</h4>
+                                    <p>Tournament bulletins and match recaps will appear here once documented.</p>
+                                </div>
+                            ) : (
+                                <div className="stories-archive-grid">
+                                    {stories.map((story) => {
+                                        const storyImg = story.ImageURL || story.imageUrl || story.image || story.coverImage || stadiumBgUrl;
+                                        return (
+                                            <div key={story.id} className="history-story-card transparent-art-bg cricket-watermark-art">
+                                                <div className="history-story-cover-wrap">
+                                                    <img
+                                                        src={storyImg}
+                                                        alt={story.topic || 'Tournament Story'}
+                                                        className="history-story-cover-img"
+                                                        loading="lazy"
+                                                        onError={(e) => {
+                                                            e.currentTarget.onerror = null;
+                                                            e.currentTarget.src = stadiumBgUrl;
+                                                        }}
+                                                    />
+                                                    <div className="history-story-gradient" />
+                                                </div>
+                                                <div className="history-story-content">
+                                                    <span className="story-archive-time">{story.time}</span>
+                                                    <h4 className="story-archive-topic">{story.topic}</h4>
+                                                    <p className="story-archive-desc">{story.description}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

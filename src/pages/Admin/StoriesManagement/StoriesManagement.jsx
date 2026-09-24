@@ -29,6 +29,7 @@ import {
     MdSportsCricket,
     MdCheck
 } from 'react-icons/md';
+import stadiumBgUrl from '../../../Images/cricket_stadium_bg.jpg';
 import './StoriesManagement.css';
 
 export const CRICKET_BACKGROUND_PRESETS = [
@@ -312,7 +313,7 @@ const StoriesManagement = () => {
 
                 {/* Stories List */}
                 {stories.length === 0 ? (
-                    <div className="sm-compact-empty-banner">
+                    <div className="sm-compact-empty-banner transparent-art-bg cricket-watermark-art">
                         <div className="sm-empty-banner-left">
                             <div className="sm-empty-icon-bubble">
                                 <MdArticle />
@@ -352,14 +353,15 @@ const StoriesManagement = () => {
                                     </div>
                                 </div>
 
-                                {story.ImageURL && (
-                                    <img
-                                        src={story.ImageURL}
-                                        alt={story.topic}
-                                        className="smc-thumb"
-                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                    />
-                                )}
+                                <img
+                                    src={story.ImageURL || story.imageUrl || story.image || stadiumBgUrl}
+                                    alt={story.topic || 'Story Cover'}
+                                    className="smc-thumb"
+                                    onError={(e) => {
+                                        e.currentTarget.onerror = null;
+                                        e.currentTarget.src = stadiumBgUrl;
+                                    }}
+                                />
 
                                 <h3 className="smc-topic">{story.topic}</h3>
                                 <p className="smc-desc">{story.description}</p>

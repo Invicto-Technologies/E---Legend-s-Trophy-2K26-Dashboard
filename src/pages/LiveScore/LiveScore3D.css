@@ -1097,9 +1097,9 @@
 }
 
 .delivery-token.six {
-    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
 }
 
 .delivery-token.four {
@@ -1115,10 +1115,10 @@
 }
 
 .delivery-token.penalty {
-    background: linear-gradient(135deg, #d946ef, #a855f7);
+    background: linear-gradient(135deg, #0284c7, #0369a1);
     color: #ffffff;
-    border: 1px solid #f0abfc;
-    box-shadow: 0 0 8px rgba(217, 70, 239, 0.5);
+    border: 1px solid #38bdf8;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
 }
 
 .delivery-token.dot {
@@ -1649,9 +1649,9 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: linear-gradient(135deg, rgba(217, 70, 239, 0.25), rgba(168, 85, 247, 0.2));
-    border: 1px solid #d946ef;
-    color: #f0abfc;
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.25), rgba(14, 165, 233, 0.2));
+    border: 1px solid #38bdf8;
+    color: #e0f2fe;
     font-size: 0.72rem;
     font-weight: 800;
     padding: 2px 8px;
@@ -1659,7 +1659,7 @@
     text-transform: uppercase;
     letter-spacing: 0.4px;
     margin-left: 6px;
-    box-shadow: 0 0 10px rgba(217, 70, 239, 0.35);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
 }
 
 .extras-subtext {
@@ -2341,8 +2341,8 @@
 }
 
 .comm-stream-item.six {
-    border-color: rgba(139, 92, 246, 0.4);
-    background: linear-gradient(90deg, rgba(139, 92, 246, 0.08) 0%, var(--bg-space-secondary) 100%);
+    border-color: rgba(59, 130, 246, 0.45);
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.12) 0%, var(--bg-space-secondary) 100%);
 }
 
 .comm-stream-item.four {
@@ -2409,9 +2409,9 @@
 }
 
 .comm-ball-token.six {
-    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
     color: #ffffff;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
 }
 
 .comm-ball-token.four {
@@ -2427,17 +2427,17 @@
 }
 
 .comm-ball-token.penalty {
-    background: linear-gradient(135deg, #d946ef, #a855f7);
+    background: linear-gradient(135deg, #0284c7, #0369a1);
     color: #ffffff;
-    border: 1.5px solid #f0abfc;
-    box-shadow: 0 0 12px rgba(217, 70, 239, 0.6);
+    border: 1.5px solid #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
     font-size: 0.70rem;
     letter-spacing: -0.5px;
 }
 
 .comm-stream-item.penalty {
-    border-left: 3px solid #d946ef;
-    background: rgba(217, 70, 239, 0.05);
+    border-left: 3px solid #0284c7;
+    background: rgba(2, 132, 199, 0.06);
 }
 
 .comm-ball-token.dot {
@@ -2502,6 +2502,10 @@
 
 .match-info-card {
     background: var(--bg-card);
+    background-image: 
+        radial-gradient(circle at 92% 12%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
+        radial-gradient(circle at 8% 88%, rgba(37, 99, 235, 0.05) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2338bdf8' fill-opacity='0.025' fill-rule='evenodd'%3E%3Cpath d='M26 0L0 26l26 26 26-26L26 0zm0 6.83L45.17 26 26 45.17 6.83 26 26 6.83z'/%3E%3Ccircle cx='26' cy='26' r='4'/%3E%3C/g%3E%3C/svg%3E");
     border: 1px solid var(--bg-card-border);
     border-radius: 20px;
     padding: 28px;
@@ -2514,6 +2518,9 @@
     gap: 16px;
     margin-bottom: 32px;
     background: var(--bg-space-secondary);
+    background-image: 
+        radial-gradient(circle at 90% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2338bdf8' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M26 0L0 26l26 26 26-26L26 0zm0 6.83L45.17 26 26 45.17 6.83 26 26 6.83z'/%3E%3Ccircle cx='26' cy='26' r='4'/%3E%3C/g%3E%3C/svg%3E");
     border: 1px solid var(--bg-card-border);
     border-radius: 16px;
     padding: 20px;
@@ -3810,16 +3817,16 @@
 }
 
 [data-theme="light"] .comm-ball-token.penalty {
-    background: linear-gradient(135deg, #a21caf, #7e22ce);
+    background: linear-gradient(135deg, #0284c7, #0369a1);
     color: #ffffff;
-    border: 1.5px solid #c084fc;
-    box-shadow: 0 0 10px rgba(162, 28, 175, 0.4);
+    border: 1.5px solid #38bdf8;
+    box-shadow: 0 0 8px rgba(2, 132, 199, 0.35);
 }
 
 [data-theme="light"] .extras-penalty-badge {
-    background: #fae8ff;
-    border-color: #d946ef;
-    color: #86198f;
+    background: #e0f2fe;
+    border-color: #38bdf8;
+    color: #0284c7;
 }
 
 [data-theme="light"] .match-info-card {
