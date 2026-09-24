@@ -2,54 +2,54 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- Home Page -->
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/home</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/home</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
 
   <!-- Live Match Center -->
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/live</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/live</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>always</changefreq>
     <priority>0.95</priority>
   </url>
 
   <!-- Match Fixtures & Schedule -->
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/fixtures</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/fixtures</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.85</priority>
   </url>
 
   <!-- Standings & Team Rankings -->
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/rankings</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/rankings</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
 
   <!-- Tournament History & Previous Editions -->
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/history</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/history</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <!-- App Download & Publishing -->
   <url>
-    <loc>https://elt-2k26-dashboard.vercel.app/download</loc>
-    <lastmod>2026-09-22</lastmod>
+    <loc>https://e-legends-2k26.vercel.app/download</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>

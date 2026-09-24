@@ -5,4 +5,4 @@ Disallow: /admin/
 Disallow: /auth/
 
 # XML Sitemap
-Sitemap: https://elt-2k26-dashboard.vercel.app/sitemap.xml
+Sitemap: https://e-legends-2k26.vercel.app/sitemap.xml
