@@ -58,6 +58,23 @@ const PublishingPage = () => {
     const [isDownloadingApk, setIsDownloadingApk] = useState(false);
     const [downloadCount, setDownloadCount] = useState(0);
     const [ghDownloadCount, setGhDownloadCount] = useState(0);
+    const [hasJoinedTestersGroup, setHasJoinedTestersGroup] = useState(() => {
+        try {
+            return localStorage.getItem('eltrophy_joined_testers_group') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const markGroupJoined = (val) => {
+        setHasJoinedTestersGroup(prev => {
+            const next = typeof val === 'function' ? val(prev) : (typeof val === 'boolean' ? val : !prev);
+            try {
+                localStorage.setItem('eltrophy_joined_testers_group', String(next));
+            } catch { }
+            return next;
+        });
+    };
 
     // Realtime download count subscription
     useEffect(() => {
@@ -914,71 +931,173 @@ const PublishingPage = () => {
                             <MdClose />
                         </button>
 
-                        <div className="pub-modal-hero">
-                            <div className="pub-modal-icon-glow">
-                                {comingSoonPlatform === 'Google Play Store' ? (
-                                    <FaGooglePlay className="pub-modal-platform-icon" />
-                                ) : comingSoonPlatform === 'Huawei AppGallery' ? (
-                                    <SiAppgallery className="pub-modal-platform-icon" style={{ color: '#ef4444' }} />
-                                ) : (
-                                    <MdAndroid className="pub-modal-platform-icon" />
-                                )}
-                            </div>
-                            <span className="pub-modal-tag">OFFICIAL RELEASE IN PROGRESS</span>
-                            <h2 className="pub-modal-title">E-Legends Mobile App Releasing Soon!</h2>
-                            <p className="pub-modal-subtitle">
-                                {comingSoonPlatform === 'Huawei AppGallery' ? (
-                                    <>
-                                        The official tournament mobile app for <strong>Huawei AppGallery</strong> is currently undergoing final staging and store verification. AppGallery listing will unlock soon!
-                                    </>
-                                ) : comingSoonPlatform === 'Google Play Store' ? (
-                                    <>
-                                        The official tournament mobile app for <strong>Google Play Store</strong> is currently undergoing review. Direct Play Store installation will unlock on Matchday 1!
-                                    </>
-                                ) : (
-                                    <>
-                                        The official <strong>Android APK</strong> is being built and prepared for this repository. Once a release with the .apk asset is published in this repository, clicking the Android APK button will download it automatically.
-                                    </>
-                                )}
-                            </p>
-                        </div>
+                        {comingSoonPlatform === 'Google Play Store' ? (
+                            <div className="pub-modal-playstore-flow">
+                                <div className="pub-modal-hero">
+                                    <div className="pub-modal-icon-glow play-glow">
+                                        <FaGooglePlay className="pub-modal-platform-icon" />
+                                    </div>
+                                    <h2 className="pub-modal-title">Install via Google Play Store</h2>
+                                    <p className="pub-modal-subtitle">
+                                        Follow these 2 quick steps to install directly through Google Play and have your download officially counted by Google!
+                                    </p>
+                                </div>
 
-                        <div className="pub-modal-features-grid">
-                            <div className="pub-modal-feat-item">
-                                <div className="feat-icon-box"><MdBolt /></div>
-                                <div className="feat-texts">
-                                    <strong>Ultra-Fast Live Scores</strong>
-                                    <span>Real-time ball-by-ball synchronization</span>
-                                </div>
-                            </div>
-                            <div className="pub-modal-feat-item">
-                                <div className="feat-icon-box"><MdTimeline /></div>
-                                <div className="feat-texts">
-                                    <strong>Interactive Wagon Wheels</strong>
-                                    <span>3D shot placement charts &amp; boundary replays</span>
-                                </div>
-                            </div>
-                            <div className="pub-modal-feat-item">
-                                <div className="feat-icon-box"><MdNotificationsActive /></div>
-                                <div className="feat-texts">
-                                    <strong>Instant Match Alerts</strong>
-                                    <span>Wickets, sixes, milestones &amp; DLS alerts</span>
-                                </div>
-                            </div>
-                        </div>
+                                <div className="pub-modal-steps-list">
+                                    <div className={`pub-modal-step-card ${hasJoinedTestersGroup ? 'step-completed' : ''}`}>
+                                        <div className="step-num-badge">
+                                            {hasJoinedTestersGroup ? <MdCheckCircleOutline /> : '1'}
+                                        </div>
+                                        <div className="step-card-content">
+                                            <div className="step-card-header">
+                                                <strong>Join Google Group</strong>
+                                                {hasJoinedTestersGroup && (
+                                                    <span className="step-verified-pill">
+                                                        <MdCheckCircleOutline /> Joined
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="step-card-desc">
+                                                Google Play requires your Google account to belong to our official group:
+                                                <code className="step-group-email">e-legends-trophy-2k26@googlegroups.com</code>
+                                            </p>
+                                            <div className="step-mail-note">
+                                                <MdPrivacyTip className="mail-note-icon" />
+                                                <span><strong>Important:</strong> Use the <em>same Google account</em> (Gmail) for both this group and your Google Play Store app.</span>
+                                            </div>
+                                            <div className="step-actions-row">
+                                                <a
+                                                    href="https://groups.google.com/g/e-legends-trophy-2k26"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="pub-modal-step-btn group-link"
+                                                    onClick={() => markGroupJoined(true)}
+                                                >
+                                                    <span>Join Google Group</span>
+                                                    <MdOpenInNew />
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    className={`step-toggle-joined-btn ${hasJoinedTestersGroup ? 'active' : ''}`}
+                                                    onClick={() => markGroupJoined(prev => !prev)}
+                                                >
+                                                    {hasJoinedTestersGroup ? '✓ Group Joined' : 'I Already Joined'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                        <div className="pub-modal-footer">
-                            <div className="pub-modal-badge-info">
-                                <span className="pub-live-dot" /> Tournament Ready
+                                    <div className={`pub-modal-step-card primary-step ${!hasJoinedTestersGroup ? 'is-locked' : 'is-unlocked'}`}>
+                                        <div className="step-num-badge">2</div>
+                                        <div className="step-card-content">
+                                            <div className="step-card-header">
+                                                <strong>Click "Become a Tester" to Download</strong>
+                                                {!hasJoinedTestersGroup ? (
+                                                    <span className="step-locked-pill">
+                                                        <MdLock /> Locked
+                                                    </span>
+                                                ) : (
+                                                    <span className="step-verified-pill">
+                                                        <MdCheckCircleOutline /> Ready
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="step-card-desc">
+                                                {hasJoinedTestersGroup ? (
+                                                    <>Tap below, click <strong>"BECOME A TESTER"</strong>, and then tap <strong>"Download it on Google Play"</strong>.</>
+                                                ) : (
+                                                    <>Join the Google Group in <strong>Step 1</strong> above to unlock the Google Play testing track.</>
+                                                )}
+                                            </p>
+                                            {hasJoinedTestersGroup ? (
+                                                <a
+                                                    href="https://play.google.com/apps/testing/com.eltrophy.app.e_legends_trophy"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="pub-modal-step-btn play-cta-btn enabled-active"
+                                                >
+                                                    <FaGooglePlay className="btn-play-ico" />
+                                                    <span>Click "Become a Tester"</span>
+                                                    <MdOpenInNew />
+                                                </a>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    className="pub-modal-step-btn play-cta-btn disabled-locked"
+                                                    title="Please join the Google Group in Step 1 first to unlock"
+                                                >
+                                                    <MdLock className="btn-play-ico" />
+                                                    <span>Join Group in Step 1 to Unlock</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <button
-                                type="button"
-                                className="pub-modal-btn-confirm"
-                                onClick={() => setShowComingSoonModal(false)}
-                            >
-                                Got It, Keep Me Posted!
-                            </button>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="pub-modal-hero">
+                                    <div className="pub-modal-icon-glow">
+                                        {comingSoonPlatform === 'Huawei AppGallery' ? (
+                                            <SiAppgallery className="pub-modal-platform-icon" style={{ color: '#ef4444' }} />
+                                        ) : (
+                                            <MdAndroid className="pub-modal-platform-icon" />
+                                        )}
+                                    </div>
+                                    <span className="pub-modal-tag">OFFICIAL RELEASE IN PROGRESS</span>
+                                    <h2 className="pub-modal-title">E-Legends Mobile App Releasing Soon!</h2>
+                                    <p className="pub-modal-subtitle">
+                                        {comingSoonPlatform === 'Huawei AppGallery' ? (
+                                            <>
+                                                The official tournament mobile app for <strong>Huawei AppGallery</strong> is currently undergoing final staging and store verification. AppGallery listing will unlock soon!
+                                            </>
+                                        ) : (
+                                            <>
+                                                The official <strong>Android APK</strong> is being built and prepared for this repository. Once a release with the .apk asset is published in this repository, clicking the Android APK button will download it automatically.
+                                            </>
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div className="pub-modal-features-grid">
+                                    <div className="pub-modal-feat-item">
+                                        <div className="feat-icon-box"><MdBolt /></div>
+                                        <div className="feat-texts">
+                                            <strong>Ultra-Fast Live Scores</strong>
+                                            <span>Real-time ball-by-ball synchronization</span>
+                                        </div>
+                                    </div>
+                                    <div className="pub-modal-feat-item">
+                                        <div className="feat-icon-box"><MdTimeline /></div>
+                                        <div className="feat-texts">
+                                            <strong>Interactive Wagon Wheels</strong>
+                                            <span>3D shot placement charts &amp; boundary replays</span>
+                                        </div>
+                                    </div>
+                                    <div className="pub-modal-feat-item">
+                                        <div className="feat-icon-box"><MdNotificationsActive /></div>
+                                        <div className="feat-texts">
+                                            <strong>Instant Match Alerts</strong>
+                                            <span>Wickets, sixes, milestones &amp; DLS alerts</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pub-modal-footer">
+                                    <div className="pub-modal-badge-info">
+                                        <span className="pub-live-dot" /> Tournament Ready
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="pub-modal-btn-confirm"
+                                        onClick={() => setShowComingSoonModal(false)}
+                                    >
+                                        Got It, Keep Me Posted!
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>,
                 document.body
