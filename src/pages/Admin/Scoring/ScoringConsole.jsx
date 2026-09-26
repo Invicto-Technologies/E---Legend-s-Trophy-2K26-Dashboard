@@ -38,7 +38,9 @@ import {
     MdAutorenew,
     MdCloudQueue,
     MdGroups,
-    MdLock
+    MdLock,
+    MdLockOpen,
+    MdPersonPin
 } from 'react-icons/md';
 import { GiCricketBat } from 'react-icons/gi';
 import { FaCoins, FaTrophy } from 'react-icons/fa6';
@@ -51,6 +53,64 @@ import { calculateDlsTarget } from '../../../utils/dlsEngine';
 import { calculateMatchResult } from '../../../utils/cricketEngine';
 import { isMatchFinished } from '../../../components/common/MatchCard/MatchCard';
 import './ScoringConsole.css';
+
+// Reusable helper to check if a player is dismissed in the batting innings
+export const isPlayerDismissedInInnings = (player, battingTeamData) => {
+    if (!player) return false;
+    const pIdStr = player.id != null ? String(player.id) : null;
+    const pNameClean = (player.name || '').trim().toLowerCase();
+
+    // 1. Direct status or dismissal property
+    if (player.status === 'out') return true;
+    if (player.dismissal && typeof player.dismissal === 'string' && player.dismissal.trim() !== '') {
+        const dLow = player.dismissal.trim().toLowerCase();
+        if (dLow !== 'yet to bat' && dLow !== 'not out') {
+            return true;
+        }
+    }
+
+    if (!battingTeamData) return false;
+
+    // 2. Check team's player map entry
+    const pData = pIdStr && battingTeamData.players ? battingTeamData.players[pIdStr] : null;
+    if (pData) {
+        if (pData.status === 'out') return true;
+        if (pData.dismissal && typeof pData.dismissal === 'string' && pData.dismissal.trim() !== '') {
+            const dLow = pData.dismissal.trim().toLowerCase();
+            if (dLow !== 'yet to bat' && dLow !== 'not out') {
+                return true;
+            }
+        }
+    }
+
+    // 3. Check fallOfWickets
+    if (battingTeamData.fallOfWickets) {
+        const inFow = Object.values(battingTeamData.fallOfWickets).some(f => {
+            if (!f) return false;
+            const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+            const fBatsmanName = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+            if (fOutId && pIdStr && fOutId === pIdStr) return true;
+            if (fBatsmanName && pNameClean && fBatsmanName === pNameClean) return true;
+            return false;
+        });
+        if (inFow) return true;
+    }
+
+    // 4. Check completed partnerships outBatsman
+    if (battingTeamData.partnerships) {
+        const inParts = Object.values(battingTeamData.partnerships).some(part => {
+            if (!part || !part.outBatsman) return false;
+            const partOutId = part.outBatsman.id != null ? String(part.outBatsman.id) : null;
+            const partOutName = (part.outBatsman.name || '').trim().toLowerCase();
+            if (partOutId && pIdStr && partOutId === pIdStr) return true;
+            if (partOutName && pNameClean && partOutName === pNameClean) return true;
+            return false;
+        });
+        if (inParts) return true;
+    }
+
+    return false;
+};
 
 const ScoringConsole = () => {
     const location = useLocation();
@@ -125,6 +185,13 @@ const ScoringConsole = () => {
     const [strikerId, setStrikerId] = useState(null);
     const [nonStrikerId, setNonStrikerId] = useState(null);
     const [bowlerId, setBowlerId] = useState(null);
+
+    // Force Crease Batters Modal & Inline Unlock
+    const [showForceChangeModal, setShowForceChangeModal] = useState(false);
+    const [forceStrikerId, setForceStrikerId] = useState('');
+    const [forceNonStrikerId, setForceNonStrikerId] = useState('');
+    const [forceReinstateOut, setForceReinstateOut] = useState(true);
+    const [isForceCreaseUnlocked, setIsForceCreaseUnlocked] = useState(false);
 
     // Wagon Wheel Modal State (for batsman stats inspection)
     const [showWWheelModal, setShowWWheelModal] = useState(false);
@@ -777,17 +844,64 @@ const ScoringConsole = () => {
                 const currentBowling = data[bowlKey];
 
                 const bList = Object.values(currentBatting?.players || {});
+                const totalBalls = Number(currentBatting?.totalBalls || 0);
+                const totalWickets = Number(currentBatting?.totalWickets || 0);
+
+                // Safe resolution of Striker (never pick a player who is already dismissed)
+                let resolvedStrikerId = null;
                 if (currentBatting?.ballFaceBatsman?.id != null) {
-                    setStrikerId(currentBatting.ballFaceBatsman.id);
-                } else if (bList.length >= 1) {
-                    setStrikerId(prev => prev || bList[0].id);
+                    const sId = currentBatting.ballFaceBatsman.id;
+                    const sPlayer = bList.find(p => String(p.id) === String(sId)) || currentBatting.players?.[sId] || currentBatting.ballFaceBatsman;
+                    if (!isPlayerDismissedInInnings(sPlayer, currentBatting)) {
+                        resolvedStrikerId = sId;
+                    }
                 }
 
+                // Safe resolution of Non-Striker (never pick a player who is already dismissed or striker)
+                let resolvedNonStrikerId = null;
                 if (currentBatting?.otherSideBatsman?.id != null) {
-                    setNonStrikerId(currentBatting.otherSideBatsman.id);
-                } else if (bList.length >= 2) {
-                    setNonStrikerId(prev => prev || bList[1].id);
+                    const nsId = currentBatting.otherSideBatsman.id;
+                    const nsPlayer = bList.find(p => String(p.id) === String(nsId)) || currentBatting.players?.[nsId] || currentBatting.otherSideBatsman;
+                    if (!isPlayerDismissedInInnings(nsPlayer, currentBatting) && String(nsId) !== String(resolvedStrikerId)) {
+                        resolvedNonStrikerId = nsId;
+                    }
                 }
+
+                // If either is missing, check active currentPartnership
+                const curPart = currentBatting?.currentPartnership;
+                if (curPart) {
+                    if (resolvedStrikerId == null && curPart.batsman1?.id != null && !isPlayerDismissedInInnings(curPart.batsman1, currentBatting)) {
+                        resolvedStrikerId = curPart.batsman1.id;
+                    }
+                    if (resolvedNonStrikerId == null && curPart.batsman2?.id != null && !isPlayerDismissedInInnings(curPart.batsman2, currentBatting) && String(curPart.batsman2.id) !== String(resolvedStrikerId)) {
+                        resolvedNonStrikerId = curPart.batsman2.id;
+                    }
+                }
+
+                // Fallback check to players marked as 'batting' / 'striker' / 'non-striker'
+                const notOutBatters = bList.filter(p => !isPlayerDismissedInInnings(p, currentBatting));
+                if (resolvedStrikerId == null) {
+                    const activeBat = notOutBatters.find(p => (p.status === 'batting' || p.status === 'striker') && String(p.id) !== String(resolvedNonStrikerId));
+                    if (activeBat) resolvedStrikerId = activeBat.id;
+                }
+                if (resolvedNonStrikerId == null) {
+                    const activeNonBat = notOutBatters.find(p => (p.status === 'non-striker' || (p.status === 'batting' && String(p.id) !== String(resolvedStrikerId))));
+                    if (activeNonBat) resolvedNonStrikerId = activeNonBat.id;
+                }
+
+                // ONLY if the innings has NOT started yet (0 balls & 0 wickets): default to first 2 available not-out openers
+                if (totalBalls === 0 && totalWickets === 0) {
+                    if (resolvedStrikerId == null && notOutBatters.length >= 1) {
+                        resolvedStrikerId = notOutBatters[0].id;
+                    }
+                    if (resolvedNonStrikerId == null && notOutBatters.length >= 2) {
+                        resolvedNonStrikerId = notOutBatters.find(p => String(p.id) !== String(resolvedStrikerId))?.id || notOutBatters[1]?.id;
+                    }
+                }
+
+                // If a wicket just fell during live play, resolvedStrikerId or resolvedNonStrikerId will properly stay null (Select Batsman...)
+                setStrikerId(resolvedStrikerId != null ? resolvedStrikerId : null);
+                setNonStrikerId(resolvedNonStrikerId != null ? resolvedNonStrikerId : null);
 
                 const bowlList = Object.values(currentBowling?.bowlers || currentBowling?.players || {});
                 if (currentBowling?.bowler?.id != null) {
@@ -2064,17 +2178,23 @@ const ScoringConsole = () => {
         ? bowlingPlayersList.filter(p => p.type === 'Playing XI')
         : Object.values(matchData[currentBowlingTeamKey]?.bowlers || matchData[currentBowlingTeamKey]?.players || {});
 
-    const striker = (strikerId != null && strikerId !== '')
+    const isStrikerValid = strikerId != null && strikerId !== '' && !isPlayerDismissedInInnings({ id: strikerId }, battingTeamData);
+    const striker = isStrikerValid
         ? (activeBattingSquad.find(p => String(p.id) === String(strikerId)) || battingTeamData.players?.[strikerId] || { name: 'Striker', runs: 0, balls: 0, id: strikerId })
-        : (showNextBatterModal || battingTeamData.ballFaceBatsman?.id == null
+        : (showNextBatterModal || battingTeamData.ballFaceBatsman?.id == null || isPlayerDismissedInInnings(battingTeamData.ballFaceBatsman, battingTeamData)
             ? { id: '', name: 'Select Batsman...', runs: 0, balls: 0 }
-            : (battingTeamData.ballFaceBatsman?.id ? battingTeamData.ballFaceBatsman : activeBattingSquad.find(p => !p.dismissal && p.status !== 'out') || activeBattingSquad[0] || { name: 'Striker', runs: 0, balls: 0, id: 1 }));
+            : (battingTeamData.ballFaceBatsman?.id
+                ? battingTeamData.ballFaceBatsman
+                : activeBattingSquad.find(p => !isPlayerDismissedInInnings(p, battingTeamData)) || { name: 'Select Batsman...', runs: 0, balls: 0, id: '' }));
 
-    const nonStriker = (nonStrikerId != null && nonStrikerId !== '')
+    const isNonStrikerValid = nonStrikerId != null && nonStrikerId !== '' && !isPlayerDismissedInInnings({ id: nonStrikerId }, battingTeamData);
+    const nonStriker = isNonStrikerValid
         ? (activeBattingSquad.find(p => String(p.id) === String(nonStrikerId)) || battingTeamData.players?.[nonStrikerId] || { name: 'Non-Striker', runs: 0, balls: 0, id: nonStrikerId })
-        : (showNextBatterModal || battingTeamData.otherSideBatsman?.id == null
+        : (showNextBatterModal || battingTeamData.otherSideBatsman?.id == null || isPlayerDismissedInInnings(battingTeamData.otherSideBatsman, battingTeamData)
             ? { id: '', name: 'Select Batsman...', runs: 0, balls: 0 }
-            : (battingTeamData.otherSideBatsman?.id ? battingTeamData.otherSideBatsman : activeBattingSquad.find(p => String(p.id) !== String(striker?.id) && !p.dismissal && p.status !== 'out') || activeBattingSquad[1] || { name: 'Non-Striker', runs: 0, balls: 0, id: 2 }));
+            : (battingTeamData.otherSideBatsman?.id
+                ? battingTeamData.otherSideBatsman
+                : activeBattingSquad.find(p => String(p.id) !== String(striker?.id) && !isPlayerDismissedInInnings(p, battingTeamData)) || { name: 'Select Batsman...', runs: 0, balls: 0, id: '' }));
 
     const bowler = activeBowlingSquad.find(p => String(p.id) === String(bowlerId)) || (bowlingTeamData.bowler && activeBowlingSquad.find(p => String(p.id) === String(bowlingTeamData.bowler.id))) || activeBowlingSquad[0] || { name: 'Bowler', overs: 0, runs: 0, wickets: 0, id: 1 };
 
@@ -2887,6 +3007,156 @@ const ScoringConsole = () => {
 
             toastRef.current?.showToast('info', 'Shifted Striker and Non-Striker batters at the crease.');
         }, 'Shifting Crease Batters...', 'Swapping striker and non-striker positions...');
+    };
+
+    // Open Force Player Change Modal
+    const handleOpenForceChangeModal = () => {
+        setForceStrikerId(striker.id || '');
+        setForceNonStrikerId(nonStriker.id || '');
+        setForceReinstateOut(true);
+        setShowForceChangeModal(true);
+    };
+
+    // Force Change Striker & Non-Striker Batters
+    const handleExecuteForceChange = async (overrideStrikerId, overrideNonStrikerId, reinstateOut = forceReinstateOut) => {
+        const finalStrikerId = overrideStrikerId !== undefined ? overrideStrikerId : forceStrikerId;
+        const finalNonStrikerId = overrideNonStrikerId !== undefined ? overrideNonStrikerId : forceNonStrikerId;
+
+        if (!finalStrikerId || !finalNonStrikerId) {
+            toastRef.current?.showToast('error', 'Please select both Striker and Non-Striker.');
+            return;
+        }
+
+        if (String(finalStrikerId) === String(finalNonStrikerId)) {
+            toastRef.current?.showToast('error', 'Striker and Non-Striker must be different players.');
+            return;
+        }
+
+        if (!matchData || !activeMatchTitle) return;
+
+        await withProcessing(async () => {
+            const bKey = isTeam1Batting ? 'team1' : 'team2';
+            const updated = JSON.parse(JSON.stringify(matchData));
+            updated[bKey] = updated[bKey] || {};
+            updated[bKey].players = updated[bKey].players || {};
+
+            const teamRoster = playersList.length > 0 ? playersList : Object.values(updated[bKey].players || {});
+
+            const rawStrikerObj = updated[bKey].players[finalStrikerId] || teamRoster.find(p => String(p.id) === String(finalStrikerId)) || { id: finalStrikerId, name: 'Striker' };
+            const rawNonStrikerObj = updated[bKey].players[finalNonStrikerId] || teamRoster.find(p => String(p.id) === String(finalNonStrikerId)) || { id: finalNonStrikerId, name: 'Non-Striker' };
+
+            // Save history for undo safety
+            setHistoryStack(prev => [JSON.parse(JSON.stringify(matchData)), ...prev].slice(0, 10));
+
+            // Process Striker
+            if (!updated[bKey].players[finalStrikerId]) {
+                updated[bKey].players[finalStrikerId] = {
+                    ...rawStrikerObj,
+                    runs: 0,
+                    balls: 0,
+                    fours: 0,
+                    sixes: 0,
+                    boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                    strikeRate: '0.00',
+                    dismissal: '',
+                    status: 'batting'
+                };
+            } else {
+                updated[bKey].players[finalStrikerId].status = 'batting';
+                if (reinstateOut) {
+                    updated[bKey].players[finalStrikerId].dismissal = '';
+                }
+            }
+
+            // Process Non-Striker
+            if (!updated[bKey].players[finalNonStrikerId]) {
+                updated[bKey].players[finalNonStrikerId] = {
+                    ...rawNonStrikerObj,
+                    runs: 0,
+                    balls: 0,
+                    fours: 0,
+                    sixes: 0,
+                    boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                    strikeRate: '0.00',
+                    dismissal: '',
+                    status: 'batting'
+                };
+            } else {
+                updated[bKey].players[finalNonStrikerId].status = 'batting';
+                if (reinstateOut) {
+                    updated[bKey].players[finalNonStrikerId].dismissal = '';
+                }
+            }
+
+            const newStriker = updated[bKey].players[finalStrikerId];
+            const newNonStriker = updated[bKey].players[finalNonStrikerId];
+
+            updated[bKey].ballFaceBatsman = newStriker;
+            updated[bKey].otherSideBatsman = newNonStriker;
+
+            // If fallOfWickets had either player and reinstateOut is true, clean them up and adjust wicket count
+            if (reinstateOut && updated[bKey].fallOfWickets) {
+                const fowEntries = Object.entries(updated[bKey].fallOfWickets);
+                let removedCount = 0;
+                fowEntries.forEach(([key, f]) => {
+                    if (!f) return;
+                    const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                    const fName = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                    const sMatch = (fOutId && String(finalStrikerId) === fOutId) || (fName && (newStriker.name || '').trim().toLowerCase() === fName);
+                    const nsMatch = (fOutId && String(finalNonStrikerId) === fOutId) || (fName && (newNonStriker.name || '').trim().toLowerCase() === fName);
+                    if (sMatch || nsMatch) {
+                        delete updated[bKey].fallOfWickets[key];
+                        removedCount += 1;
+                    }
+                });
+                if (removedCount > 0) {
+                    updated[bKey].totalWickets = Math.max(0, Number(updated[bKey].totalWickets || 0) - removedCount);
+                }
+            }
+
+            // Sync currentPartnership
+            updated[bKey].currentPartnership = {
+                batsman1: newStriker,
+                batsman2: newNonStriker,
+                batsman1Runs: newStriker.runs || 0,
+                batsman1Balls: newStriker.balls || 0,
+                batsman2Runs: newNonStriker.runs || 0,
+                batsman2Balls: newNonStriker.balls || 0,
+                startScore: updated[bKey].totalRuns || 0,
+                startBalls: updated[bKey].totalBalls || 0
+            };
+
+            setStrikerId(finalStrikerId);
+            setNonStrikerId(finalNonStrikerId);
+            setMatchData(updated);
+
+            await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
+
+            await updateLiveData({
+                isLive: 1,
+                currentMatchPath: activeMatchTitle,
+                liveScore: {
+                    matchTitle: activeMatchTitle,
+                    firstBat: common.firstBat,
+                    status: `${newStriker.name} on strike | ${bowler.name} bowling`,
+                    team1: {
+                        name: updated.team1?.name,
+                        overs: updated.team1?.overs ?? 0,
+                        score: updated.team1?.totalRuns ?? 0,
+                        wicket: updated.team1?.totalWickets ?? 0
+                    },
+                    team2: {
+                        name: updated.team2?.name,
+                        overs: updated.team2?.overs ?? 0,
+                        score: updated.team2?.totalRuns ?? 0,
+                        wicket: updated.team2?.totalWickets ?? 0
+                    }
+                }
+            });
+
+            setShowForceChangeModal(false);
+            toastRef.current?.showToast('success', `Forcefully changed crease batters to ${newStriker.name} (*) & ${newNonStriker.name}!`);
+        }, 'Force Changing Batters...', 'Assigning Striker and Non-Striker at the crease...');
     };
 
     // Manual Crease Selection Changes with Partnership Sync & Batter Status Reset
@@ -4075,6 +4345,24 @@ const ScoringConsole = () => {
 
                         {/* 2. Striker, Non-Striker and Bowler Section (Space-Saving Row-by-Row) */}
                         <div className="sc-crease-grid compact-rows">
+                            {/* Crease Toolbar with Force Unlock Toggle */}
+                            <div className="sc-crease-toolbar">
+                                <div className="sc-crease-toolbar-title">
+                                    <span>Crease Batters & Bowler</span>
+                                </div>
+                                <div className="sc-crease-toolbar-actions">
+                                    <button
+                                        type="button"
+                                        className={`sc-crease-unlock-btn ${isForceCreaseUnlocked ? 'unlocked' : ''}`}
+                                        onClick={() => setIsForceCreaseUnlocked(prev => !prev)}
+                                        title={isForceCreaseUnlocked ? "Click to lock crease selectors" : "Click to unlock crease selectors and change batters directly on board"}
+                                    >
+                                        {isForceCreaseUnlocked ? <MdLockOpen /> : <MdLock />}
+                                        <span>{isForceCreaseUnlocked ? 'Crease Unlocked' : 'Unlock Crease'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* Striker Row Card */}
                             <div className="sc-crease-box striker compact-row">
                                 <div className="sc-cb-top-line">
@@ -4094,44 +4382,36 @@ const ScoringConsole = () => {
                                     </div>
                                     <select
                                         value={striker.id || ''}
-                                        disabled={isStrikerLocked}
+                                        disabled={!isForceCreaseUnlocked && isStrikerLocked}
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (!val) return;
                                             const newId = Number(val);
-                                            setStrikerId(newId);
-                                            handleManualBatterChange(newId, 'striker');
+                                            if (isForceCreaseUnlocked) {
+                                                handleExecuteForceChange(newId, nonStrikerId, true);
+                                            } else {
+                                                setStrikerId(newId);
+                                                handleManualBatterChange(newId, 'striker');
+                                            }
                                         }}
-                                        className={`sc-crease-select compact ${isStrikerLocked ? 'sc-select-locked' : ''}`}
-                                        title={isStrikerLocked ? "Batter has faced deliveries / batted. Selection locked." : "Select or change Striker"}
+                                        className={`sc-crease-select compact ${(!isForceCreaseUnlocked && isStrikerLocked) ? 'sc-select-locked' : ''} ${isForceCreaseUnlocked ? 'sc-select-force-unlocked' : ''}`}
+                                        title={isForceCreaseUnlocked ? "Force Unlocked: Select any batter" : (isStrikerLocked ? "Batter has faced deliveries / batted. Unlock Crease to change." : "Select or change Striker")}
                                     >
                                         {!striker.id && (
                                             <option value="" disabled>-- Select Striker --</option>
                                         )}
                                         {activeBattingSquad.map(p => {
                                             if (!p) return null;
-                                            const pStats = battingTeamData.players?.[p.id] || p;
-                                            const pIdStr = p.id != null ? String(p.id) : null;
-                                            const pNameClean = (p.name || '').trim().toLowerCase();
-                                            const isOut = Boolean(
-                                                p.dismissal ||
-                                                p.status === 'out' ||
-                                                pStats?.dismissal ||
-                                                pStats?.status === 'out' ||
-                                                Object.values(battingTeamData.fallOfWickets || {}).some(f => {
-                                                    if (!f) return false;
-                                                    const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
-                                                    const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
-                                                    return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
-                                                })
-                                            );
+                                            const isOut = isPlayerDismissedInInnings(p, battingTeamData);
                                             const isOtherCrease = String(p.id) === String(nonStriker?.id);
                                             const isCurrent = String(p.id) === String(striker?.id);
-                                            const isDisabled = !isCurrent && (isOut || isOtherCrease);
+                                            const isDisabled = isForceCreaseUnlocked
+                                                ? (!isCurrent && isOtherCrease)
+                                                : (!isCurrent && (isOut || isOtherCrease));
 
                                             return (
                                                 <option key={p.id} value={p.id} disabled={isDisabled}>
-                                                    {p.name}
+                                                    {p.name} {isOut ? '(Out)' : ''}
                                                 </option>
                                             );
                                         })}
@@ -4165,44 +4445,36 @@ const ScoringConsole = () => {
                                     </div>
                                     <select
                                         value={nonStriker.id || ''}
-                                        disabled={isNonStrikerLocked}
+                                        disabled={!isForceCreaseUnlocked && isNonStrikerLocked}
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (!val) return;
                                             const newId = Number(val);
-                                            setNonStrikerId(newId);
-                                            handleManualBatterChange(newId, 'nonStriker');
+                                            if (isForceCreaseUnlocked) {
+                                                handleExecuteForceChange(strikerId, newId, true);
+                                            } else {
+                                                setNonStrikerId(newId);
+                                                handleManualBatterChange(newId, 'nonStriker');
+                                            }
                                         }}
-                                        className={`sc-crease-select compact ${isNonStrikerLocked ? 'sc-select-locked' : ''}`}
-                                        title={isNonStrikerLocked ? "Batter has faced deliveries / batted. Selection locked." : "Select or change Non-Striker"}
+                                        className={`sc-crease-select compact ${(!isForceCreaseUnlocked && isNonStrikerLocked) ? 'sc-select-locked' : ''} ${isForceCreaseUnlocked ? 'sc-select-force-unlocked' : ''}`}
+                                        title={isForceCreaseUnlocked ? "Force Unlocked: Select any batter" : (isNonStrikerLocked ? "Batter has faced deliveries / batted. Unlock Crease to change." : "Select or change Non-Striker")}
                                     >
                                         {!nonStriker.id && (
                                             <option value="" disabled>-- Select Non-Striker --</option>
                                         )}
                                         {activeBattingSquad.map(p => {
                                             if (!p) return null;
-                                            const pStats = battingTeamData.players?.[p.id] || p;
-                                            const pIdStr = p.id != null ? String(p.id) : null;
-                                            const pNameClean = (p.name || '').trim().toLowerCase();
-                                            const isOut = Boolean(
-                                                p.dismissal ||
-                                                p.status === 'out' ||
-                                                pStats?.dismissal ||
-                                                pStats?.status === 'out' ||
-                                                Object.values(battingTeamData.fallOfWickets || {}).some(f => {
-                                                    if (!f) return false;
-                                                    const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
-                                                    const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
-                                                    return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
-                                                })
-                                            );
+                                            const isOut = isPlayerDismissedInInnings(p, battingTeamData);
                                             const isOtherCrease = String(p.id) === String(striker?.id);
                                             const isCurrent = String(p.id) === String(nonStriker?.id);
-                                            const isDisabled = !isCurrent && (isOut || isOtherCrease);
+                                            const isDisabled = isForceCreaseUnlocked
+                                                ? (!isCurrent && isOtherCrease)
+                                                : (!isCurrent && (isOut || isOtherCrease));
 
                                             return (
                                                 <option key={p.id} value={p.id} disabled={isDisabled}>
-                                                    {p.name}
+                                                    {p.name} {isOut ? '(Out)' : ''}
                                                 </option>
                                             );
                                         })}
@@ -4273,6 +4545,14 @@ const ScoringConsole = () => {
                                     </button>
                                     <button className="sc-action-btn shift" onClick={handleShiftBatters} title="Shift Striker & Non-Striker Batters">
                                         <MdSwapHoriz /> Shift
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="sc-action-btn force-batters"
+                                        onClick={handleOpenForceChangeModal}
+                                        title="Forcefully change Striker & Non-Striker at the crease"
+                                    >
+                                        <MdPersonPin /> Force Batters
                                     </button>
                                     <button
                                         className="sc-action-btn squad"
@@ -4881,34 +5161,24 @@ const ScoringConsole = () => {
                                 <tbody>
                                     {tabPlayingXI.length > 0 ? (
                                         tabPlayingXI.map(p => {
-                                            const isStriker = (tabBattingTeamData.ballFaceBatsman && String(tabBattingTeamData.ballFaceBatsman.id) === String(p.id)) ||
-                                                (tabBattingTeamKey === currentBattingTeamKey && strikerId != null && String(strikerId) === String(p.id));
-                                            const isNonStriker = (tabBattingTeamData.otherSideBatsman && String(tabBattingTeamData.otherSideBatsman.id) === String(p.id)) ||
-                                                (tabBattingTeamKey === currentBattingTeamKey && nonStrikerId != null && String(nonStrikerId) === String(p.id));
-                                            const isCurrentlyBatting = isStriker || isNonStriker || p.status === 'batting';
-                                            const isOut = Boolean(
-                                                !isCurrentlyBatting &&
-                                                (
-                                                    (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat') ||
-                                                    p.status === 'out' ||
-                                                    Object.values(tabBattingTeamData.fallOfWickets || {}).some(f => {
-                                                        if (!f) return false;
-                                                        const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
-                                                        const fBatsman = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
-                                                        const pIdStr = p.id != null ? String(p.id) : null;
-                                                        const pNameClean = (p.name || '').trim().toLowerCase();
-                                                        return (fOutId && pIdStr && fOutId === pIdStr) || (fBatsman && pNameClean && fBatsman === pNameClean);
-                                                    })
-                                                )
+                                            const isOut = isPlayerDismissedInInnings(p, tabBattingTeamData);
+                                            const isStriker = !isOut && (
+                                                (tabBattingTeamData.ballFaceBatsman && String(tabBattingTeamData.ballFaceBatsman.id) === String(p.id)) ||
+                                                (tabBattingTeamKey === currentBattingTeamKey && strikerId != null && String(strikerId) === String(p.id))
                                             );
+                                            const isNonStriker = !isOut && (
+                                                (tabBattingTeamData.otherSideBatsman && String(tabBattingTeamData.otherSideBatsman.id) === String(p.id)) ||
+                                                (tabBattingTeamKey === currentBattingTeamKey && nonStrikerId != null && String(nonStrikerId) === String(p.id))
+                                            );
+                                            const isCurrentlyBatting = !isOut && (isStriker || isNonStriker || p.status === 'batting');
 
                                             let dismissalDisplay = 'Yet to bat';
-                                            if (isCurrentlyBatting) {
-                                                dismissalDisplay = 'Not out';
-                                            } else if (isOut) {
-                                                dismissalDisplay = (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat')
+                                            if (isOut) {
+                                                dismissalDisplay = (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat' && p.dismissal.trim().toLowerCase() !== 'not out')
                                                     ? p.dismissal
                                                     : 'out';
+                                            } else if (isCurrentlyBatting) {
+                                                dismissalDisplay = 'Not out';
                                             } else if (Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0) {
                                                 dismissalDisplay = 'Not out';
                                             } else {
@@ -6118,6 +6388,173 @@ const ScoringConsole = () => {
                                         Confirm Next Batsman
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* FORCE CHANGE CREASE BATTERS MODAL */}
+                {showForceChangeModal && (
+                    <div className="sc-modal-overlay">
+                        <div className="sc-modal-card force-change-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="sc-fc-header">
+                                <div className="sc-fc-title-group">
+                                    <span className="sc-fc-badge">CREASE OVERRIDE</span>
+                                    <h3>
+                                        <MdPersonPin className="sc-fc-icon" /> Force Change Batters
+                                    </h3>
+                                    <p>Forcefully assign or replace Striker and Non-Striker at the crease.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="sc-fc-close-btn"
+                                    onClick={() => setShowForceChangeModal(false)}
+                                    title="Close"
+                                >
+                                    <MdClose />
+                                </button>
+                            </div>
+
+                            <div className="sc-fc-body">
+                                <div className="sc-fc-selector-row">
+                                    {/* Striker Selector Card */}
+                                    <div className="sc-fc-card striker">
+                                        <div className="sc-fc-card-top">
+                                            <span className="sc-fc-label">STRIKER (*)</span>
+                                            <span className="sc-fc-pill">On Strike</span>
+                                        </div>
+                                        <div className="sc-fc-field">
+                                            <label>Select Striker</label>
+                                            <select
+                                                className="sc-fc-select"
+                                                value={forceStrikerId}
+                                                onChange={(e) => setForceStrikerId(Number(e.target.value))}
+                                            >
+                                                <option value="" disabled>-- Select Striker --</option>
+                                                {activeBattingSquad.map(p => {
+                                                    if (!p) return null;
+                                                    const isOut = isPlayerDismissedInInnings(p, battingTeamData);
+                                                    const isOther = String(p.id) === String(forceNonStrikerId);
+                                                    return (
+                                                        <option key={p.id} value={p.id} disabled={isOther}>
+                                                            {p.name} {isOut ? '⚠️ [Out]' : ''} {p.status === 'batting' ? '🏏 [Batting]' : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                        {forceStrikerId && (
+                                            <div className="sc-fc-stats-preview">
+                                                {(() => {
+                                                    const sP = activeBattingSquad.find(p => String(p.id) === String(forceStrikerId)) || battingTeamData.players?.[forceStrikerId];
+                                                    const isOut = isPlayerDismissedInInnings(sP, battingTeamData);
+                                                    return (
+                                                        <>
+                                                            <span>Runs: <strong>{sP?.runs || 0}</strong> ({sP?.balls || 0}b)</span>
+                                                            <span>4s: <strong>{sP?.boundaries?.fours || 0}</strong> | 6s: <strong>{sP?.boundaries?.sixes || 0}</strong></span>
+                                                            <span className={`sc-fc-status-badge ${isOut ? 'out' : 'active'}`}>
+                                                                {isOut ? (sP?.dismissal || 'Out') : 'Active / Ready'}
+                                                            </span>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Swap Button */}
+                                    <div className="sc-fc-swap-wrap">
+                                        <button
+                                            type="button"
+                                            className="sc-fc-swap-btn"
+                                            title="Swap Striker and Non-Striker selections"
+                                            onClick={() => {
+                                                const temp = forceStrikerId;
+                                                setForceStrikerId(forceNonStrikerId);
+                                                setForceNonStrikerId(temp);
+                                            }}
+                                        >
+                                            <MdSwapHoriz />
+                                            <span>Swap</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Non-Striker Selector Card */}
+                                    <div className="sc-fc-card non-striker">
+                                        <div className="sc-fc-card-top">
+                                            <span className="sc-fc-label">NON-STRIKER</span>
+                                            <span className="sc-fc-pill">Runner End</span>
+                                        </div>
+                                        <div className="sc-fc-field">
+                                            <label>Select Non-Striker</label>
+                                            <select
+                                                className="sc-fc-select"
+                                                value={forceNonStrikerId}
+                                                onChange={(e) => setForceNonStrikerId(Number(e.target.value))}
+                                            >
+                                                <option value="" disabled>-- Select Non-Striker --</option>
+                                                {activeBattingSquad.map(p => {
+                                                    if (!p) return null;
+                                                    const isOut = isPlayerDismissedInInnings(p, battingTeamData);
+                                                    const isOther = String(p.id) === String(forceStrikerId);
+                                                    return (
+                                                        <option key={p.id} value={p.id} disabled={isOther}>
+                                                            {p.name} {isOut ? '⚠️ [Out]' : ''} {p.status === 'batting' ? '🏏 [Batting]' : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                        {forceNonStrikerId && (
+                                            <div className="sc-fc-stats-preview">
+                                                {(() => {
+                                                    const nsP = activeBattingSquad.find(p => String(p.id) === String(forceNonStrikerId)) || battingTeamData.players?.[forceNonStrikerId];
+                                                    const isOut = isPlayerDismissedInInnings(nsP, battingTeamData);
+                                                    return (
+                                                        <>
+                                                            <span>Runs: <strong>{nsP?.runs || 0}</strong> ({nsP?.balls || 0}b)</span>
+                                                            <span>4s: <strong>{nsP?.boundaries?.fours || 0}</strong> | 6s: <strong>{nsP?.boundaries?.sixes || 0}</strong></span>
+                                                            <span className={`sc-fc-status-badge ${isOut ? 'out' : 'active'}`}>
+                                                                {isOut ? (nsP?.dismissal || 'Out') : 'Active / Ready'}
+                                                            </span>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="sc-fc-options-box">
+                                    <label className="sc-fc-checkbox-label">
+                                        <input
+                                            type="checkbox"
+                                            checked={forceReinstateOut}
+                                            onChange={(e) => setForceReinstateOut(e.target.checked)}
+                                        />
+                                        <span>
+                                            <strong>Reinstate if marked Out by mistake:</strong> Clears previous dismissal & marks player as 'batting' Not Out.
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="sc-fc-footer">
+                                <button
+                                    type="button"
+                                    className="cx-btn-secondary"
+                                    onClick={() => setShowForceChangeModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    className="cx-btn-confirm primary"
+                                    onClick={() => handleExecuteForceChange()}
+                                    disabled={!forceStrikerId || !forceNonStrikerId || String(forceStrikerId) === String(forceNonStrikerId)}
+                                >
+                                    <MdCheck /> Apply Force Change
+                                </button>
                             </div>
                         </div>
                     </div>

@@ -135,6 +135,60 @@ const LiveScore3D = () => {
         (currentClean === livePathClean || currentClean === liveTitleClean)
     );
 
+    // Helper to check if a player is dismissed in the batting innings
+    const isPlayerDismissedLive = (p, teamData) => {
+        if (!p) return false;
+        const pIdStr = p.id != null ? String(p.id) : null;
+        const pNameClean = (p.name || '').trim().toLowerCase();
+
+        if (p.status === 'out') return true;
+        if (p.dismissal && typeof p.dismissal === 'string' && p.dismissal.trim() !== '') {
+            const dLow = p.dismissal.trim().toLowerCase();
+            if (dLow !== 'yet to bat' && dLow !== 'not out') {
+                return true;
+            }
+        }
+
+        if (!teamData) return false;
+
+        const pData = pIdStr && teamData.players ? teamData.players[pIdStr] : null;
+        if (pData) {
+            if (pData.status === 'out') return true;
+            if (pData.dismissal && typeof pData.dismissal === 'string' && pData.dismissal.trim() !== '') {
+                const dLow = pData.dismissal.trim().toLowerCase();
+                if (dLow !== 'yet to bat' && dLow !== 'not out') {
+                    return true;
+                }
+            }
+        }
+
+        if (teamData.fallOfWickets) {
+            const inFow = Object.values(teamData.fallOfWickets).some(f => {
+                if (!f) return false;
+                const fOutId = f.outBatsman?.id != null ? String(f.outBatsman.id) : null;
+                const fBatsmanName = (f.batsman || f.outBatsman?.name || '').trim().toLowerCase();
+                if (fOutId && pIdStr && fOutId === pIdStr) return true;
+                if (fBatsmanName && pNameClean && fBatsmanName === pNameClean) return true;
+                return false;
+            });
+            if (inFow) return true;
+        }
+
+        if (teamData.partnerships) {
+            const inParts = Object.values(teamData.partnerships).some(part => {
+                if (!part || !part.outBatsman) return false;
+                const partOutId = part.outBatsman.id != null ? String(part.outBatsman.id) : null;
+                const partOutName = (part.outBatsman.name || '').trim().toLowerCase();
+                if (partOutId && pIdStr && partOutId === pIdStr) return true;
+                if (partOutName && pNameClean && partOutName === pNameClean) return true;
+                return false;
+            });
+            if (inParts) return true;
+        }
+
+        return false;
+    };
+
     // Helper to format authentic cricket broadcast commentary (Smart Non-Repeating System)
     const formatRealCommentary = (commItem) => {
         if (!commItem) return '';
@@ -936,8 +990,25 @@ const LiveScore3D = () => {
         : resolveTeamSquad(liveBowlingTeam, liveBowlTeamName);
 
     // Active Batsmen & Bowler at the crease (Always live, never affected by tabs)
-    const activeStriker = liveBattingTeam.ballFaceBatsman || liveBattersList.find(p => p.status === 'striker' || p.status === 'batting') || liveBattersList[0] || { name: 'Striker', runs: 0, balls: 0 };
-    const activeNonStriker = liveBattingTeam.otherSideBatsman || liveBattersList.find(p => p.status === 'non-striker') || liveBattersList[1] || { name: 'Non-Striker', runs: 0, balls: 0 };
+    const notOutLiveBatters = liveBattersList.filter(p => !isPlayerDismissedLive(p, liveBattingTeam));
+
+    let activeStriker = null;
+    if (liveBattingTeam.ballFaceBatsman?.id != null && !isPlayerDismissedLive(liveBattingTeam.ballFaceBatsman, liveBattingTeam)) {
+        activeStriker = liveBattingTeam.ballFaceBatsman;
+    } else {
+        activeStriker = notOutLiveBatters.find(p => p.status === 'striker' || p.status === 'batting')
+            || notOutLiveBatters[0]
+            || { name: 'Striker', runs: 0, balls: 0 };
+    }
+
+    let activeNonStriker = null;
+    if (liveBattingTeam.otherSideBatsman?.id != null && !isPlayerDismissedLive(liveBattingTeam.otherSideBatsman, liveBattingTeam) && String(liveBattingTeam.otherSideBatsman.id) !== String(activeStriker?.id)) {
+        activeNonStriker = liveBattingTeam.otherSideBatsman;
+    } else {
+        activeNonStriker = notOutLiveBatters.find(p => (p.status === 'non-striker' || p.status === 'batting') && String(p.id) !== String(activeStriker?.id))
+            || notOutLiveBatters.find(p => String(p.id) !== String(activeStriker?.id))
+            || { name: 'Non-Striker', runs: 0, balls: 0 };
+    }
     const rawActiveBowler = liveBowlingTeam.bowler || liveBowlersList[0] || { name: 'Active Bowler', overs: 0, runs: 0, wickets: 0 };
     const liveBowlSquadAll = resolveTeamSquad(liveBowlingTeam, liveBowlTeamName);
     const matchedActiveBowler = liveBowlSquadAll.find(p => String(p.id) === String(rawActiveBowler.id) || (p.name && rawActiveBowler.name && p.name.trim().toLowerCase() === rawActiveBowler.name.trim().toLowerCase()));
@@ -1571,12 +1642,12 @@ const LiveScore3D = () => {
                                                         </thead>
                                                         <tbody>
                                                             {battersList.map((p, idx) => {
-                                                                const isStriker = tabBattingTeam?.ballFaceBatsman && String(tabBattingTeam.ballFaceBatsman.id) === String(p.id);
-                                                                const isNonStriker = tabBattingTeam?.otherSideBatsman && String(tabBattingTeam.otherSideBatsman.id) === String(p.id);
-                                                                const isCurrentlyBatting = isStriker || isNonStriker || p.status === 'batting';
-                                                                const isOut = p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat';
+                                                                const isOut = isPlayerDismissedLive(p, tabBattingTeam);
+                                                                const isStriker = !isOut && tabBattingTeam?.ballFaceBatsman && String(tabBattingTeam.ballFaceBatsman.id) === String(p.id);
+                                                                const isNonStriker = !isOut && tabBattingTeam?.otherSideBatsman && String(tabBattingTeam.otherSideBatsman.id) === String(p.id);
+                                                                const isCurrentlyBatting = !isOut && (isStriker || isNonStriker || p.status === 'batting');
                                                                 const dismissalText = isOut
-                                                                    ? p.dismissal
+                                                                    ? ((p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat' && p.dismissal.trim().toLowerCase() !== 'not out') ? p.dismissal : 'out')
                                                                     : (isCurrentlyBatting || Number(p.runs || 0) > 0 || Number(p.balls || 0) > 0 ? 'not out' : 'yet to bat');
 
                                                                 return (
