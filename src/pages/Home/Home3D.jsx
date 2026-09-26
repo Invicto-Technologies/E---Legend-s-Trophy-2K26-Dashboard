@@ -197,31 +197,99 @@ const Home3D = () => {
                 return;
             }
             const isPublished = Number(data?.isFixtures) === 1 && !data?.isDraft;
-            const rawSource = (data?.publishedMatches && Object.keys(data.publishedMatches).length > 0)
-                ? data.publishedMatches
-                : data?.finishedMatches;
-            const matchesSource = Object.values(rawSource || {});
+            const published = data?.publishedMatches || {};
+            const finished = data?.finishedMatches || {};
+
+            // Merge published and finished so completed match info ALWAYS takes precedence
+            const mergedMap = {};
+
+            // 1. Populate all published matches
+            Object.entries(published).forEach(([k, m]) => {
+                if (!m) return;
+                const key = m.id || k;
+                mergedMap[key] = { ...m };
+            });
+
+            // 2. Overlay finished matches ONLY if the match is actually completed
+            Object.entries(finished).forEach(([k, fm]) => {
+                if (!fm) return;
+                const isFmFinished = fm.finished === 1 || fm.finished === '1' || fm.finished === true ||
+                    fm.isFinished === true || fm.isFinished === 1 ||
+                    (fm.result && !['scheduled', 'match scheduled', 'tbd', 'draw pending', 'live', 'in progress', ''].includes(String(fm.result).trim().toLowerCase()));
+
+                if (!isFmFinished) return; // Do not alter scheduled unfinished matches
+
+                const fId = String(fm.id || k).trim();
+                const fTitle = String(fm.title || fm.name || '').trim().toLowerCase();
+                const fTeams = String(fm.teams || '').trim().toLowerCase();
+
+                const matchKey = Object.keys(mergedMap).find(mKey => {
+                    const pm = mergedMap[mKey];
+                    if (!pm) return false;
+                    const pmId = String(pm.id || mKey).trim();
+                    const pmTitle = String(pm.title || pm.name || '').trim().toLowerCase();
+                    const pmTeams = String(pm.teams || '').trim().toLowerCase();
+                    return (fId && pmId && fId === pmId) ||
+                           (fTitle && pmTitle && fTitle === pmTitle) ||
+                           (fTeams && pmTeams && fTeams === pmTeams);
+                });
+
+                if (matchKey) {
+                    mergedMap[matchKey] = {
+                        ...mergedMap[matchKey],
+                        ...fm
+                    };
+                } else {
+                    mergedMap[fId || k] = { ...fm };
+                }
+            });
+
+            const matchesSource = Object.values(mergedMap);
             if (isPublished) {
                 fixturesList = matchesSource;
             } else {
                 // When match draw is unpublished, newly changed scheduled fixtures must not display on home screen
                 // Only completed matches and actively live matches remain visible
-                fixturesList = matchesSource.filter(m => isMatchFinished(m) || isMatchCurrentlyLive(m, live));
+                fixturesList = matchesSource.filter(m => isMatchFinished(m, live) || isMatchCurrentlyLive(m, live));
             }
         };
 
         const combineAndSetMatches = () => {
-            const raw = [...fixturesList, ...upcomingList];
-            const seen = new Set();
             const list = [];
-            for (const m of raw) {
+            const seenKeys = new Set();
+
+            // First add fixturesList (fixtures take precedence over generic upcoming data)
+            for (const m of fixturesList) {
                 if (!m) continue;
-                const key = m.id || `${m.title || ''}-${m.teams || ''}-${m.date || ''}-${m.time || ''}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
+                const normTitle = String(m.title || m.name || '').trim().toLowerCase();
+                const normTeams = String(m.teams || '').trim().toLowerCase();
+                const idKey = m.id ? String(m.id).toLowerCase() : null;
+
+                if (idKey) seenKeys.add(idKey);
+                if (normTitle) seenKeys.add(normTitle);
+                if (normTeams && normTeams.includes(' vs ')) seenKeys.add(normTeams);
+                list.push(m);
+            }
+
+            // Then add upcomingList only if not already matched in fixturesList
+            for (const m of upcomingList) {
+                if (!m) continue;
+                const normTitle = String(m.title || m.name || '').trim().toLowerCase();
+                const normTeams = String(m.teams || '').trim().toLowerCase();
+                const idKey = m.id ? String(m.id).toLowerCase() : null;
+
+                const alreadyPresent = (idKey && seenKeys.has(idKey)) ||
+                    (normTitle && seenKeys.has(normTitle)) ||
+                    (normTeams && normTeams.includes(' vs ') && seenKeys.has(normTeams));
+
+                if (!alreadyPresent) {
+                    if (idKey) seenKeys.add(idKey);
+                    if (normTitle) seenKeys.add(normTitle);
+                    if (normTeams && normTeams.includes(' vs ')) seenKeys.add(normTeams);
                     list.push(m);
                 }
             }
+
             list.sort((a, b) => parseMatchDateTime(a) - parseMatchDateTime(b));
             setAllMatches(list);
         };
@@ -327,8 +395,8 @@ const Home3D = () => {
     const liveScore = liveData?.liveScore;
 
     const labels = resolveTournamentLabels(activeTournament);
-    const completedMatches = allMatches.filter(isMatchFinished);
-    const upcomingMatches = allMatches.filter((m) => !isMatchFinished(m) && !isMatchCurrentlyLive(m, liveData));
+    const completedMatches = allMatches.filter((m) => isMatchFinished(m, liveData));
+    const upcomingMatches = allMatches.filter((m) => !isMatchFinished(m, liveData) && !isMatchCurrentlyLive(m, liveData));
 
     // Gallery helpers and filters
     const resolvePhotoUrl = (url) => {

@@ -59,29 +59,32 @@ export const isMatchFinished = (m, liveData) => {
     if (!m) return false;
 
     // Check if match is live (via match object flags or global liveData)
-    if (isMatchCurrentlyLive(m, liveData)) return false;
+    const validLiveData = (liveData && typeof liveData === 'object' && !Array.isArray(liveData)) ? liveData : null;
+    if (isMatchCurrentlyLive(m, validLiveData)) return false;
 
     // Explicit finished flag
     if (m.finished === 1 || m.finished === '1' || m.finished === true ||
-        m.common?.finished === 1 || m.common?.finished === '1' || m.common?.finished === true) {
+        m.common?.finished === 1 || m.common?.finished === '1' || m.common?.finished === true ||
+        m.isFinished === 1 || m.isFinished === '1' || m.isFinished === true) {
         return true;
     }
 
     // Explicit finished status
-    const status = String(m.status || m.common?.status || '').toLowerCase();
-    if (status === 'finished' || status === 'completed') return true;
+    const status = String(m.status || m.common?.status || '').toLowerCase().trim();
+    if (status === 'finished' || status === 'completed' || status === 'match completed' || status === 'concluded') {
+        return true;
+    }
 
-    // If finished is explicitly 0, it's not finished
+    const res = (m.result || m.common?.result || '').trim().toLowerCase();
+    // If finished is explicitly 0, it's not finished unless result declares a clear winner or match conclusion
     if (m.finished === 0 || m.finished === '0' || m.finished === false ||
         m.common?.finished === 0 || m.common?.finished === '0' || m.common?.finished === false) {
-        const res = (m.result || m.common?.result || '').trim().toLowerCase();
-        if (res && (res.includes('won by') || res.includes('tied') || res.includes('concluded') || res.includes('draw match'))) {
+        if (res && (res.includes('won') || res.includes('tied') || res.includes('concluded') || res.includes('draw match') || res.includes('abandoned') || res.includes('no result'))) {
             return true;
         }
         return false;
     }
 
-    const res = (m.result || m.common?.result || '').trim().toLowerCase();
     if (res && res !== 'scheduled' && res !== 'match scheduled' && res !== 'tbd' && res !== 'draw pending' && res !== 'live' && res !== 'in progress') {
         return true;
     }
@@ -89,7 +92,7 @@ export const isMatchFinished = (m, liveData) => {
     const score = (m.score || m.common?.score || '').trim().toLowerCase();
     if (score && score !== 'scheduled' && score !== 'match scheduled' && score !== 'match concluded' && score !== 'tbd' && score !== 'live') {
         // Only consider score with runs/wickets finished if finished is 1 or result explicitly declares winner
-        if (/\d+\s*\/\s*\d+/.test(score) && (m.finished === 1 || m.common?.finished === 1 || (res && res.includes('won by')))) {
+        if (/\d+\s*\/\s*\d+/.test(score) && (m.finished === 1 || m.common?.finished === 1 || (res && res.includes('won')))) {
             return true;
         }
     }
