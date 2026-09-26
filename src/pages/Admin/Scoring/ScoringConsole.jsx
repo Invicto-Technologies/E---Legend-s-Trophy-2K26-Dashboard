@@ -13,6 +13,7 @@ import {
     updateLiveData,
     saveFinishedMatch,
     recordMatchRankings,
+    syncMatch1Team2BowlersAndRankings,
 } from '../../../services/rtdbService';
 import {
     MdUndo,
@@ -142,7 +143,7 @@ const ScoringConsole = () => {
     const [isEditingTossOnly, setIsEditingTossOnly] = useState(false);
     const [tossWinner, setTossWinner] = useState('');
     const [tossDecision, setTossDecision] = useState('bat');
-    const [tossOverLimit, setTossOverLimit] = useState(15);
+    const [tossOverLimit, setTossOverLimit] = useState(20);
     const [pendingStartFixture, setPendingStartFixture] = useState(null);
 
     // Opening Crease Players for Match Start Setup
@@ -186,10 +187,11 @@ const ScoringConsole = () => {
     const [nonStrikerId, setNonStrikerId] = useState(null);
     const [bowlerId, setBowlerId] = useState(null);
 
-    // Force Crease Batters Modal & Inline Unlock
+    // Force Crease Batters & Bowler Modal & Inline Unlock
     const [showForceChangeModal, setShowForceChangeModal] = useState(false);
     const [forceStrikerId, setForceStrikerId] = useState('');
     const [forceNonStrikerId, setForceNonStrikerId] = useState('');
+    const [forceBowlerId, setForceBowlerId] = useState('');
     const [forceReinstateOut, setForceReinstateOut] = useState(true);
     const [isForceCreaseUnlocked, setIsForceCreaseUnlocked] = useState(false);
 
@@ -275,6 +277,17 @@ const ScoringConsole = () => {
         return () => unsubTeams();
     }, [selectedTournamentId]);
 
+    // Ensure 1st match team2 bowlers & RankingData bowlers are synced with real performance stats
+    useEffect(() => {
+        let isCancelled = false;
+        syncMatch1Team2BowlersAndRankings(selectedTournamentId).catch((err) => {
+            if (!isCancelled) {
+                console.warn('Sync match 1 bowlers notice:', err?.message || err);
+            }
+        });
+        return () => { isCancelled = true; };
+    }, [selectedTournamentId]);
+
     // 1. Fetch published matches strictly from published draw
     useEffect(() => {
         const unsubFix = subscribeFixtures((data) => {
@@ -336,26 +349,59 @@ const ScoringConsole = () => {
         return () => unsubLive();
     }, [isScoringActive, activeMatchTitle]);
 
+    // Helper to find team data from teamsData registry by name/key/id
+    const findTeamData = (teamIdentifier) => {
+        if (!teamIdentifier) return null;
+        const cleanId = String(teamIdentifier).trim().toLowerCase();
+        if (teamsData[teamIdentifier]) return teamsData[teamIdentifier];
+        if (teamsData[cleanId]) return teamsData[cleanId];
+        return Object.values(teamsData).find(t =>
+            (t?.name && t.name.trim().toLowerCase() === cleanId) ||
+            (t?.teamName && t.teamName.trim().toLowerCase() === cleanId) ||
+            (t?.key && t.key.trim().toLowerCase() === cleanId) ||
+            (t?.shortName && t.shortName.trim().toLowerCase() === cleanId) ||
+            (t?.id != null && String(t.id).trim().toLowerCase() === cleanId)
+        ) || Object.entries(teamsData).find(([k, v]) =>
+            k.trim().toLowerCase() === cleanId ||
+            (v?.name && v.name.trim().toLowerCase() === cleanId) ||
+            (v?.teamName && v.teamName.trim().toLowerCase() === cleanId)
+        )?.[1] || {};
+    };
+
     // Helper to retrieve structured squad player list for a team
     const getTeamPlayerList = (teamName) => {
         if (!teamName) return [];
         const teamObj = findTeamData(teamName) || {};
-        const squadList = Object.values(teamObj.players || {}).map((p, idx) => ({
-            id: p.id || idx + 1,
-            name: p.name || `${teamName} Player ${idx + 1}`,
-            hand: p.hand || 'Right Hand',
-            role: p.role || '',
-            type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
-            imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || ''
-        }));
-        const extraList = Object.values(teamObj.extraPlayers || {}).map((p, idx) => ({
-            id: p.id || (squadList.length + idx + 1),
-            name: p.name || `${teamName} Reserve ${idx + 1}`,
-            hand: p.hand || 'Right Hand',
-            role: p.role || '',
-            type: p.type || 'Reserve',
-            imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || ''
-        }));
+        const squadList = Object.values(teamObj.players || {})
+            .sort((a, b) => {
+                const orderA = (a.order !== undefined && a.order !== null) ? Number(a.order) : ((a.battingOrder !== undefined && a.battingOrder !== null) ? Number(a.battingOrder) : 999);
+                const orderB = (b.order !== undefined && b.order !== null) ? Number(b.order) : ((b.battingOrder !== undefined && b.battingOrder !== null) ? Number(b.battingOrder) : 999);
+                return orderA - orderB;
+            })
+            .map((p, idx) => ({
+                id: p.id || idx + 1,
+                name: p.name || `${teamName} Player ${idx + 1}`,
+                hand: p.hand || 'Right Hand',
+                role: p.role || '',
+                type: 'Playing XI',
+                imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || '',
+                bowlingStyle: p.bowlingStyle || ''
+            }));
+        const extraList = Object.values(teamObj.extraPlayers || {})
+            .sort((a, b) => {
+                const orderA = (a.order !== undefined && a.order !== null) ? Number(a.order) : 999;
+                const orderB = (b.order !== undefined && b.order !== null) ? Number(b.order) : 999;
+                return orderA - orderB;
+            })
+            .map((p, idx) => ({
+                id: p.id || (squadList.length + idx + 1),
+                name: p.name || `${teamName} Reserve ${idx + 1}`,
+                hand: p.hand || 'Right Hand',
+                role: p.role || '',
+                type: 'Reserve',
+                imageUrl: p.imageUrl || p.ImageURL || p.image || p.photo || '',
+                bowlingStyle: p.bowlingStyle || ''
+            }));
         const rawList = [...squadList, ...extraList];
         if (rawList.length > 0) {
             return rawList;
@@ -368,20 +414,6 @@ const ScoringConsole = () => {
             type: 'Playing XI',
             imageUrl: ''
         }));
-    };
-
-    // Helper to find team data from teamsData registry by name/key/id
-    const findTeamData = (teamIdentifier) => {
-        if (!teamIdentifier) return null;
-        if (teamsData[teamIdentifier]) return teamsData[teamIdentifier];
-        return Object.values(teamsData).find(t =>
-            t?.name?.toLowerCase() === String(teamIdentifier).toLowerCase() ||
-            t?.key?.toLowerCase() === String(teamIdentifier).toLowerCase() ||
-            String(t?.id) === String(teamIdentifier)
-        ) || Object.entries(teamsData).find(([k, v]) =>
-            k.toLowerCase() === String(teamIdentifier).toLowerCase() ||
-            v?.name?.toLowerCase() === String(teamIdentifier).toLowerCase()
-        )?.[1] || {};
     };
 
     // Helper to order batting performance list according to when batters come out to the ground
@@ -561,15 +593,24 @@ const ScoringConsole = () => {
         return [...arrived, ...unbatted];
     };
 
+    // Helper to check if a match player is an unedited dummy placeholder
+    const isDummyPlayer = (p, teamName) => {
+        if (!p || !p.name) return true;
+        const clean = p.name.trim().toLowerCase();
+        if (/^(team\s*\d+\s*)?player\s*\d+$/i.test(clean)) return true;
+        if (/^player\s*\d+$/i.test(clean)) return true;
+        if (/^reserve\s*\d+$/i.test(clean)) return true;
+        if (teamName && clean.startsWith(String(teamName).trim().toLowerCase()) && clean.includes('player')) return true;
+        return false;
+    };
+
     // Helper to robustly resolve player type (Playing XI vs Reserve)
     const resolvePlayerType = (p, teamObj, isLocked = false, rosterIndex = 0) => {
         if (isLocked) return 'Playing XI';
-        if (p?.type === 'Playing XI' || p?.type === 'Reserve') {
-            return p.type;
-        }
         const isExtraPlayer = Boolean(teamObj?.extraPlayers?.[p?.id]) ||
             Object.values(teamObj?.extraPlayers || {}).some(ep =>
                 String(ep.id) === String(p?.id) ||
+                (ep.nic && p?.nic && ep.nic === p?.nic) ||
                 (ep.name && p?.name && ep.name.trim().toLowerCase() === p.name.trim().toLowerCase())
             );
         if (isExtraPlayer) {
@@ -581,8 +622,11 @@ const ScoringConsole = () => {
                 (sp.nic && sp.nic === p?.nic) ||
                 (sp.name && p?.name && sp.name.trim().toLowerCase() === p.name.trim().toLowerCase())
             );
-        if (squadPlayer?.type) {
-            return squadPlayer.type;
+        if (squadPlayer) {
+            return 'Playing XI';
+        }
+        if (p?.type === 'Playing XI' || p?.type === 'Reserve') {
+            return p.type;
         }
         return rosterIndex < 11 ? 'Playing XI' : 'Reserve';
     };
@@ -599,12 +643,18 @@ const ScoringConsole = () => {
             .map((p, idx) => ({
                 ...p,
                 lineupOrder: idx + 1,
-                type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve')
+                type: 'Playing XI'
             }));
-        const extraList = Object.values(teamObj?.extraPlayers || {}).map(p => ({
-            ...p,
-            type: p.type || 'Reserve'
-        }));
+        const extraList = Object.values(teamObj?.extraPlayers || {})
+            .sort((a, b) => {
+                const orderA = (a.order !== undefined && a.order !== null) ? Number(a.order) : 999;
+                const orderB = (b.order !== undefined && b.order !== null) ? Number(b.order) : 999;
+                return orderA - orderB;
+            })
+            .map(p => ({
+                ...p,
+                type: 'Reserve'
+            }));
         const rawList = [...squadList, ...extraList];
         if (rawList.length > 0) {
             rawList.forEach((p, idx) => {
@@ -622,7 +672,7 @@ const ScoringConsole = () => {
                     dismissal: '',
                     status: p.status || 'yet to bat',
                     hand: p.hand || (idx % 3 === 0 ? 'Left Hand' : 'Right Hand'),
-                    type: p.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
+                    type: p.type || 'Playing XI',
                     shots: {}
                 };
             });
@@ -648,6 +698,192 @@ const ScoringConsole = () => {
         return result;
     };
 
+    // Helper to resolve the complete, accurate roster for a team in the admin scoring console,
+    // ensuring the XI players configured in teamData show as the team players in Playing XI.
+    const resolveConsoleTeamRoster = (teamMatchData, teamKey, teamFallbackName) => {
+        const rawMatchData = teamMatchData || {};
+        const teamName = rawMatchData.name || teamFallbackName || (teamKey === 'team1' ? t1Name : t2Name);
+        const teamObj = findTeamData(teamName) ||
+            findTeamData(teamFallbackName) ||
+            findTeamData(teamKey === 'team1' ? t1Name : t2Name) ||
+            findTeamData(teamKey) ||
+            {};
+
+        // 1. Master squad (Playing XI) from teamData
+        const masterSquadList = Object.values(teamObj.players || {}).sort((a, b) => {
+            const orderA = (a.order !== undefined && a.order !== null) ? Number(a.order) : ((a.battingOrder !== undefined && a.battingOrder !== null) ? Number(a.battingOrder) : 999);
+            const orderB = (b.order !== undefined && b.order !== null) ? Number(b.order) : ((b.battingOrder !== undefined && b.battingOrder !== null) ? Number(b.battingOrder) : 999);
+            return orderA - orderB;
+        });
+
+        // 2. Master reserves from teamData
+        const masterReservesList = Object.values(teamObj.extraPlayers || {}).sort((a, b) => {
+            const orderA = (a.order !== undefined && a.order !== null) ? Number(a.order) : 999;
+            const orderB = (b.order !== undefined && b.order !== null) ? Number(b.order) : 999;
+            return orderA - orderB;
+        });
+
+        // 3. Match players currently stored in matchData
+        const matchPlayersMap = { ...(rawMatchData.players || {}) };
+        const matchPlayersList = Object.values(matchPlayersMap);
+
+        const hasMatchParticipation = (p) => {
+            if (!p) return false;
+            const hasBatted = Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0 ||
+                (p.dismissal && typeof p.dismissal === 'string' && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat') ||
+                (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
+            const hasBowled = rawMatchData.bowlers?.[p.id] && (Number(rawMatchData.bowlers[p.id].overs || 0) > 0 || Number(rawMatchData.bowlers[p.id].balls || 0) > 0);
+            const isCrease = (rawMatchData.ballFaceBatsman && String(rawMatchData.ballFaceBatsman.id) === String(p.id)) ||
+                (rawMatchData.otherSideBatsman && String(rawMatchData.otherSideBatsman.id) === String(p.id)) ||
+                (rawMatchData.bowler && String(rawMatchData.bowler.id) === String(p.id)) ||
+                p.status === 'batting' || p.status === 'striker' || p.status === 'non-striker';
+            return Boolean(hasBatted || hasBowled || isCrease);
+        };
+
+        const mergedResult = [];
+        const usedIds = new Set();
+
+        // A. Process all Playing XI players configured in teamData
+        masterSquadList.forEach((sp, idx) => {
+            const spId = sp.id != null ? String(sp.id) : `sq_${idx + 1}`;
+
+            // Match against any existing match stats
+            let matchedMatchP = matchPlayersList.find(p => String(p.id) === spId);
+            if (!matchedMatchP && sp.nic) {
+                matchedMatchP = matchPlayersList.find(p => p.nic && p.nic === sp.nic);
+            }
+            if (!matchedMatchP && sp.name) {
+                matchedMatchP = matchPlayersList.find(p => p.name && p.name.trim().toLowerCase() === sp.name.trim().toLowerCase());
+            }
+            // If match player at index was a dummy placeholder and hasn't actively played, associate it
+            if (!matchedMatchP && matchPlayersList[idx] && isDummyPlayer(matchPlayersList[idx], teamName) && !hasMatchParticipation(matchPlayersList[idx])) {
+                matchedMatchP = matchPlayersList[idx];
+            }
+
+            const rawHand = sp.hand || matchedMatchP?.hand || 'RHB';
+            const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
+            const finalId = sp.id != null ? sp.id : (matchedMatchP?.id || (idx + 1));
+            usedIds.add(String(finalId));
+            if (matchedMatchP?.id != null) usedIds.add(String(matchedMatchP.id));
+
+            const lineupOrder = (matchedMatchP?.lineupOrder !== undefined && matchedMatchP?.lineupOrder !== null)
+                ? Number(matchedMatchP.lineupOrder)
+                : ((sp.order !== undefined && sp.order !== null)
+                    ? Number(sp.order)
+                    : ((sp.battingOrder !== undefined && sp.battingOrder !== null)
+                        ? Number(sp.battingOrder)
+                        : idx + 1));
+
+            mergedResult.push({
+                runs: matchedMatchP?.runs || 0,
+                balls: matchedMatchP?.balls || 0,
+                fours: matchedMatchP?.fours || matchedMatchP?.boundaries?.fours || 0,
+                sixes: matchedMatchP?.sixes || matchedMatchP?.boundaries?.sixes || 0,
+                boundaries: matchedMatchP?.boundaries || { fours: matchedMatchP?.fours || 0, sixes: matchedMatchP?.sixes || 0, singles: 0, twos: 0 },
+                strikeRate: matchedMatchP?.strikeRate || '0.00',
+                dismissal: matchedMatchP?.dismissal || '',
+                status: matchedMatchP?.status || 'yet to bat',
+                groundArrivalOrder: matchedMatchP?.groundArrivalOrder,
+                shots: matchedMatchP?.shots || {},
+                id: finalId,
+                name: sp.name || (matchedMatchP && !isDummyPlayer(matchedMatchP, teamName) ? matchedMatchP.name : `${teamName} Player ${idx + 1}`),
+                role: sp.role || matchedMatchP?.role || 'All Rounder',
+                hand: normHand,
+                bowlingStyle: sp.bowlingStyle || matchedMatchP?.bowlingStyle || '',
+                imageUrl: sp.imageUrl || sp.ImageURL || sp.photo || sp.image || matchedMatchP?.imageUrl || '',
+                order: lineupOrder,
+                lineupOrder: lineupOrder,
+                type: 'Playing XI'
+            });
+        });
+
+        // B. Process all Reserves configured in teamData
+        masterReservesList.forEach((ep, idx) => {
+            const epId = ep.id != null ? String(ep.id) : `res_${idx + 1}`;
+            if (usedIds.has(epId)) return;
+
+            let matchedMatchP = matchPlayersList.find(p => String(p.id) === epId);
+            if (!matchedMatchP && ep.name) {
+                matchedMatchP = matchPlayersList.find(p => p.name && p.name.trim().toLowerCase() === ep.name.trim().toLowerCase());
+            }
+
+            const rawHand = ep.hand || matchedMatchP?.hand || 'RHB';
+            const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
+            const finalId = ep.id != null ? ep.id : (matchedMatchP?.id || `res_${idx + 1}`);
+            usedIds.add(String(finalId));
+            if (matchedMatchP?.id != null) usedIds.add(String(matchedMatchP.id));
+
+            const isLocked = matchedMatchP ? hasMatchParticipation(matchedMatchP) : false;
+
+            mergedResult.push({
+                runs: matchedMatchP?.runs || 0,
+                balls: matchedMatchP?.balls || 0,
+                fours: matchedMatchP?.fours || matchedMatchP?.boundaries?.fours || 0,
+                sixes: matchedMatchP?.sixes || matchedMatchP?.boundaries?.sixes || 0,
+                boundaries: matchedMatchP?.boundaries || { fours: matchedMatchP?.fours || 0, sixes: matchedMatchP?.sixes || 0, singles: 0, twos: 0 },
+                strikeRate: matchedMatchP?.strikeRate || '0.00',
+                dismissal: matchedMatchP?.dismissal || '',
+                status: matchedMatchP?.status || 'yet to bat',
+                groundArrivalOrder: matchedMatchP?.groundArrivalOrder,
+                shots: matchedMatchP?.shots || {},
+                id: finalId,
+                name: ep.name || matchedMatchP?.name || `${teamName} Reserve ${idx + 1}`,
+                role: ep.role || matchedMatchP?.role || 'All Rounder',
+                hand: normHand,
+                bowlingStyle: ep.bowlingStyle || matchedMatchP?.bowlingStyle || '',
+                imageUrl: ep.imageUrl || ep.ImageURL || ep.photo || ep.image || matchedMatchP?.imageUrl || '',
+                lineupOrder: 99 + idx,
+                type: isLocked ? 'Playing XI' : 'Reserve'
+            });
+        });
+
+        // C. Keep any participated match players that weren't in master team data
+        matchPlayersList.forEach(p => {
+            if (!p || usedIds.has(String(p.id))) return;
+            if (isDummyPlayer(p, teamName) && !hasMatchParticipation(p) && masterSquadList.length > 0) return;
+
+            usedIds.add(String(p.id));
+            const rawHand = p.hand || 'RHB';
+            const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
+            mergedResult.push({
+                ...p,
+                hand: normHand,
+                type: resolvePlayerType(p, teamObj, hasMatchParticipation(p), mergedResult.length)
+            });
+        });
+
+        // D. Fallback if empty
+        if (mergedResult.length === 0) {
+            for (let i = 1; i <= 11; i++) {
+                mergedResult.push({
+                    id: i,
+                    name: `${teamName} Player ${i}`,
+                    imageUrl: '',
+                    role: 'Player',
+                    runs: 0,
+                    balls: 0,
+                    boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
+                    strikeRate: '0.00',
+                    dismissal: '',
+                    status: 'yet to bat',
+                    hand: i % 4 === 0 ? 'LHB' : 'RHB',
+                    type: 'Playing XI',
+                    shots: {}
+                });
+            }
+        }
+
+        const playingXI = mergedResult.filter(p => p.type === 'Playing XI');
+        const reserves = mergedResult.filter(p => p.type === 'Reserve');
+
+        return {
+            playersList: mergedResult,
+            playingXI,
+            reserves,
+            teamObj
+        };
+    };
+
     // Helper to create a complete default match structure matching CricX/LiveScore schema
     const createDefaultMatch = (title, t1Name = 'Team 1', t2Name = 'Team 2', tossConfig = {}) => {
         const {
@@ -655,7 +891,7 @@ const ScoringConsole = () => {
             tossDecision = 'bat',
             firstBat = 1,
             firstBattingTeam = t1Name,
-            overLimit = 15,
+            overLimit = 20,
             status = 'Match In Progress',
             strikerId: chosenStrikerId,
             nonStrikerId: chosenNonStrikerId,
@@ -843,7 +1079,11 @@ const ScoringConsole = () => {
                 const currentBatting = data[bKey];
                 const currentBowling = data[bowlKey];
 
-                const bList = Object.values(currentBatting?.players || {});
+                const [liveT1Name, liveT2Name] = (data.common?.teams || 'Team 1 vs Team 2').split(' vs ');
+                const battingTeamFallback = isT1Bat ? liveT1Name : liveT2Name;
+                const bowlingTeamFallback = isT1Bat ? liveT2Name : liveT1Name;
+
+                const { playersList: bList } = resolveConsoleTeamRoster(currentBatting, bKey, battingTeamFallback);
                 const totalBalls = Number(currentBatting?.totalBalls || 0);
                 const totalWickets = Number(currentBatting?.totalWickets || 0);
 
@@ -903,7 +1143,8 @@ const ScoringConsole = () => {
                 setStrikerId(resolvedStrikerId != null ? resolvedStrikerId : null);
                 setNonStrikerId(resolvedNonStrikerId != null ? resolvedNonStrikerId : null);
 
-                const bowlList = Object.values(currentBowling?.bowlers || currentBowling?.players || {});
+                const { playersList: bowlRoster, playingXI: bowlXI } = resolveConsoleTeamRoster(currentBowling, bowlKey, bowlingTeamFallback);
+                const bowlList = bowlXI.length > 0 ? bowlXI : bowlRoster;
                 if (currentBowling?.bowler?.id != null) {
                     setBowlerId(currentBowling.bowler.id);
                 } else if (bowlList.length > 0) {
@@ -975,7 +1216,7 @@ const ScoringConsole = () => {
         // Check if match already has saved toss in RTDB
         let existingWinner = t1;
         let existingDecision = 'bat';
-        let existingOvers = selectedFixture.overLimit || 15;
+        let existingOvers = selectedFixture.overLimit || 20;
         let existingStriker = null;
         let existingNonStriker = null;
         let existingBowler = null;
@@ -1042,11 +1283,11 @@ const ScoringConsole = () => {
             team1: t1,
             team2: t2,
             teams: currentCommon.teams || `${t1} vs ${t2}`,
-            overLimit: currentCommon.overLimit || 15
+            overLimit: currentCommon.overLimit || 20
         });
         setTossWinner(currentCommon.tossWinner || t1);
         setTossDecision(currentCommon.tossDecision || 'bat');
-        setTossOverLimit(currentCommon.overLimit || 15);
+        setTossOverLimit(currentCommon.overLimit || 20);
         setOpeningStrikerId(matchData[bKey]?.ballFaceBatsman?.id || strikerId || batSquad[0]?.id || 1);
         setOpeningNonStrikerId(matchData[bKey]?.otherSideBatsman?.id || nonStrikerId || batSquad[1]?.id || 2);
         setOpeningBowlerId(matchData[bowlKey]?.bowler?.id || bowlerId || bowlSquad[0]?.id || 1);
@@ -1100,7 +1341,7 @@ const ScoringConsole = () => {
         const isT1BattingFirst = (tossWinner === t1 && tossDecision === 'bat') || (tossWinner === t2 && tossDecision === 'bowl');
         const firstBat = isT1BattingFirst ? 1 : 2;
         const firstBattingTeam = isT1BattingFirst ? t1 : t2;
-        const oversNum = Number(tossOverLimit) || 15;
+        const oversNum = Number(tossOverLimit) || 20;
         const tossStatusText = `${tossWinner} won toss & elected to ${tossDecision} first`;
 
         setShowTossModal(false);
@@ -1273,7 +1514,10 @@ const ScoringConsole = () => {
                     shots: {}
                 });
 
-                if (currentMatch?.team1?.players && Object.keys(currentMatch.team1.players).length > 0) {
+                const t1Obj = findTeamData(t1) || {};
+                const t2Obj = findTeamData(t2) || {};
+
+                if ((!t1Obj?.players || Object.keys(t1Obj.players).length === 0) && currentMatch?.team1?.players && Object.keys(currentMatch.team1.players).length > 0) {
                     const freshP1 = {};
                     Object.values(currentMatch.team1.players).forEach((p, idx) => {
                         const pid = p.id || idx + 1;
@@ -1283,7 +1527,7 @@ const ScoringConsole = () => {
                     newMatch.team1.players = freshP1;
                 }
 
-                if (currentMatch?.team2?.players && Object.keys(currentMatch.team2.players).length > 0) {
+                if ((!t2Obj?.players || Object.keys(t2Obj.players).length === 0) && currentMatch?.team2?.players && Object.keys(currentMatch.team2.players).length > 0) {
                     const freshP2 = {};
                     Object.values(currentMatch.team2.players).forEach((p, idx) => {
                         const pid = p.id || idx + 1;
@@ -2051,37 +2295,18 @@ const ScoringConsole = () => {
     const bowlingTeamName = currentBowlingTeamKey === 'team1' ? t1Name : t2Name;
 
     // Parse Batting Players (Batting side currently taking the crease)
-    const rawPlayersList = Object.values(battingTeamData.players || {});
-    const battingTeamObj = findTeamData(battingTeamData.name) || findTeamData(currentBattingTeamKey === 'team1' ? t1Name : t2Name) || {};
-    const playersList = rawPlayersList.map((p, idx) => {
-        const squadPlayer = battingTeamObj?.players?.[p.id] || Object.values(battingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
-        const rawHand = squadPlayer?.hand || p.hand || 'RHB';
-        const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
-        return {
-            ...p,
-            type: resolvePlayerType(p, battingTeamObj, false, idx),
-            hand: normHand,
-            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
-        };
-    });
-    const playingXI = playersList.filter(p => p.type === 'Playing XI');
-    const reserves = playersList.filter(p => p.type === 'Reserve');
+    const { playersList, playingXI, reserves } = resolveConsoleTeamRoster(
+        battingTeamData,
+        currentBattingTeamKey,
+        currentBattingTeamKey === 'team1' ? t1Name : t2Name
+    );
 
     // Parse Bowling / Fielding Players (Fielding side currently out on the ground)
-    const rawBowlingPlayersList = Object.values(bowlingTeamData.players || {});
-    const bowlingTeamObj = findTeamData(bowlingTeamData.name) || findTeamData(currentBowlingTeamKey === 'team1' ? t1Name : t2Name) || {};
-    const bowlingPlayersList = rawBowlingPlayersList.map((p, idx) => {
-        const squadPlayer = bowlingTeamObj?.players?.[p.id] || Object.values(bowlingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
-        const rawHand = squadPlayer?.hand || p.hand || 'RHB';
-        const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
-        return {
-            ...p,
-            type: resolvePlayerType(p, bowlingTeamObj, false, idx),
-            hand: normHand,
-            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
-        };
-    });
-    const bowlingReserves = bowlingPlayersList.filter(p => p.type === 'Reserve');
+    const { playersList: bowlingPlayersList, playingXI: bowlingPlayingXI, reserves: bowlingReserves } = resolveConsoleTeamRoster(
+        bowlingTeamData,
+        currentBowlingTeamKey,
+        bowlingTeamName
+    );
 
     // Scorecard Tab Selection (For reviewing 1st / 2nd innings scorecard breakdown at bottom of console)
     // Default active innings tab is always the current batting team tab
@@ -2092,35 +2317,15 @@ const ScoringConsole = () => {
     const tabBattingTeamName = tabBattingTeamKey === 'team1' ? t1Name : t2Name;
     const tabBowlingTeamName = tabBowlingTeamKey === 'team1' ? t2Name : t1Name;
 
-    const rawTabPlayersList = Object.values(tabBattingTeamData.players || {});
-    const tabBattingTeamObj = findTeamData(tabBattingTeamData.name) || findTeamData(tabBattingTeamName) || {};
-    const tabPlayersList = rawTabPlayersList.map((p, idx) => {
-        const squadPlayer = tabBattingTeamObj?.players?.[p.id] || Object.values(tabBattingTeamObj?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
-        const rawHand = squadPlayer?.hand || p.hand || 'RHB';
-        const normHand = (rawHand === 'LHB' || rawHand === 'LHS' || String(rawHand).toLowerCase().includes('left')) ? 'LHB' : 'RHB';
-        const lineupOrder = (p.lineupOrder !== undefined && p.lineupOrder !== null)
-            ? Number(p.lineupOrder)
-            : ((p.order !== undefined && p.order !== null)
-                ? Number(p.order)
-                : ((squadPlayer?.order !== undefined && squadPlayer?.order !== null)
-                    ? Number(squadPlayer.order)
-                    : ((squadPlayer?.battingOrder !== undefined && squadPlayer?.battingOrder !== null)
-                        ? Number(squadPlayer.battingOrder)
-                        : idx + 1)));
-
-        return {
-            ...p,
-            lineupOrder,
-            type: resolvePlayerType(p, tabBattingTeamObj, false, idx),
-            hand: normHand,
-            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
-        };
-    });
-    const rawTabPlayingXI = tabPlayersList
-        .filter(p => p.type === 'Playing XI')
-        .sort((a, b) => (a.lineupOrder ?? 999) - (b.lineupOrder ?? 999));
-    const tabPlayingXI = getBattersInGroundArrivalOrder(tabBattingTeamData, rawTabPlayingXI);
-    const tabReserves = tabPlayersList.filter(p => p.type === 'Reserve');
+    const { playingXI: rawTabPlayingXI, reserves: tabReserves } = resolveConsoleTeamRoster(
+        tabBattingTeamData,
+        tabBattingTeamKey,
+        tabBattingTeamName
+    );
+    const tabPlayingXI = getBattersInGroundArrivalOrder(
+        tabBattingTeamData,
+        [...rawTabPlayingXI].sort((a, b) => (a.lineupOrder ?? 999) - (b.lineupOrder ?? 999))
+    );
 
     const rawTabBowlersList = Object.values(tabBowlingTeamData.bowlers || {});
     const tabBowlingTeamObj = findTeamData(tabBowlingTeamData.name) || findTeamData(tabBowlingTeamName) || {};
@@ -2133,6 +2338,7 @@ const ScoringConsole = () => {
             const squadPlayer = tabBowlingTeamObj?.players?.[b.id] || Object.values(tabBowlingTeamObj?.players || {}).find(sp => sp.nic === b.nic || sp.name === b.name);
             return {
                 ...b,
+                name: (isDummyPlayer(b, tabBowlingTeamName) && squadPlayer?.name) ? squadPlayer.name : (squadPlayer?.name || b.name),
                 bowlingStyle: squadPlayer?.bowlingStyle || b.bowlingStyle || ''
             };
         });
@@ -2146,37 +2352,23 @@ const ScoringConsole = () => {
     const firstBatTeamNameForSwitch = firstBatTeamKeyForSwitch === 'team1' ? t1Name : t2Name;
     const secondBatTeamNameForSwitch = secondBatTeamKeyForSwitch === 'team1' ? t1Name : t2Name;
 
-    const secondBatTeamObjForSwitch = findTeamData(matchData[secondBatTeamKeyForSwitch]?.name) || findTeamData(secondBatTeamNameForSwitch) || {};
-    const rawSecondBatList = Object.values(matchData[secondBatTeamKeyForSwitch]?.players || {});
-    const secondBatResolvedList = rawSecondBatList.map((p, idx) => {
-        const squadPlayer = secondBatTeamObjForSwitch?.players?.[p.id] || Object.values(secondBatTeamObjForSwitch?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
-        return {
-            ...p,
-            type: resolvePlayerType(p, secondBatTeamObjForSwitch, false, idx),
-            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
-        };
-    });
-    const secondBatXI = secondBatResolvedList.filter(p => p.type === 'Playing XI');
-    const secondBatOpeningSquad = secondBatXI.length > 0 ? secondBatXI : (rawSecondBatList.length > 0 ? rawSecondBatList : getTeamPlayerList(secondBatTeamNameForSwitch));
+    const { playersList: secondBatPlayersList, playingXI: secondBatXI } = resolveConsoleTeamRoster(
+        matchData[secondBatTeamKeyForSwitch],
+        secondBatTeamKeyForSwitch,
+        secondBatTeamNameForSwitch
+    );
+    const secondBatOpeningSquad = secondBatXI.length > 0 ? secondBatXI : secondBatPlayersList;
 
-    const firstBatTeamObjForSwitch = findTeamData(matchData[firstBatTeamKeyForSwitch]?.name) || findTeamData(firstBatTeamNameForSwitch) || {};
-    const rawFirstBatList = Object.values(matchData[firstBatTeamKeyForSwitch]?.players || {});
-    const firstBatResolvedList = rawFirstBatList.map((p, idx) => {
-        const squadPlayer = firstBatTeamObjForSwitch?.players?.[p.id] || Object.values(firstBatTeamObjForSwitch?.players || {}).find(sp => sp.nic === p.nic || sp.name === p.name);
-        return {
-            ...p,
-            type: resolvePlayerType(p, firstBatTeamObjForSwitch, false, idx),
-            bowlingStyle: squadPlayer?.bowlingStyle || p.bowlingStyle || ''
-        };
-    });
-    const firstBatXI = firstBatResolvedList.filter(p => p.type === 'Playing XI');
-    const firstBatOpeningSquad = firstBatXI.length > 0 ? firstBatXI : (rawFirstBatList.length > 0 ? rawFirstBatList : getTeamPlayerList(firstBatTeamNameForSwitch));
+    const { playersList: firstBatPlayersList, playingXI: firstBatXI } = resolveConsoleTeamRoster(
+        matchData[firstBatTeamKeyForSwitch],
+        firstBatTeamKeyForSwitch,
+        firstBatTeamNameForSwitch
+    );
+    const firstBatOpeningSquad = firstBatXI.length > 0 ? firstBatXI : firstBatPlayersList;
 
     // Active players on the crease for scoring (Prioritizing Playing XI)
-    const activeBattingSquad = playersList.length > 0 ? playersList : Object.values(matchData[currentBattingTeamKey]?.players || {});
-    const activeBowlingSquad = bowlingPlayersList.filter(p => p.type === 'Playing XI').length > 0
-        ? bowlingPlayersList.filter(p => p.type === 'Playing XI')
-        : Object.values(matchData[currentBowlingTeamKey]?.bowlers || matchData[currentBowlingTeamKey]?.players || {});
+    const activeBattingSquad = playingXI.length > 0 ? playingXI : playersList;
+    const activeBowlingSquad = bowlingPlayingXI.length > 0 ? bowlingPlayingXI : bowlingPlayersList;
 
     const isStrikerValid = strikerId != null && strikerId !== '' && !isPlayerDismissedInInnings({ id: strikerId }, battingTeamData);
     const striker = isStrikerValid
@@ -3013,14 +3205,16 @@ const ScoringConsole = () => {
     const handleOpenForceChangeModal = () => {
         setForceStrikerId(striker.id || '');
         setForceNonStrikerId(nonStriker.id || '');
+        setForceBowlerId(bowler.id || '');
         setForceReinstateOut(true);
         setShowForceChangeModal(true);
     };
 
-    // Force Change Striker & Non-Striker Batters
-    const handleExecuteForceChange = async (overrideStrikerId, overrideNonStrikerId, reinstateOut = forceReinstateOut) => {
+    // Force Change Striker & Non-Striker Batters & Bowler
+    const handleExecuteForceChange = async (overrideStrikerId, overrideNonStrikerId, overrideBowlerId, reinstateOut = forceReinstateOut) => {
         const finalStrikerId = overrideStrikerId !== undefined ? overrideStrikerId : forceStrikerId;
         const finalNonStrikerId = overrideNonStrikerId !== undefined ? overrideNonStrikerId : forceNonStrikerId;
+        const finalBowlerId = overrideBowlerId !== undefined ? overrideBowlerId : forceBowlerId;
 
         if (!finalStrikerId || !finalNonStrikerId) {
             toastRef.current?.showToast('error', 'Please select both Striker and Non-Striker.');
@@ -3036,6 +3230,7 @@ const ScoringConsole = () => {
 
         await withProcessing(async () => {
             const bKey = isTeam1Batting ? 'team1' : 'team2';
+            const bowlKey = isTeam1Batting ? 'team2' : 'team1';
             const updated = JSON.parse(JSON.stringify(matchData));
             updated[bKey] = updated[bKey] || {};
             updated[bKey].players = updated[bKey].players || {};
@@ -3094,6 +3289,32 @@ const ScoringConsole = () => {
             updated[bKey].ballFaceBatsman = newStriker;
             updated[bKey].otherSideBatsman = newNonStriker;
 
+            // Process Bowler if provided
+            let activeBowlerObj = bowler;
+            if (finalBowlerId) {
+                updated[bowlKey] = updated[bowlKey] || {};
+                updated[bowlKey].bowlers = updated[bowlKey].bowlers || {};
+                const bowlRoster = (activeBowlingSquad && activeBowlingSquad.length > 0)
+                    ? activeBowlingSquad
+                    : Object.values(updated[bowlKey].players || {});
+                const rawBowlerObj = updated[bowlKey].bowlers[finalBowlerId] ||
+                    bowlRoster.find(p => String(p.id) === String(finalBowlerId)) ||
+                    { id: finalBowlerId, name: 'Bowler' };
+                if (!updated[bowlKey].bowlers[finalBowlerId]) {
+                    updated[bowlKey].bowlers[finalBowlerId] = {
+                        ...rawBowlerObj,
+                        overs: rawBowlerObj.overs ?? 0,
+                        runs: rawBowlerObj.runs ?? 0,
+                        wickets: rawBowlerObj.wickets ?? 0,
+                        balls: rawBowlerObj.balls ?? 0,
+                        economy: rawBowlerObj.economy ?? '0.00'
+                    };
+                }
+                activeBowlerObj = updated[bowlKey].bowlers[finalBowlerId];
+                updated[bowlKey].bowler = activeBowlerObj;
+                setBowlerId(finalBowlerId);
+            }
+
             // If fallOfWickets had either player and reinstateOut is true, clean them up and adjust wicket count
             if (reinstateOut && updated[bKey].fallOfWickets) {
                 const fowEntries = Object.entries(updated[bKey].fallOfWickets);
@@ -3138,7 +3359,7 @@ const ScoringConsole = () => {
                 liveScore: {
                     matchTitle: activeMatchTitle,
                     firstBat: common.firstBat,
-                    status: `${newStriker.name} on strike | ${bowler.name} bowling`,
+                    status: `${newStriker.name} on strike | ${activeBowlerObj.name || bowler.name} bowling`,
                     team1: {
                         name: updated.team1?.name,
                         overs: updated.team1?.overs ?? 0,
@@ -3155,8 +3376,9 @@ const ScoringConsole = () => {
             });
 
             setShowForceChangeModal(false);
-            toastRef.current?.showToast('success', `Forcefully changed crease batters to ${newStriker.name} (*) & ${newNonStriker.name}!`);
-        }, 'Force Changing Batters...', 'Assigning Striker and Non-Striker at the crease...');
+            const bowlerMsg = activeBowlerObj ? ` & Bowler (${activeBowlerObj.name})` : '';
+            toastRef.current?.showToast('success', `Forcefully updated crease: ${newStriker.name} (*), ${newNonStriker.name}${bowlerMsg}!`);
+        }, 'Force Changing Crease...', 'Assigning Striker, Non-Striker and Bowler at the crease...');
     };
 
     // Manual Crease Selection Changes with Partnership Sync & Batter Status Reset
@@ -3321,21 +3543,30 @@ const ScoringConsole = () => {
         const bowlKey = isTeam1Batting ? 'team2' : 'team1';
         const updated = JSON.parse(JSON.stringify(matchData));
         const bowlSquad = Object.values(updated[bowlKey]?.bowlers || updated[bowlKey]?.players || {});
-        const newBowlerObj = bowlSquad.find(p => p.id === newBowlerId);
+        const pool = (activeBowlingSquad && activeBowlingSquad.length > 0) ? activeBowlingSquad : bowlSquad;
+        const newBowlerObj = pool.find(p => String(p.id) === String(newBowlerId)) || bowlSquad.find(p => String(p.id) === String(newBowlerId));
         if (!newBowlerObj) return;
 
         await withProcessing(async () => {
             updated[bowlKey] = updated[bowlKey] || {};
-            updated[bowlKey].bowler = newBowlerObj;
             updated[bowlKey].bowlers = updated[bowlKey].bowlers || {};
             if (!updated[bowlKey].bowlers[newBowlerId]) {
-                updated[bowlKey].bowlers[newBowlerId] = newBowlerObj;
+                updated[bowlKey].bowlers[newBowlerId] = {
+                    ...newBowlerObj,
+                    overs: newBowlerObj.overs ?? 0,
+                    runs: newBowlerObj.runs ?? 0,
+                    wickets: newBowlerObj.wickets ?? 0,
+                    balls: newBowlerObj.balls ?? 0,
+                    economy: newBowlerObj.economy ?? '0.00'
+                };
             }
+            const activeBowler = updated[bowlKey].bowlers[newBowlerId];
+            updated[bowlKey].bowler = activeBowler;
 
             setMatchData(updated);
             await updateMatchData(activeMatchTitle, {
-                [`${bowlKey}/bowler`]: newBowlerObj,
-                [`${bowlKey}/bowlers/${newBowlerId}`]: updated[bowlKey].bowlers[newBowlerId]
+                [`${bowlKey}/bowler`]: activeBowler,
+                [`${bowlKey}/bowlers/${newBowlerId}`]: activeBowler
             }, selectedTournamentId);
         }, 'Changing Bowler...', 'Assigning new bowler to the crease...');
     };
@@ -3791,66 +4022,11 @@ const ScoringConsole = () => {
             await withProcessing(async () => {
                 const teamData = matchData[teamKey] || {};
                 const teamName = teamData.name || (teamKey === 'team1' ? t1Name : t2Name);
-                const teamObj = findTeamData(teamName) ||
-                    findTeamData(teamKey === 'team1' ? t1Name : t2Name) ||
-                    findTeamData(teamKey) ||
-                    {};
-
-                // Construct all available players map (including any extraPlayers and squad players on teamObj)
-                const allPlayersMap = { ...(teamData.players || {}) };
-                if (teamObj?.extraPlayers) {
-                    Object.values(teamObj.extraPlayers).forEach(ep => {
-                        const existingKey = Object.keys(allPlayersMap).find(k =>
-                            String(allPlayersMap[k].id) === String(ep.id) ||
-                            (allPlayersMap[k].name && ep.name && allPlayersMap[k].name.trim().toLowerCase() === ep.name.trim().toLowerCase())
-                        );
-                        if (!existingKey) {
-                            const epId = ep.id || `res_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                            allPlayersMap[epId] = {
-                                id: epId,
-                                name: ep.name,
-                                imageUrl: ep.imageUrl || ep.image || ep.photo || '',
-                                role: ep.role || 'All Rounder',
-                                runs: 0,
-                                balls: 0,
-                                boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
-                                strikeRate: '0.00',
-                                dismissal: '',
-                                status: 'yet to bat',
-                                hand: ep.hand || 'Right Hand',
-                                type: 'Reserve',
-                                shots: {}
-                            };
-                        }
-                    });
-                }
-
-                if (teamObj?.players) {
-                    Object.values(teamObj.players).forEach((sp, idx) => {
-                        const existingKey = Object.keys(allPlayersMap).find(k =>
-                            String(allPlayersMap[k].id) === String(sp.id) ||
-                            (allPlayersMap[k].name && sp.name && allPlayersMap[k].name.trim().toLowerCase() === sp.name.trim().toLowerCase())
-                        );
-                        if (!existingKey) {
-                            const spId = sp.id || `sq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                            allPlayersMap[spId] = {
-                                id: spId,
-                                name: sp.name,
-                                imageUrl: sp.imageUrl || sp.image || sp.photo || '',
-                                role: sp.role || 'All Rounder',
-                                runs: 0,
-                                balls: 0,
-                                boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
-                                strikeRate: '0.00',
-                                dismissal: '',
-                                status: 'yet to bat',
-                                hand: sp.hand || 'Right Hand',
-                                type: sp.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
-                                shots: {}
-                            };
-                        }
-                    });
-                }
+                const { playersList: allConsolePlayers } = resolveConsoleTeamRoster(teamData, teamKey, teamName);
+                const allPlayersMap = {};
+                allConsolePlayers.forEach(p => {
+                    allPlayersMap[p.id] = p;
+                });
 
                 const getPlayerFromMap = (map, id) => {
                     if (!map || id === undefined || id === null) return null;
@@ -3912,66 +4088,12 @@ const ScoringConsole = () => {
         const currentTeamKey = squadManagerTeamKey || 'team1';
         const teamData = matchData[currentTeamKey] || {};
         const teamName = teamData.name || (currentTeamKey === 'team1' ? t1Name : t2Name);
-        const teamObj = findTeamData(teamName) ||
-            findTeamData(currentTeamKey === 'team1' ? t1Name : t2Name) ||
-            findTeamData(currentTeamKey) ||
-            {};
 
-        // Include any bench reserves defined on teamObj that aren't yet in matchData.players
-        const mergedPlayersMap = { ...(teamData.players || {}) };
-        if (teamObj?.extraPlayers) {
-            Object.values(teamObj.extraPlayers).forEach(ep => {
-                const existingKey = Object.keys(mergedPlayersMap).find(k =>
-                    String(mergedPlayersMap[k].id) === String(ep.id) ||
-                    (mergedPlayersMap[k].name && ep.name && mergedPlayersMap[k].name.trim().toLowerCase() === ep.name.trim().toLowerCase())
-                );
-                if (!existingKey) {
-                    const epId = ep.id || `res_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                    mergedPlayersMap[epId] = {
-                        id: epId,
-                        name: ep.name,
-                        imageUrl: ep.imageUrl || ep.image || ep.photo || '',
-                        role: ep.role || 'All Rounder',
-                        runs: 0,
-                        balls: 0,
-                        boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
-                        strikeRate: '0.00',
-                        dismissal: '',
-                        status: 'yet to bat',
-                        hand: ep.hand || 'Right Hand',
-                        type: 'Reserve',
-                        shots: {}
-                    };
-                }
-            });
-        }
-
-        if (teamObj?.players) {
-            Object.values(teamObj.players).forEach((sp, idx) => {
-                const existingKey = Object.keys(mergedPlayersMap).find(k =>
-                    String(mergedPlayersMap[k].id) === String(sp.id) ||
-                    (mergedPlayersMap[k].name && sp.name && mergedPlayersMap[k].name.trim().toLowerCase() === sp.name.trim().toLowerCase())
-                );
-                if (!existingKey) {
-                    const spId = sp.id || `sq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                    mergedPlayersMap[spId] = {
-                        id: spId,
-                        name: sp.name,
-                        imageUrl: sp.imageUrl || sp.image || sp.photo || '',
-                        role: sp.role || 'All Rounder',
-                        runs: 0,
-                        balls: 0,
-                        boundaries: { fours: 0, sixes: 0, singles: 0, twos: 0 },
-                        strikeRate: '0.00',
-                        dismissal: '',
-                        status: 'yet to bat',
-                        hand: sp.hand || 'Right Hand',
-                        type: sp.type || (idx < 11 ? 'Playing XI' : 'Reserve'),
-                        shots: {}
-                    };
-                }
-            });
-        }
+        const { playingXI: currentXI, reserves: currentReserves } = resolveConsoleTeamRoster(
+            teamData,
+            currentTeamKey,
+            teamName
+        );
 
         const isCurrentlyBattingTeam = (currentBattingTeamKey === currentTeamKey);
         const isCurrentlyBowlingTeam = (currentBowlingTeamKey === currentTeamKey);
@@ -3988,24 +4110,6 @@ const ScoringConsole = () => {
             };
         };
 
-        const playersWithResolvedType = Object.values(mergedPlayersMap).map((p, idx) => {
-            const lockedInfo = checkIsLocked(p);
-            const squadPlayer = teamObj?.players?.[p.id] ||
-                Object.values(teamObj?.players || {}).find(sp =>
-                    String(sp.id) === String(p.id) ||
-                    (sp.nic && sp.nic === p.nic) ||
-                    (sp.name && p.name && sp.name.trim().toLowerCase() === p.name.trim().toLowerCase())
-                );
-            return {
-                ...p,
-                type: resolvePlayerType(p, teamObj, lockedInfo.isLocked, idx),
-                hand: p.hand || squadPlayer?.hand || 'Right Hand',
-                imageUrl: p.imageUrl || squadPlayer?.imageUrl || squadPlayer?.image || p.photo || ''
-            };
-        });
-
-        const currentXI = playersWithResolvedType.filter(p => p.type === 'Playing XI');
-        const currentReserves = playersWithResolvedType.filter(p => p.type === 'Reserve');
         const eligibleXI = currentXI.filter(p => !checkIsLocked(p).isLocked);
 
         return (
@@ -4355,7 +4459,7 @@ const ScoringConsole = () => {
                                         type="button"
                                         className={`sc-crease-unlock-btn ${isForceCreaseUnlocked ? 'unlocked' : ''}`}
                                         onClick={() => setIsForceCreaseUnlocked(prev => !prev)}
-                                        title={isForceCreaseUnlocked ? "Click to lock crease selectors" : "Click to unlock crease selectors and change batters directly on board"}
+                                        title={isForceCreaseUnlocked ? "Click to lock crease selectors" : "Click to unlock crease selectors and change batters or bowler directly on board"}
                                     >
                                         {isForceCreaseUnlocked ? <MdLockOpen /> : <MdLock />}
                                         <span>{isForceCreaseUnlocked ? 'Crease Unlocked' : 'Unlock Crease'}</span>
@@ -4386,7 +4490,7 @@ const ScoringConsole = () => {
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (!val) return;
-                                            const newId = Number(val);
+                                            const newId = isNaN(Number(val)) ? val : Number(val);
                                             if (isForceCreaseUnlocked) {
                                                 handleExecuteForceChange(newId, nonStrikerId, true);
                                             } else {
@@ -4449,7 +4553,7 @@ const ScoringConsole = () => {
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (!val) return;
-                                            const newId = Number(val);
+                                            const newId = isNaN(Number(val)) ? val : Number(val);
                                             if (isForceCreaseUnlocked) {
                                                 handleExecuteForceChange(strikerId, newId, true);
                                             } else {
@@ -4502,14 +4606,14 @@ const ScoringConsole = () => {
                                     </div>
                                     <select
                                         value={bowler.id}
-                                        disabled={isBowlerLocked}
+                                        disabled={!isForceCreaseUnlocked && isBowlerLocked}
                                         onChange={(e) => {
-                                            const newId = Number(e.target.value);
+                                            const newId = isNaN(Number(e.target.value)) ? e.target.value : Number(e.target.value);
                                             setBowlerId(newId);
                                             handleManualBowlerChange(newId);
                                         }}
-                                        className={`sc-crease-select compact ${isBowlerLocked ? 'sc-select-locked' : ''}`}
-                                        title={isBowlerLocked ? "Bowler cannot be changed during an ongoing over." : "Select bowler for this over"}
+                                        className={`sc-crease-select compact ${(!isForceCreaseUnlocked && isBowlerLocked) ? 'sc-select-locked' : ''} ${isForceCreaseUnlocked ? 'sc-select-force-unlocked' : ''}`}
+                                        title={isForceCreaseUnlocked ? "Force Unlocked: Select any bowler directly" : (isBowlerLocked ? "Bowler cannot be changed during an ongoing over. Click 'Unlock Crease' to change." : "Select bowler for this over")}
                                     >
                                         {activeBowlingSquad.map(p => {
                                             if (!p) return null;
@@ -6401,9 +6505,9 @@ const ScoringConsole = () => {
                                 <div className="sc-fc-title-group">
                                     <span className="sc-fc-badge">CREASE OVERRIDE</span>
                                     <h3>
-                                        <MdPersonPin className="sc-fc-icon" /> Force Change Batters
+                                        <MdPersonPin className="sc-fc-icon" /> Force Change Batters & Bowler
                                     </h3>
-                                    <p>Forcefully assign or replace Striker and Non-Striker at the crease.</p>
+                                    <p>Forcefully assign or replace Striker, Non-Striker, and Bowler at the crease.</p>
                                 </div>
                                 <button
                                     type="button"
@@ -6516,6 +6620,53 @@ const ScoringConsole = () => {
                                                             <span>4s: <strong>{nsP?.boundaries?.fours || 0}</strong> | 6s: <strong>{nsP?.boundaries?.sixes || 0}</strong></span>
                                                             <span className={`sc-fc-status-badge ${isOut ? 'out' : 'active'}`}>
                                                                 {isOut ? (nsP?.dismissal || 'Out') : 'Active / Ready'}
+                                                            </span>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Bowler Selector Card */}
+                                <div className="sc-fc-bowler-row" style={{ marginTop: '14px' }}>
+                                    <div className="sc-fc-card bowler">
+                                        <div className="sc-fc-card-top">
+                                            <span className="sc-fc-label">BOWLER (🔴)</span>
+                                            <span className="sc-fc-pill bowler-pill">Bowling End</span>
+                                        </div>
+                                        <div className="sc-fc-field">
+                                            <label>Select Bowler</label>
+                                            <select
+                                                className="sc-fc-select"
+                                                value={forceBowlerId}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setForceBowlerId(isNaN(Number(val)) ? val : Number(val));
+                                                }}
+                                            >
+                                                <option value="" disabled>-- Select Bowler --</option>
+                                                {activeBowlingSquad.map(p => {
+                                                    if (!p) return null;
+                                                    return (
+                                                        <option key={p.id} value={p.id}>
+                                                            {p.name} {p.bowlingStyle ? `(${p.bowlingStyle})` : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                        {forceBowlerId && (
+                                            <div className="sc-fc-stats-preview">
+                                                {(() => {
+                                                    const bP = activeBowlingSquad.find(p => String(p.id) === String(forceBowlerId)) || bowler;
+                                                    return (
+                                                        <>
+                                                            <span>Overs: <strong>{bP?.overs ?? 0}</strong> ({bP?.balls ?? 0}b)</span>
+                                                            <span>Runs: <strong>{bP?.runs ?? 0}</strong> | Wkts: <strong>{bP?.wickets ?? 0}</strong></span>
+                                                            <span className="sc-fc-status-badge active">
+                                                                Econ: {bP?.economy ?? '0.00'}
                                                             </span>
                                                         </>
                                                     );
