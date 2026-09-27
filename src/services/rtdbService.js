@@ -68,8 +68,8 @@ export const resolveTournamentLabels = (tourney) => {
 
     // Extract edition code like "2K26", "2K25", "2026", etc.
     const match = rawName.match(/2K\d{2}|\b20\d{2}\b/i);
-    let editionCode = match 
-        ? match[0].toUpperCase() 
+    let editionCode = match
+        ? match[0].toUpperCase()
         : rawName.replace(/^E-Legend's\s*Trophy\s*/i, '').replace(/^E-Legends\s*Trophy\s*/i, '').trim() || '2K26';
 
     // Normalize to "2K26" type
@@ -164,7 +164,7 @@ export const subscribeLiveData = (callback) => {
         const targetKey = resolveTournamentKey(currentActiveTournamentId);
         const fallbackTourney = getFallbackTournament(targetKey);
         callback(fallbackTourney?.LiveData || cachedFallbackData?.LiveData || { isLive: 0, currentMatchPath: "", liveScore: null });
-        return () => {};
+        return () => { };
     }
 };
 
@@ -320,7 +320,7 @@ export const buildInitialMatchPayload = (m, teamsData = {}) => {
             finished: 0,
             firstBat: 1,
             firstBattingTeam: t1,
-            overLimit: 15,
+            overLimit: 20,
             result: 'Scheduled',
             score: 'Scheduled',
             mom: '',
@@ -520,7 +520,7 @@ export const enrichMatchWithFixturesData = (matchData, finishedMatches, matchTit
 };
 
 export const subscribeMatch = (matchTitle, callback, customTourneyId) => {
-    if (!matchTitle) return () => {};
+    if (!matchTitle) return () => { };
     const rawClean = decodeURIComponent(String(matchTitle)).replace(/^\//, '').split('/').pop().trim();
     const cleanTitle = rawClean;
 
@@ -644,7 +644,7 @@ export const subscribeMatch = (matchTitle, callback, customTourneyId) => {
         console.error('Error subscribing to match:', error);
         const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
         resolveMatchFallback(targetKey, callback);
-        return () => {};
+        return () => { };
     }
 };
 
@@ -911,7 +911,7 @@ export const subscribeFixtures = (callback, customTourneyId) => {
         const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
         const fallbackTourney = getFallbackTournament(targetKey);
         callback(fallbackTourney?.FixturesData || { isFixtures: 1, finishedMatches: {} });
-        return () => {};
+        return () => { };
     }
 };
 
@@ -973,7 +973,7 @@ export const subscribeUpcoming = (callback, customTourneyId) => {
         const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
         const fallbackTourney = getFallbackTournament(targetKey);
         callback(fallbackTourney?.UpcomingMatchData || { isUpcoming: 1 });
-        return () => {};
+        return () => { };
     }
 };
 
@@ -1223,8 +1223,8 @@ export const normalizeRankingData = (raw) => {
                     set(ref(database, `Tournaments/${targetKey}/RankingData/pointsTable`), normalized.pointsTable)
                         .then(() => console.log('✅ Points table NRR auto-healed in Firebase RTDB!'))
                         .catch(err => console.warn('Could not auto-heal points table in RTDB:', err));
-                    set(ref(database, `Tournaments/${targetKey}/1st/common/score`), 'E23 144/0 (12.0) • E25 140/7 (20.0)').catch(() => {});
-                    set(ref(database, `Tournaments/${targetKey}/FixturesData/finishedMatches/1790366067802/score`), 'E23 144/0 (12.0) • E25 140/7 (20.0)').catch(() => {});
+                    set(ref(database, `Tournaments/${targetKey}/1st/common/score`), 'E23 144/0 (12.0) • E25 140/7 (20.0)').catch(() => { });
+                    set(ref(database, `Tournaments/${targetKey}/FixturesData/finishedMatches/1790366067802/score`), 'E23 144/0 (12.0) • E25 140/7 (20.0)').catch(() => { });
                 }
             } catch (e) {
                 // Ignore background sync errors
@@ -1280,7 +1280,7 @@ export const subscribeRankings = (callback) => {
         const targetKey = resolveTournamentKey(currentActiveTournamentId);
         const fallbackTourney = getFallbackTournament(targetKey);
         callback(normalizeRankingData(fallbackTourney?.RankingData || { batters: {}, bowlers: {}, pointsTable: [] }));
-        return () => {};
+        return () => { };
     }
 };
 
@@ -1320,11 +1320,7 @@ export const recordMatchRankings = async (finishedMatchPayload, customTourneyId)
         const t2Name = (team2.name || 'Team 2').trim();
         const t1Runs = Number(team1.totalRuns || 0);
         const t2Runs = Number(team2.totalRuns || 0);
-        const t1Wickets = Number(team1.totalWickets || 0);
-        const t2Wickets = Number(team2.totalWickets || 0);
-        const t1Balls = Number(team1.totalBalls || 0);
-        const t2Balls = Number(team2.totalBalls || 0);
-        const maxOvers = Number(finishedMatchPayload?.common?.overLimit || 15);
+        const maxOvers = Number(finishedMatchPayload?.common?.overLimit || 20);
 
         // Helper to convert cricket overs (number or string, e.g. "3.2" or 3.2) to total legal balls
         const parseOversToBalls = (ov) => {
@@ -1963,7 +1959,7 @@ export const subscribeStories = (callback, customTourneyId) => {
     } catch (error) {
         console.error('Error subscribing to AllStories:', error);
         callback({});
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2049,7 +2045,7 @@ export const subscribeTeams = (callback, customTourneyId) => {
         const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
         const fallbackTourney = getFallbackTournament(targetKey);
         callback(fallbackTourney?.teamData || fallbackTourney?.teams || {});
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2183,7 +2179,7 @@ export const subscribeTournamentIndex = (callback) => {
     } catch (error) {
         console.error('Error subscribing to TournamentIndex:', error);
         callback(cachedFallbackData?.TournamentIndex || []);
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2226,7 +2222,7 @@ export const subscribeActiveTournament = (callback) => {
         const targetKey = resolveTournamentKey(currentActiveTournamentId);
         const fallbackEd = getFallbackTournament(targetKey);
         callback({ activeId: currentActiveTournamentId, ...fallbackEd?.info, fullData: fallbackEd });
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2236,7 +2232,7 @@ export const setActiveTournamentId = async (editionId) => {
 };
 
 export const subscribeTournamentEdition = (editionId, callback) => {
-    if (!editionId) return () => {};
+    if (!editionId) return () => { };
     const targetKey = resolveTournamentKey(editionId);
 
     try {
@@ -2258,7 +2254,7 @@ export const subscribeTournamentEdition = (editionId, callback) => {
     } catch (error) {
         console.error(`Error subscribing to Tournaments/${targetKey}:`, error);
         callback(getFallbackTournament(targetKey));
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2332,10 +2328,10 @@ export const createTournament = async (tournamentData) => {
     // Update TournamentIndex
     const indexSnap = await get(ref(database, 'TournamentIndex'));
     let indexList = indexSnap.exists() && Array.isArray(indexSnap.val()) ? indexSnap.val() : [];
-    
+
     // Remove if already exists
     indexList = indexList.filter(item => item.id !== cleanId && item.editionId !== cleanEdition);
-    
+
     // Add new tournament to front
     indexList.unshift({
         id: cleanId,
@@ -2418,7 +2414,7 @@ export const subscribeDownloadCount = (callback) => {
         return unsubscribe;
     } catch (error) {
         callback(314);
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2433,7 +2429,7 @@ export const incrementDownloadCount = async () => {
         // Also mirror inside AppInfo
         try {
             await set(ref(database, 'AppInfo/downloadCount'), newCount);
-        } catch (e) {}
+        } catch (e) { }
 
         return newCount;
     } catch (err) {
@@ -2463,7 +2459,7 @@ export const subscribeWebViewsCount = (callback) => {
         return unsubscribe;
     } catch (error) {
         callback(1840);
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2485,7 +2481,7 @@ export const recordWebView = async () => {
 
         try {
             await set(ref(database, 'AppInfo/webViewsCount'), newCount);
-        } catch (e) {}
+        } catch (e) { }
 
         return newCount;
     } catch (err) {
@@ -2540,7 +2536,7 @@ export const subscribeCommonGallery = (callback) => {
     } catch (error) {
         console.error('Error subscribing to Common Gallery:', error);
         callback([]);
-        return () => {};
+        return () => { };
     }
 };
 
@@ -2601,7 +2597,7 @@ export const saveCommonGalleryPhoto = async (photoData) => {
 export const saveGalleryPhotosOrder = async (orderedPhotos, allPhotos = []) => {
     try {
         const updates = {};
-        
+
         // If an overall array is provided, merge the ordered subset sequence properly
         if (allPhotos.length > 0 && orderedPhotos.length < allPhotos.length) {
             const orderedIdSet = new Set(orderedPhotos.map(p => p.id));

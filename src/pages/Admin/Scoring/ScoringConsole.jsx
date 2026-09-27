@@ -1216,7 +1216,7 @@ const ScoringConsole = () => {
         // Check if match already has saved toss in RTDB
         let existingWinner = t1;
         let existingDecision = 'bat';
-        let existingOvers = selectedFixture.overLimit || 20;
+        let existingOvers = 20; // Default selecting match over limit must always be 20 overs
         let existingStriker = null;
         let existingNonStriker = null;
         let existingBowler = null;
@@ -1226,7 +1226,18 @@ const ScoringConsole = () => {
             if (currentMatch?.common) {
                 if (currentMatch.common.tossWinner) existingWinner = currentMatch.common.tossWinner;
                 if (currentMatch.common.tossDecision) existingDecision = currentMatch.common.tossDecision;
-                if (currentMatch.common.overLimit) existingOvers = currentMatch.common.overLimit;
+
+                // When starting match from admin, default selected over limit must be 20 overs
+                // If it was the legacy 15 or 12 default from seed templates, override to 20
+                const matchOverLimit = Number(currentMatch.common.overLimit);
+                const fixtureOverLimit = Number(selectedFixture.overLimit);
+                if (matchOverLimit && matchOverLimit !== 15 && matchOverLimit !== 12) {
+                    existingOvers = matchOverLimit;
+                } else if (fixtureOverLimit && fixtureOverLimit !== 15 && fixtureOverLimit !== 12) {
+                    existingOvers = fixtureOverLimit;
+                } else {
+                    existingOvers = 20;
+                }
 
                 const isT1B = currentMatch.common.firstBat === 1;
                 const bKey = isT1B ? 'team1' : 'team2';
@@ -1253,7 +1264,7 @@ const ScoringConsole = () => {
         });
         setTossWinner(existingWinner);
         setTossDecision(existingDecision);
-        setTossOverLimit(existingOvers);
+        setTossOverLimit(existingOvers || 20);
 
         setOpeningStrikerId(existingStriker || batList[0]?.id || 1);
         setOpeningNonStrikerId(existingNonStriker || batList[1]?.id || batList[0]?.id || 2);
@@ -1283,11 +1294,11 @@ const ScoringConsole = () => {
             team1: t1,
             team2: t2,
             teams: currentCommon.teams || `${t1} vs ${t2}`,
-            overLimit: currentCommon.overLimit || 20
+            overLimit: (currentCommon.overLimit && currentCommon.overLimit !== 15 && currentCommon.overLimit !== 12) ? currentCommon.overLimit : 20
         });
         setTossWinner(currentCommon.tossWinner || t1);
         setTossDecision(currentCommon.tossDecision || 'bat');
-        setTossOverLimit(currentCommon.overLimit || 20);
+        setTossOverLimit((currentCommon.overLimit && currentCommon.overLimit !== 15 && currentCommon.overLimit !== 12) ? currentCommon.overLimit : 20);
         setOpeningStrikerId(matchData[bKey]?.ballFaceBatsman?.id || strikerId || batSquad[0]?.id || 1);
         setOpeningNonStrikerId(matchData[bKey]?.otherSideBatsman?.id || nonStrikerId || batSquad[1]?.id || 2);
         setOpeningBowlerId(matchData[bowlKey]?.bowler?.id || bowlerId || bowlSquad[0]?.id || 1);
@@ -1956,7 +1967,7 @@ const ScoringConsole = () => {
                             </div>
                             <div className="sc-toss-overs-control">
                                 <div className="sc-toss-overs-presets">
-                                    {[5, 8, 10, 15, 20].map((ov) => (
+                                    {[20, 15, 12, 10, 8, 5].map((ov) => (
                                         <button
                                             key={ov}
                                             type="button"
@@ -2939,7 +2950,7 @@ const ScoringConsole = () => {
                 const overNum = Math.floor(bTeam.totalBalls / 6);
                 toastRef.current?.showToast('info', `Over ${overNum} complete! Strike rotated.`);
 
-                const overLimit = Number(common.overLimit || 15);
+                const overLimit = Number(common.overLimit || 20);
                 const isFirstInnings = (common.activeInnings || 1) === 1;
                 const is1stInningsOverLimitReached = isFirstInnings && bTeam.totalBalls >= (overLimit * 6);
 
@@ -3754,7 +3765,7 @@ const ScoringConsole = () => {
     const handleOpenDlsModal = () => {
         if (!matchData) return;
         const currentCommon = matchData.common || {};
-        const originalOvers = Number(currentCommon.overLimit) || 15;
+        const originalOvers = Number(currentCommon.overLimit) || 20;
         const existingDls = currentCommon.dls;
 
         if (existingDls && existingDls.isApplied) {
@@ -3782,7 +3793,7 @@ const ScoringConsole = () => {
 
     const handleAutoCalculateDls = (revOversValue) => {
         const currentCommon = matchData?.common || {};
-        const originalOvers = Number(currentCommon.overLimit) || 15;
+        const originalOvers = Number(currentCommon.overLimit) || 20;
         const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
         const firstInningsScore = matchData?.[firstBatTeamKey]?.totalRuns || 0;
         const revOvers = Number(revOversValue !== undefined ? revOversValue : dlsRevisedOvers) || originalOvers;
@@ -3801,7 +3812,7 @@ const ScoringConsole = () => {
     const handleApplyDls = async () => {
         if (!matchData || !activeMatchTitle) return;
         const currentCommon = matchData.common || {};
-        const originalOvers = Number(currentCommon.overLimit) || 15;
+        const originalOvers = Number(currentCommon.overLimit) || 20;
         const revOvers = Number(dlsRevisedOvers) || originalOvers;
         const targetNum = Number(dlsOfficialTarget);
 
@@ -5516,7 +5527,7 @@ const ScoringConsole = () => {
                                     </div>
                                     <div className="cx-info-row">
                                         <span>Overs</span>
-                                        <span className="cx-info-val">{common.overLimit || 15} Ov T20</span>
+                                        <span className="cx-info-val">{common.overLimit || 20} Ov T20</span>
                                     </div>
                                 </div>
                             </div>
@@ -6807,7 +6818,7 @@ const ScoringConsole = () => {
                     if (!showDlsModal || !matchData) return null;
 
                     const currentCommon = matchData.common || {};
-                    const originalOvers = Number(currentCommon.overLimit) || 15;
+                    const originalOvers = Number(currentCommon.overLimit) || 20;
                     const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
                     const secondBatTeamKey = currentCommon.firstBat === 1 ? 'team2' : 'team1';
                     const t1TeamName = matchData[firstBatTeamKey]?.name || '1st Batting Team';

@@ -538,7 +538,7 @@ const LiveScore3D = () => {
     const tabBatWickets = isTabTeam1Batting ? t1Wickets : t2Wickets;
     const tabBatOvers = isTabTeam1Batting ? t1Overs : t2Overs;
 
-    const overLimit = Number(common.overLimit) || 15;
+    const overLimit = Number(common.overLimit) || 20;
 
     const t1Crr = t1Overs > 0 ? (t1Score / t1Overs).toFixed(2) : '0.00';
     const t2Crr = t2Overs > 0 ? (t2Score / t2Overs).toFixed(2) : '0.00';
