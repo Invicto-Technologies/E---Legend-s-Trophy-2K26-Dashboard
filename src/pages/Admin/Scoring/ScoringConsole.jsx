@@ -10,10 +10,11 @@ import {
     updateMatchData,
     setMatchData as setRtdbMatchData,
     getMatchData,
-    updateLiveData,
+    updateLiveData as rtdbUpdateLiveData,
     saveFinishedMatch,
     recordMatchRankings,
     syncMatch1Team2BowlersAndRankings,
+    subscribeTournamentSettings,
 } from '../../../services/rtdbService';
 import {
     MdUndo,
@@ -41,7 +42,11 @@ import {
     MdGroups,
     MdLock,
     MdLockOpen,
-    MdPersonPin
+    MdPersonPin,
+    MdTune,
+    MdTableChart,
+    MdInfoOutline,
+    MdWarningAmber
 } from 'react-icons/md';
 import { GiCricketBat } from 'react-icons/gi';
 import { FaCoins, FaTrophy } from 'react-icons/fa6';
@@ -50,7 +55,7 @@ import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
 import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import { generateSmartCommentary } from '../../../utils/commentaryEngine';
 import WagonWheel from '../../../components/3D/WagonWheel';
-import { calculateDlsTarget } from '../../../utils/dlsEngine';
+import { calculateDlsTarget, generateDlsParTable } from '../../../utils/dlsEngine';
 import { calculateMatchResult } from '../../../utils/cricketEngine';
 import { isMatchFinished } from '../../../components/common/MatchCard/MatchCard';
 import './ScoringConsole.css';
@@ -116,8 +121,37 @@ export const isPlayerDismissedInInnings = (player, battingTeamData) => {
 const ScoringConsole = () => {
     const location = useLocation();
     const toastRef = useRef();
-    const { selectedTournamentId } = useAdminTournament();
+    const { selectedTournamentId, tournaments } = useAdminTournament();
     const { withProcessing } = useAdminProcessing();
+
+    // Check if managing a test / sandbox tournament
+    const currentTourneyObj = tournaments?.find(t => t.id === selectedTournamentId);
+    const isTestTournament = Boolean(
+        currentTourneyObj && (
+            (currentTourneyObj.status || '').toLowerCase() === 'testing' ||
+            (currentTourneyObj.status || '').toLowerCase() === 'development' ||
+            (currentTourneyObj.status || '').toLowerCase() === 'draft' ||
+            currentTourneyObj.isTest
+        )
+    );
+
+    // Silent Dev Mode (Defaults to true if in test tournament, or can be toggled manually)
+    const [isSilentDevMode, setIsSilentDevMode] = useState(false);
+
+    useEffect(() => {
+        if (isTestTournament) {
+            setIsSilentDevMode(true);
+        }
+    }, [isTestTournament]);
+
+    // Safe liveData proxy that intercepts updates during test/dev matches
+    const updateLiveData = async (payload) => {
+        if (isSilentDevMode || isTestTournament) {
+            // Dev / Silent mode: do not broadcast to public spectator liveData
+            return;
+        }
+        return rtdbUpdateLiveData(payload);
+    };
 
     // Query param match selection
     const queryParams = new URLSearchParams(location.search);
@@ -222,12 +256,41 @@ const ScoringConsole = () => {
     const [secondInningsBowlerId, setSecondInningsBowlerId] = useState('');
     const [momSelection, setMomSelection] = useState('');
 
-    // DLS / Rain Delay State
+    // DLS & Match Adjustments Modal State
     const [showDlsModal, setShowDlsModal] = useState(false);
+    const [dlsModalTab, setDlsModalTab] = useState('dls'); // 'dls' | 'benchmarks' | 'special'
     const [dlsRevisedOvers, setDlsRevisedOvers] = useState('');
     const [dlsOfficialTarget, setDlsOfficialTarget] = useState('');
     const [dlsCalculationData, setDlsCalculationData] = useState(null);
     const [dlsIsManual, setDlsIsManual] = useState(false);
+    const [dlsBenchmarkScore, setDlsBenchmarkScore] = useState(140);
+    const [dlsIsT1Interrupted, setDlsIsT1Interrupted] = useState(false);
+    const [dlsT1OversBowled, setDlsT1OversBowled] = useState('');
+    const [dlsT1WicketsFallen, setDlsT1WicketsFallen] = useState(0);
+    const [dlsCustomBroadcastMsg, setDlsCustomBroadcastMsg] = useState('');
+    const [dlsShowParTable, setDlsShowParTable] = useState(false);
+
+    // Benchmarks & Visibility Settings
+    const [projRateA, setProjRateA] = useState(8);
+    const [projRateB, setProjRateB] = useState(10);
+    const [showProjScoreSetting, setShowProjScoreSetting] = useState(true);
+    const [showDlsParSetting, setShowDlsParSetting] = useState(true);
+
+    // Special Match Features & Rules Settings
+    const [isSpecialMatchSetting, setIsSpecialMatchSetting] = useState(false);
+    const [specialMatchBadgeSetting, setSpecialMatchBadgeSetting] = useState('');
+    const [overLimitSetting, setOverLimitSetting] = useState(20);
+    const [maxBowlerOversSetting, setMaxBowlerOversSetting] = useState(4);
+    const [customBannerSetting, setCustomBannerSetting] = useState('');
+    const [tourneySettings, setTourneySettings] = useState(null);
+
+    useEffect(() => {
+        if (!selectedTournamentId) return;
+        const unsub = subscribeTournamentSettings(selectedTournamentId, (s) => {
+            if (s) setTourneySettings(s);
+        });
+        return () => unsub && unsub();
+    }, [selectedTournamentId]);
 
     // Next Bowler Modal State (Compulsory after over finishes)
     const [showNextBowlerModal, setShowNextBowlerModal] = useState(false);
@@ -1175,9 +1238,9 @@ const ScoringConsole = () => {
             return;
         }
 
-        // Rule: matches can't start when another match is live
+        // Rule: matches can't start when another match is live (bypassed in Silent Dev Mode)
         const currentLive = liveDataRef.current;
-        if (currentLive?.isLive) {
+        if (!isSilentDevMode && !isTestTournament && currentLive?.isLive) {
             const liveMatchName = (currentLive.currentMatchPath
                 ? currentLive.currentMatchPath.split('/').pop()
                 : currentLive.liveScore?.matchTitle || '').trim();
@@ -3762,51 +3825,188 @@ const ScoringConsole = () => {
     // DLS / RAIN INTERRUPTION HANDLERS
     // =========================================================================
 
-    const handleOpenDlsModal = () => {
+    const handleOpenDlsModal = (tab = 'dls') => {
         if (!matchData) return;
         const currentCommon = matchData.common || {};
         const originalOvers = Number(currentCommon.overLimit) || 20;
+        const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
+        const secondBatTeamKey = currentCommon.firstBat === 1 ? 'team2' : 'team1';
+        const t1Score = matchData[firstBatTeamKey]?.totalRuns || 0;
+        const t1OversActual = matchData[firstBatTeamKey]?.overs || originalOvers;
+        const t1WktsActual = matchData[firstBatTeamKey]?.totalWickets || 0;
+        const secondBatName = matchData[secondBatTeamKey]?.name || 'Chasing team';
         const existingDls = currentCommon.dls;
 
+        const benchmark = existingDls?.customG50 || currentCommon.pitchBenchmark || tourneySettings?.pitchBenchmark || 140;
+        const isT1Interrupted = Boolean(existingDls?.isT1Interrupted);
+        const t1Overs = existingDls?.firstInningsOversBowled ?? t1OversActual;
+        const t1Wkts = existingDls?.firstInningsWickets ?? t1WktsActual;
+        const revOvers = existingDls?.revisedOvers || originalOvers;
+
+        setDlsBenchmarkScore(benchmark);
+        setDlsIsT1Interrupted(isT1Interrupted);
+        setDlsT1OversBowled(t1Overs);
+        setDlsT1WicketsFallen(t1Wkts);
+        setDlsRevisedOvers(revOvers);
+        setDlsShowParTable(false);
+
+        // Benchmarks & Display states (match-level override or tourney defaults)
+        setProjRateA(currentCommon.projectedRates?.[0] ?? tourneySettings?.projectedRates?.[0] ?? 8);
+        setProjRateB(currentCommon.projectedRates?.[1] ?? tourneySettings?.projectedRates?.[1] ?? 10);
+        setShowProjScoreSetting(currentCommon.showProjectedScore !== undefined ? currentCommon.showProjectedScore !== false : (tourneySettings?.showProjectedScore !== false));
+        setShowDlsParSetting(currentCommon.showDlsPar !== undefined ? currentCommon.showDlsPar !== false : (tourneySettings?.showDlsPar !== false));
+
+        // Special Match Rules states
+        setIsSpecialMatchSetting(Boolean(currentCommon.isSpecialMatch !== undefined ? currentCommon.isSpecialMatch : tourneySettings?.isSpecialMatch));
+        setSpecialMatchBadgeSetting(currentCommon.specialMatchBadge || tourneySettings?.specialMatchBadge || '');
+        setOverLimitSetting(Number(currentCommon.overLimit) || Number(tourneySettings?.overLimit) || 20);
+        setMaxBowlerOversSetting(Number(currentCommon.maxOversPerBowler) || Number(tourneySettings?.maxOversPerBowler) || Math.ceil((Number(currentCommon.overLimit) || Number(tourneySettings?.overLimit) || 20) / 5));
+        setCustomBannerSetting(currentCommon.customBannerText || tourneySettings?.customBannerText || '');
+
+        setDlsModalTab(typeof tab === 'string' ? tab : 'dls');
+
         if (existingDls && existingDls.isApplied) {
-            setDlsRevisedOvers(existingDls.revisedOvers || originalOvers);
             setDlsOfficialTarget(existingDls.revisedTarget || '');
             setDlsCalculationData(existingDls);
             setDlsIsManual(Boolean(existingDls.isManualOverride));
+            setDlsCustomBroadcastMsg(existingDls.broadcastMessage || `${secondBatName} needs ${existingDls.revisedTarget} runs in ${revOvers} ov (DLS Method)`);
         } else {
-            const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
-            const firstInningsScore = matchData[firstBatTeamKey]?.totalRuns || 0;
-            const defaultRevised = originalOvers;
-            setDlsRevisedOvers(defaultRevised);
             setDlsIsManual(false);
-
             const initialCalc = calculateDlsTarget({
                 totalOvers: originalOvers,
-                firstInningsScore,
-                secondInningsOvers: defaultRevised
+                firstInningsScore: t1Score,
+                secondInningsOvers: revOvers,
+                firstInningsOversBowled: isT1Interrupted ? t1Overs : null,
+                firstInningsWickets: isT1Interrupted ? t1Wkts : 0,
+                customG50: benchmark
             });
             setDlsCalculationData(initialCalc);
             setDlsOfficialTarget(initialCalc.revisedTarget);
+            setDlsCustomBroadcastMsg(`${secondBatName} needs ${initialCalc.revisedTarget} runs in ${revOvers} ov (DLS Method)`);
         }
         setShowDlsModal(true);
     };
 
-    const handleAutoCalculateDls = (revOversValue) => {
+    const handleLoadTournamentDefaults = () => {
+        if (!tourneySettings) {
+            toastRef.current?.showToast('info', 'No custom tournament rules found in RTDB, using standard defaults.');
+            return;
+        }
+        setDlsBenchmarkScore(tourneySettings.pitchBenchmark || 140);
+        setProjRateA(tourneySettings.projectedRates?.[0] ?? 8);
+        setProjRateB(tourneySettings.projectedRates?.[1] ?? 10);
+        setShowProjScoreSetting(tourneySettings.showProjectedScore !== false);
+        setShowDlsParSetting(tourneySettings.showDlsPar !== false);
+        if (tourneySettings.overLimit) setOverLimitSetting(tourneySettings.overLimit);
+        if (tourneySettings.maxOversPerBowler) setMaxBowlerOversSetting(tourneySettings.maxOversPerBowler);
+        if (tourneySettings.isSpecialMatch !== undefined) setIsSpecialMatchSetting(Boolean(tourneySettings.isSpecialMatch));
+        if (tourneySettings.specialMatchBadge !== undefined) setSpecialMatchBadgeSetting(tourneySettings.specialMatchBadge || '');
+        if (tourneySettings.customBannerText !== undefined) setCustomBannerSetting(tourneySettings.customBannerText || '');
+        toastRef.current?.showToast('success', 'Inherited defaults from Tournament Rules & Benchmarks!');
+    };
+
+    const handleAutoCalculateDls = (customParams = {}) => {
         const currentCommon = matchData?.common || {};
         const originalOvers = Number(currentCommon.overLimit) || 20;
         const firstBatTeamKey = currentCommon.firstBat === 1 ? 'team1' : 'team2';
+        const secondBatTeamKey = currentCommon.firstBat === 1 ? 'team2' : 'team1';
         const firstInningsScore = matchData?.[firstBatTeamKey]?.totalRuns || 0;
-        const revOvers = Number(revOversValue !== undefined ? revOversValue : dlsRevisedOvers) || originalOvers;
+        const secondBatName = matchData?.[secondBatTeamKey]?.name || 'Chasing team';
+
+        const revOvers = Number(customParams.revOvers !== undefined ? customParams.revOvers : dlsRevisedOvers) || originalOvers;
+        const benchmark = Number(customParams.benchmark !== undefined ? customParams.benchmark : dlsBenchmarkScore) || 140;
+        const isT1Int = customParams.isT1Int !== undefined ? customParams.isT1Int : dlsIsT1Interrupted;
+        const t1Overs = customParams.t1Overs !== undefined ? customParams.t1Overs : dlsT1OversBowled;
+        const t1Wkts = customParams.t1Wkts !== undefined ? customParams.t1Wkts : dlsT1WicketsFallen;
 
         const res = calculateDlsTarget({
             totalOvers: originalOvers,
             firstInningsScore,
-            secondInningsOvers: revOvers
+            secondInningsOvers: revOvers,
+            firstInningsOversBowled: isT1Int ? t1Overs : null,
+            firstInningsWickets: isT1Int ? t1Wkts : 0,
+            customG50: benchmark
         });
 
         setDlsCalculationData(res);
         setDlsOfficialTarget(res.revisedTarget);
         setDlsIsManual(false);
+        setDlsCustomBroadcastMsg(`${secondBatName} needs ${res.revisedTarget} runs in ${revOvers} ov (DLS Method)`);
+    };
+
+    const handleSaveMatchSettings = async () => {
+        if (!matchData || !activeMatchTitle) return;
+
+        await withProcessing(async () => {
+            const updated = JSON.parse(JSON.stringify(matchData));
+            updated.common = updated.common || {};
+
+            // Pitch & Projected Benchmarks
+            const pitchG = Number(dlsBenchmarkScore) || 140;
+            const rates = [Number(projRateA) || 8, Number(projRateB) || 10];
+            const showProj = Boolean(showProjScoreSetting);
+            const showPar = Boolean(showDlsParSetting);
+
+            updated.common.pitchBenchmark = pitchG;
+            updated.common.projectedRates = rates;
+            updated.common.showProjectedScore = showProj;
+            updated.common.showDlsPar = showPar;
+
+            // Special Match Features
+            const newOverLimit = Number(overLimitSetting) || 20;
+            const maxBowler = Number(maxBowlerOversSetting) || Math.ceil(newOverLimit / 5);
+            const isSpecial = Boolean(isSpecialMatchSetting);
+            const badge = (specialMatchBadgeSetting || '').trim();
+            const banner = (customBannerSetting || '').trim();
+
+            updated.common.overLimit = newOverLimit;
+            updated.common.maxOversPerBowler = maxBowler;
+            updated.common.isSpecialMatch = isSpecial;
+            updated.common.specialMatchBadge = badge;
+            updated.common.customBannerText = banner;
+
+            // If DLS is applied, keep customG50 updated
+            if (updated.common.dls && updated.common.dls.isApplied) {
+                updated.common.dls.customG50 = pitchG;
+            }
+
+            setMatchData(updated);
+            await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
+
+            // Update liveData for spectator scoreboard
+            await updateLiveData({
+                isLive: 1,
+                currentMatchPath: activeMatchTitle,
+                liveScore: {
+                    matchTitle: activeMatchTitle,
+                    firstBat: updated.common.firstBat,
+                    status: banner || updated.common.status || 'Live Match In Progress',
+                    pitchBenchmark: pitchG,
+                    projectedRates: rates,
+                    showProjectedScore: showProj,
+                    showDlsPar: showPar,
+                    isSpecialMatch: isSpecial,
+                    specialMatchBadge: badge,
+                    overLimit: newOverLimit,
+                    team1: {
+                        name: updated.team1?.name,
+                        overs: updated.team1?.overs ?? 0,
+                        score: updated.team1?.totalRuns ?? 0,
+                        wicket: updated.team1?.totalWickets ?? 0
+                    },
+                    team2: {
+                        name: updated.team2?.name,
+                        overs: updated.team2?.overs ?? 0,
+                        score: updated.team2?.totalRuns ?? 0,
+                        wicket: updated.team2?.totalWickets ?? 0
+                    },
+                    dls: updated.common.dls || null
+                }
+            });
+
+            setShowDlsModal(false);
+            toastRef.current?.showToast('success', 'Benchmarks & special features saved successfully!');
+        }, 'Saving Match Configuration...', 'Updating pitch benchmarks and special match parameters...');
     };
 
     const handleApplyDls = async () => {
@@ -3823,6 +4023,10 @@ const ScoringConsole = () => {
 
         await withProcessing(async () => {
             const isManualOverride = dlsIsManual || (dlsCalculationData && dlsCalculationData.revisedTarget !== targetNum);
+            const secondBatTeamKey = currentCommon.firstBat === 1 ? 'team2' : 'team1';
+            const secondBatName = matchData[secondBatTeamKey]?.name || 'Chasing team';
+            const broadcastMsg = dlsCustomBroadcastMsg?.trim() || `${secondBatName} needs ${targetNum} runs in ${revOvers} ov (DLS Method)`;
+
             const dlsPayload = {
                 isApplied: true,
                 originalOvers,
@@ -3833,26 +4037,38 @@ const ScoringConsole = () => {
                 requiredRunRate: revOvers > 0 ? Number((targetNum / revOvers).toFixed(2)) : 0,
                 resource1: dlsCalculationData?.resource1 ?? 100,
                 resource2: dlsCalculationData?.resource2 ?? 100,
+                customG50: Number(dlsBenchmarkScore) || 140,
+                isT1Interrupted: dlsIsT1Interrupted,
+                firstInningsOversBowled: dlsIsT1Interrupted ? Number(dlsT1OversBowled) : originalOvers,
+                firstInningsWickets: dlsIsT1Interrupted ? Number(dlsT1WicketsFallen) : 0,
+                broadcastMessage: broadcastMsg,
+                isOfficialResultEligible: revOvers >= 5,
                 appliedAt: new Date().toISOString()
             };
 
             const updated = JSON.parse(JSON.stringify(matchData));
             updated.common = updated.common || {};
             updated.common.dls = dlsPayload;
+            updated.common.pitchBenchmark = Number(dlsBenchmarkScore) || 140;
+            updated.common.projectedRates = [Number(projRateA) || 8, Number(projRateB) || 10];
+            updated.common.showProjectedScore = Boolean(showProjScoreSetting);
+            updated.common.showDlsPar = Boolean(showDlsParSetting);
 
             setMatchData(updated);
             await updateMatchData(activeMatchTitle, updated, selectedTournamentId);
 
             // Update liveData for viewers
-            const secondBatTeamKey = updated.common.firstBat === 1 ? 'team2' : 'team1';
-            const secondBatName = updated[secondBatTeamKey]?.name || 'Chasing team';
             await updateLiveData({
                 isLive: 1,
                 currentMatchPath: activeMatchTitle,
                 liveScore: {
                     matchTitle: activeMatchTitle,
                     firstBat: updated.common.firstBat,
-                    status: `${secondBatName} needs ${targetNum} runs in ${revOvers} ov (DLS Method)`,
+                    status: broadcastMsg,
+                    pitchBenchmark: updated.common.pitchBenchmark,
+                    projectedRates: updated.common.projectedRates,
+                    showProjectedScore: updated.common.showProjectedScore,
+                    showDlsPar: updated.common.showDlsPar,
                     team1: {
                         name: updated.team1?.name,
                         overs: updated.team1?.overs ?? 0,
@@ -3999,15 +4215,15 @@ const ScoringConsole = () => {
 
             const isSpecialMatch = Boolean(existingFixture?.isSpecial || matchData?.isSpecial || matchData?.common?.isSpecial || existingFixture?.matchType === 'special');
 
-            // Submit and update tournament rankings (Points Table, Top Batters, Top Bowlers) ONLY for tournament matches
-            if (!isSpecialMatch) {
+            // Submit and update tournament rankings ONLY for official tournament matches (excluded for test/dev & special matches)
+            if (!isSpecialMatch && !isSilentDevMode && !isTestTournament) {
                 try {
                     await recordMatchRankings(finishedMatchPayload, selectedTournamentId);
                 } catch (rankingErr) {
                     console.error('Failed to update tournament rankings on match finish:', rankingErr);
                 }
             } else {
-                console.log('Special match finalized - Tournament rankings preserved unchanged.');
+                console.log('Special/Dev match finalized - Tournament rankings preserved unchanged.');
             }
 
             await updateLiveData({
@@ -4653,8 +4869,34 @@ const ScoringConsole = () => {
                                 <div className="sc-control-title">
                                     <MdSportsCricket />
                                     <h4>Scoring Console</h4>
+                                    {(isSilentDevMode || isTestTournament) && (
+                                        <span className="sc-silent-mode-badge" title="Silent Dev Mode: Actions are not broadcast to public users">
+                                            🧪 DEV / SILENT MODE
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="sc-control-actions">
+                                    <button
+                                        type="button"
+                                        className={`sc-action-btn broadcast ${isSilentDevMode || isTestTournament ? 'silent' : 'public'}`}
+                                        onClick={() => {
+                                            if (isTestTournament) {
+                                                toastRef.current?.showToast('info', 'This tournament is set to Dev / Testing. Matches in this tournament are always kept private.');
+                                                return;
+                                            }
+                                            const next = !isSilentDevMode;
+                                            setIsSilentDevMode(next);
+                                            toastRef.current?.showToast(
+                                                next ? 'warning' : 'success',
+                                                next
+                                                    ? 'Silent Dev Mode ON: Live updates are NOT broadcast to public users.'
+                                                    : 'Public Broadcast ON: Live score updates are broadcasting to public visitors.'
+                                            );
+                                        }}
+                                        title={isSilentDevMode || isTestTournament ? "Silent Dev Mode: Public users cannot see this match" : "Public Live Broadcast: Live score is visible on /live"}
+                                    >
+                                        {isSilentDevMode || isTestTournament ? '🧪 Silent Dev' : '📡 Public'}
+                                    </button>
                                     <button className="sc-action-btn undo" onClick={() => setShowUndoConfirmModal(true)} title="Undo Last Delivery">
                                         <MdUndo /> Undo
                                     </button>
@@ -4681,10 +4923,10 @@ const ScoringConsole = () => {
                                     </button>
                                     <button
                                         className={`sc-action-btn dls ${common.dls?.isApplied ? 'active-dls' : ''}`}
-                                        onClick={handleOpenDlsModal}
-                                        title="DLS & Rain Delay Target Manager"
+                                        onClick={() => handleOpenDlsModal('dls')}
+                                        title="Match Adjustments, Pitch Benchmarks, Projected Rates & DLS"
                                     >
-                                        <MdCloudQueue /> DLS {common.dls?.isApplied ? `(${common.dls.revisedTarget})` : ''}
+                                        <MdTune /> Match &amp; DLS {common.dls?.isApplied ? `(${common.dls.revisedTarget})` : ''}
                                     </button>
                                     {common.activeInnings !== 2 && (
                                         <button
@@ -6744,19 +6986,23 @@ const ScoringConsole = () => {
                                             const isJustBowled = String(p.id) === String(lastBowlerId);
                                             const isSelected = String(p.id) === String(selectedNextBowlerId);
                                             const pStats = matchData[currentBowlingTeamKey]?.bowlers?.[p.id] || { overs: 0, runs: 0, wickets: 0 };
+                                            const maxQuota = Number(matchData.common?.maxOversPerBowler) || Math.ceil((Number(matchData.common?.overLimit) || 20) / 5);
+                                            const bowlerOvers = Number(pStats.overs || 0);
+                                            const isQuotaFull = bowlerOvers >= maxQuota;
 
                                             return (
                                                 <button
                                                     key={p.id}
                                                     type="button"
                                                     disabled={isJustBowled}
-                                                    className={`sc-nb-bowler-card ${isSelected ? 'active' : ''} ${isJustBowled ? 'disabled' : ''}`}
+                                                    className={`sc-nb-bowler-card ${isSelected ? 'active' : ''} ${isJustBowled ? 'disabled' : ''} ${isQuotaFull ? 'quota-warning' : ''}`}
                                                     onClick={() => !isJustBowled && setSelectedNextBowlerId(p.id)}
                                                 >
                                                     <div className="sc-nb-bname">
                                                         <strong>{p.name}</strong>
                                                         {p.bowlingStyle && <span className="sc-nb-style-sub">{p.bowlingStyle}</span>}
                                                         {isJustBowled && <span className="sc-nb-law-tag">Just Bowled (Law 17.1)</span>}
+                                                        {isQuotaFull && !isJustBowled && <span className="sc-nb-quota-tag">Quota Full ({maxQuota} ov)</span>}
                                                     </div>
                                                     <div className="sc-nb-bstats">
                                                         <span>{pStats.overs || 0} ov</span> •
@@ -6813,7 +7059,7 @@ const ScoringConsole = () => {
                     </div>
                 )}
 
-                {/* DLS / RAIN DELAY TARGET MANAGER MODAL */}
+                {/* DLS / RAIN DELAY ADJUSTMENT PANEL MODAL */}
                 {(() => {
                     if (!showDlsModal || !matchData) return null;
 
@@ -6826,26 +7072,92 @@ const ScoringConsole = () => {
                     const t1Runs = matchData[firstBatTeamKey]?.totalRuns || 0;
                     const t1Wickets = matchData[firstBatTeamKey]?.totalWickets || 0;
                     const t1Overs = matchData[firstBatTeamKey]?.overs || 0;
-                    const quickOversList = [5, 6, 8, 10, 12, 14, 15, 20].filter(o => o <= originalOvers);
+                    const quickOversList = [5, 6, 8, 10, 12, 14, 15, 18, 20].filter(o => o <= originalOvers);
+                    const currentRevOvers = Number(dlsRevisedOvers) || originalOvers;
+                    const isUnderMinOvers = currentRevOvers < 5;
+
+                    const parTableData = dlsShowParTable ? generateDlsParTable({
+                        totalOvers: originalOvers,
+                        firstInningsScore: t1Runs,
+                        secondInningsOvers: currentRevOvers,
+                        customG50: dlsBenchmarkScore,
+                        minOver: 5,
+                        maxWickets: 6
+                    }) : [];
+
+                    // Live calculation for preview
+                    const activeBatTeamKey = currentBattingTeamKey;
+                    const liveRuns = matchData[activeBatTeamKey]?.totalRuns || 0;
+                    const liveOvers = matchData[activeBatTeamKey]?.overs || 0;
+                    const liveBalls = Math.floor(liveOvers) * 6 + Math.round((liveOvers % 1) * 10);
+                    const liveCrr = liveBalls > 0 ? (liveRuns / liveBalls) * 6 : 0;
+                    const previewMatchOvers = Number(overLimitSetting) || originalOvers;
+                    const remBalls = Math.max(0, (previewMatchOvers * 6) - liveBalls);
+                    const previewProjCrr = Math.round(liveRuns + (liveCrr * (remBalls / 6)));
+                    const previewProjRateA = Math.round(liveRuns + ((Number(projRateA) || 8) * (remBalls / 6)));
+                    const previewProjRateB = Math.round(liveRuns + ((Number(projRateB) || 10) * (remBalls / 6)));
 
                     return (
                         <div className="sc-modal-overlay" onClick={() => setShowDlsModal(false)}>
                             <div className="sc-modal-card sc-dls-modal" onClick={(e) => e.stopPropagation()}>
                                 <div className="sc-dls-modal-header">
                                     <div className="sc-dls-title-group">
-                                        <span className="sc-dls-pill-tag">RAIN DELAY &amp; REVISED TARGET</span>
+                                        <span className="sc-dls-pill-tag">ADMIN MATCH CONTROL</span>
                                         <h3>
-                                            <MdCloudQueue className="sc-dls-cloud-icon" /> DLS Target Manager
+                                            <MdTune className="sc-dls-cloud-icon" /> Match Adjustments, Benchmarks &amp; DLS
                                         </h3>
-                                        <p>Calculate Duckworth-Lewis-Stern targets automatically or enter agreed official numbers from match umpires.</p>
+                                        <p>Fine-tune pitch benchmarks, projected score rates, match over formats, or apply DLS rain targets.</p>
                                     </div>
                                     <button
                                         type="button"
                                         className="sc-dls-close-btn"
                                         onClick={() => setShowDlsModal(false)}
-                                        aria-label="Close DLS Modal"
+                                        aria-label="Close Modal"
                                     >
                                         <MdClose />
+                                    </button>
+                                </div>
+
+                                {/* Modal Tab Navigation */}
+                                <div className="sc-dls-tabs-nav">
+                                    <button
+                                        type="button"
+                                        className={`sc-dls-tab-btn ${dlsModalTab === 'dls' ? 'active' : ''}`}
+                                        onClick={() => setDlsModalTab('dls')}
+                                    >
+                                        <MdCloudQueue /> DLS &amp; Rain Target
+                                        {currentCommon.dls?.isApplied && <span className="sc-tab-active-dot" title="DLS Active" />}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`sc-dls-tab-btn ${dlsModalTab === 'benchmarks' ? 'active' : ''}`}
+                                        onClick={() => setDlsModalTab('benchmarks')}
+                                    >
+                                        <MdTrackChanges /> Pitch &amp; Projected Benchmarks
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`sc-dls-tab-btn ${dlsModalTab === 'special' ? 'active' : ''}`}
+                                        onClick={() => setDlsModalTab('special')}
+                                    >
+                                        <MdSportsCricket /> Special Rules &amp; Format
+                                        {currentCommon.isSpecialMatch && <span className="sc-tab-active-dot special" title="Special Match Active" />}
+                                    </button>
+                                </div>
+
+                                {/* Tournament Tab link & Quick Inherit Strip */}
+                                <div className="sc-dls-tourney-link-strip">
+                                    <div className="sc-dls-tourney-info">
+                                        <MdTune />
+                                        <span>Tournament defaults can be adjusted in the dedicated <Link to="/admin/adjustments" target="_blank" rel="noopener noreferrer" className="sc-tourney-tab-link">Rules &amp; Benchmarks Tab ↗</Link></span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="sc-btn-load-tourney"
+                                        onClick={handleLoadTournamentDefaults}
+                                        title="Load settings from Tournament Rules & Benchmarks"
+                                    >
+                                        <MdAutorenew /> Inherit Tournament Defaults
                                     </button>
                                 </div>
 
@@ -6854,158 +7166,699 @@ const ScoringConsole = () => {
                                     <div className="sc-dls-context-strip">
                                         <div className="sc-dls-ctx-item">
                                             <span className="ctx-label">Match Format</span>
-                                            <strong className="ctx-val">{originalOvers} Overs / side</strong>
+                                            <strong className="ctx-val">{currentCommon.overLimit || 20} Overs / side</strong>
                                         </div>
                                         <div className="sc-dls-ctx-item">
-                                            <span className="ctx-label">1st Innings Total</span>
+                                            <span className="ctx-label">1st Innings</span>
                                             <strong className="ctx-val">{t1TeamName}: {t1Runs}/{t1Wickets} ({t1Overs} ov)</strong>
                                         </div>
                                         <div className="sc-dls-ctx-item">
-                                            <span className="ctx-label">Chasing Team</span>
+                                            <span className="ctx-label">2nd Innings</span>
                                             <strong className="ctx-val">{t2TeamName}</strong>
                                         </div>
-                                    </div>
-
-                                    {/* Revised Overs Input */}
-                                    <div className="sc-dls-field-group">
-                                        <label className="sc-dls-field-label">
-                                            Revised Overs for 2nd Innings:
-                                            <span className="sc-dls-field-hint">How many overs will {t2TeamName} get?</span>
-                                        </label>
-                                        <div className="sc-dls-overs-row">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                max={originalOvers}
-                                                value={dlsRevisedOvers}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setDlsRevisedOvers(val);
-                                                    if (val && Number(val) > 0) {
-                                                        handleAutoCalculateDls(val);
-                                                    }
-                                                }}
-                                                className="sc-dls-input-number"
-                                                placeholder={String(originalOvers)}
-                                            />
-                                            <span className="sc-dls-overs-unit">Overs</span>
-
-                                            <button
-                                                type="button"
-                                                className="sc-dls-btn-recalc"
-                                                onClick={() => handleAutoCalculateDls()}
-                                                title="Compute mathematical DLS target"
-                                            >
-                                                <MdBolt /> Auto Calculate
-                                            </button>
-                                        </div>
-
-                                        {/* Quick Overs Selection Chips */}
-                                        <div className="sc-dls-quick-chips">
-                                            <span className="sc-dls-chips-title">Quick presets:</span>
-                                            {quickOversList.map(ov => (
-                                                <button
-                                                    key={ov}
-                                                    type="button"
-                                                    className={`sc-dls-chip ${Number(dlsRevisedOvers) === ov ? 'active' : ''}`}
-                                                    onClick={() => {
-                                                        setDlsRevisedOvers(ov);
-                                                        handleAutoCalculateDls(ov);
-                                                    }}
-                                                >
-                                                    {ov} Ov
-                                                </button>
-                                            ))}
+                                        <div className="sc-dls-ctx-item">
+                                            <span className="ctx-label">Pitch Benchmark</span>
+                                            <strong className="ctx-val highlight">{dlsBenchmarkScore} Runs</strong>
                                         </div>
                                     </div>
 
-                                    {/* Calculation Insight Card */}
-                                    {dlsCalculationData && (
-                                        <div className="sc-dls-calc-card">
-                                            <div className="sc-dls-calc-header">
-                                                <span>ICC Standard DLS Resource Calculation</span>
-                                                {dlsCalculationData.isDls ? (
-                                                    <span className="sc-dls-scaled-tag">Target Scaled Down</span>
-                                                ) : (
-                                                    <span className="sc-dls-standard-tag">Full Resources</span>
+                                    {/* ========================================================= */}
+                                    {/* TAB 1: DLS & RAIN TARGET                                  */}
+                                    {/* ========================================================= */}
+                                    {dlsModalTab === 'dls' && (
+                                        <div className="sc-dls-tab-content">
+                                            {/* Active DLS Status Banner */}
+                                            {currentCommon.dls?.isApplied && (
+                                                <div className="sc-dls-active-banner">
+                                                    <MdWarningAmber className="sc-dls-warn-icon" />
+                                                    <div className="sc-dls-banner-text">
+                                                        <strong>DLS Method currently active on Live Scoreboard:</strong>
+                                                        <span className="sc-dls-target-text">{t2TeamName} Target: {currentCommon.dls.revisedTarget} runs in {currentCommon.dls.revisedOvers} overs</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 1st Innings Premature Interruption */}
+                                            <div className="sc-dls-t1-interruption-card">
+                                                <label className="sc-dls-checkbox-label">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={dlsIsT1Interrupted}
+                                                        onChange={(e) => {
+                                                            const checked = e.target.checked;
+                                                            setDlsIsT1Interrupted(checked);
+                                                            handleAutoCalculateDls({ isT1Int: checked });
+                                                        }}
+                                                    />
+                                                    <span className="sc-dls-checkbox-custom"></span>
+                                                    <span className="sc-dls-checkbox-text">
+                                                        <strong>1st Innings was interrupted / ended prematurely by rain</strong>
+                                                        <small>Check if {t1TeamName} was prevented from facing their full {originalOvers} overs quota.</small>
+                                                    </span>
+                                                </label>
+
+                                                {dlsIsT1Interrupted && (
+                                                    <div className="sc-dls-t1-subinputs">
+                                                        <div className="sc-dls-subfield">
+                                                            <label>Overs Faced by {t1TeamName}:</label>
+                                                            <input
+                                                                type="number"
+                                                                step="0.1"
+                                                                min="1"
+                                                                max={originalOvers}
+                                                                value={dlsT1OversBowled}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    setDlsT1OversBowled(val);
+                                                                    handleAutoCalculateDls({ t1Overs: val });
+                                                                }}
+                                                                placeholder={String(t1Overs || originalOvers)}
+                                                                className="sc-dls-input-number"
+                                                            />
+                                                        </div>
+                                                        <div className="sc-dls-subfield">
+                                                            <label>Wickets Down at Stoppage:</label>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max="9"
+                                                                value={dlsT1WicketsFallen}
+                                                                onChange={(e) => {
+                                                                    const val = Number(e.target.value);
+                                                                    setDlsT1WicketsFallen(val);
+                                                                    handleAutoCalculateDls({ t1Wkts: val });
+                                                                }}
+                                                                placeholder={String(t1Wickets || 0)}
+                                                                className="sc-dls-input-number"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div className="sc-dls-calc-grid">
-                                                <div className="sc-dls-stat-col">
-                                                    <span className="stat-label">Calculated Target</span>
-                                                    <strong className="stat-val highlight">{dlsCalculationData.revisedTarget} Runs</strong>
+
+                                            {/* Revised Overs for 2nd Innings */}
+                                            <div className="sc-dls-field-group">
+                                                <label className="sc-dls-field-label">
+                                                    Revised Overs for 2nd Innings:
+                                                    <span className="sc-dls-field-hint">How many overs will {t2TeamName} get for the chase?</span>
+                                                </label>
+                                                <div className="sc-dls-overs-row">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max={originalOvers}
+                                                        value={dlsRevisedOvers}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setDlsRevisedOvers(val);
+                                                            if (val && Number(val) > 0) {
+                                                                handleAutoCalculateDls({ revOvers: val });
+                                                            }
+                                                        }}
+                                                        className="sc-dls-input-number"
+                                                        placeholder={String(originalOvers)}
+                                                    />
+                                                    <span className="sc-dls-overs-unit">Overs</span>
+
+                                                    <button
+                                                        type="button"
+                                                        className="sc-dls-btn-recalc"
+                                                        onClick={() => handleAutoCalculateDls()}
+                                                        title="Compute mathematical DLS target"
+                                                    >
+                                                        <MdBolt /> Recalculate
+                                                    </button>
                                                 </div>
-                                                <div className="sc-dls-stat-col">
-                                                    <span className="stat-label">Required Run Rate</span>
-                                                    <strong className="stat-val">{dlsCalculationData.requiredRunRate} RPO</strong>
+
+                                                {/* Quick Overs Selection Chips */}
+                                                <div className="sc-dls-quick-chips">
+                                                    <span className="sc-dls-chips-title">Quick presets:</span>
+                                                    {quickOversList.map(ov => (
+                                                        <button
+                                                            key={ov}
+                                                            type="button"
+                                                            className={`sc-dls-chip ${Number(dlsRevisedOvers) === ov ? 'active' : ''}`}
+                                                            onClick={() => {
+                                                                setDlsRevisedOvers(ov);
+                                                                handleAutoCalculateDls({ revOvers: ov });
+                                                            }}
+                                                        >
+                                                            {ov} Ov
+                                                        </button>
+                                                    ))}
                                                 </div>
-                                                <div className="sc-dls-stat-col">
-                                                    <span className="stat-label">Team 1 Resource</span>
-                                                    <strong className="stat-val">{dlsCalculationData.resource1}%</strong>
+
+                                                {/* ICC Minimum Overs Rule Banner */}
+                                                {isUnderMinOvers ? (
+                                                    <div className="sc-dls-rule-banner warning">
+                                                        <MdWarningAmber className="rule-icon" />
+                                                        <div>
+                                                            <strong>ICC Minimum Overs Warning (&lt; 5.0 Overs)</strong>
+                                                            <span>By standard T20 conditions, at least 5.0 overs must be completed in the 2nd innings to declare a DLS winner. Under 5 overs, match will be classified as No Result (NR).</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="sc-dls-rule-banner success">
+                                                        <MdCheck className="rule-icon" />
+                                                        <span>Official Result Eligible: {currentRevOvers} overs meets the minimum 5.0 overs threshold.</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Calculation Insight Card */}
+                                            {dlsCalculationData && (
+                                                <div className="sc-dls-calc-card">
+                                                    <div className="sc-dls-calc-header">
+                                                        <span>ICC DLS Resource Mathematical Breakdown</span>
+                                                        {dlsCalculationData.calculationType === 'scaled_down' ? (
+                                                            <span className="sc-dls-scaled-tag">Target Scaled Down</span>
+                                                        ) : dlsCalculationData.calculationType === 'scaled_up' ? (
+                                                            <span className="sc-dls-scaled-tag scaled-up">Target Scaled Up</span>
+                                                        ) : (
+                                                            <span className="sc-dls-standard-tag">Full Resources</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="sc-dls-calc-grid">
+                                                        <div className="sc-dls-stat-col">
+                                                            <span className="stat-label">Calculated Target</span>
+                                                            <strong className="stat-val highlight">{dlsCalculationData.revisedTarget} Runs</strong>
+                                                        </div>
+                                                        <div className="sc-dls-stat-col">
+                                                            <span className="stat-label">Required Run Rate</span>
+                                                            <strong className="stat-val">{dlsCalculationData.requiredRunRate} RPO</strong>
+                                                        </div>
+                                                        <div className="sc-dls-stat-col">
+                                                            <span className="stat-label">Team 1 Resource</span>
+                                                            <strong className="stat-val">{dlsCalculationData.resource1}%</strong>
+                                                        </div>
+                                                        <div className="sc-dls-stat-col">
+                                                            <span className="stat-label">Team 2 Resource</span>
+                                                            <strong className="stat-val">{dlsCalculationData.resource2}%</strong>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="sc-dls-stat-col">
-                                                    <span className="stat-label">Team 2 Resource</span>
-                                                    <strong className="stat-val">{dlsCalculationData.resource2}%</strong>
+                                            )}
+
+                                            {/* Official Target Override Input */}
+                                            <div className="sc-dls-field-group target-override">
+                                                <div className="sc-dls-field-header-row">
+                                                    <label className="sc-dls-field-label">
+                                                        Official Target to Apply:
+                                                        <span className="sc-dls-field-hint">Auto-filled from calculation. Edit manually if match referee / umpires specify an official sheet target.</span>
+                                                    </label>
+                                                    {dlsIsManual && (
+                                                        <span className="sc-dls-manual-badge">Custom Override</span>
+                                                    )}
+                                                </div>
+                                                <div className="sc-dls-target-input-row">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={dlsOfficialTarget}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setDlsOfficialTarget(val);
+                                                            setDlsIsManual(true);
+                                                            setDlsCustomBroadcastMsg(`${t2TeamName} needs ${val || 0} runs in ${dlsRevisedOvers || originalOvers} ov (DLS Method)`);
+                                                        }}
+                                                        className="sc-dls-input-target"
+                                                        placeholder="Enter target"
+                                                    />
+                                                    <span className="sc-dls-target-subtext">
+                                                        {t2TeamName} needs <strong>{dlsOfficialTarget || 0}</strong> runs to win in {dlsRevisedOvers || originalOvers} overs (Target: {dlsOfficialTarget || 0}).
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Live Broadcast Message Preview */}
+                                            <div className="sc-dls-field-group">
+                                                <label className="sc-dls-field-label">
+                                                    Live Scoreboard Status Message:
+                                                    <span className="sc-dls-field-hint">Displayed to spectators and fans on the 3D live match banner.</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={dlsCustomBroadcastMsg}
+                                                    onChange={(e) => setDlsCustomBroadcastMsg(e.target.value)}
+                                                    className="sc-dls-input-broadcast"
+                                                    placeholder="Status message"
+                                                />
+                                            </div>
+
+                                            {/* DLS Par Score Matrix Sheet Toggle */}
+                                            <div className="sc-dls-par-sheet-section">
+                                                <button
+                                                    type="button"
+                                                    className={`sc-dls-btn-par-toggle ${dlsShowParTable ? 'active' : ''}`}
+                                                    onClick={() => setDlsShowParTable(prev => !prev)}
+                                                >
+                                                    <MdTableChart /> {dlsShowParTable ? 'Hide' : 'View'} Official DLS Par Score Sheet (Overs 5 – {currentRevOvers})
+                                                </button>
+
+                                                {dlsShowParTable && (
+                                                    <div className="sc-dls-par-table-wrap">
+                                                        <div className="sc-dls-table-note">
+                                                            <MdInfoOutline /> Par score is the score needed at the end of each over if rain permanently halts play. Comparing actual score against par decides the winner.
+                                                        </div>
+                                                        <div className="sc-dls-table-scroll">
+                                                            <table className="sc-dls-matrix-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Over</th>
+                                                                        <th>0 Wkt</th>
+                                                                        <th>1 Wkt</th>
+                                                                        <th>2 Wkts</th>
+                                                                        <th>3 Wkts</th>
+                                                                        <th>4 Wkts</th>
+                                                                        <th>5 Wkts</th>
+                                                                        <th>6 Wkts</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {parTableData.map(row => (
+                                                                        <tr key={row.over}>
+                                                                            <td className="ov-col">Ov {row.over}</td>
+                                                                            {row.pars.map(p => (
+                                                                                <td key={p.wickets}>{p.par}</td>
+                                                                            ))}
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ========================================================= */}
+                                    {/* TAB 2: PITCH & PROJECTED BENCHMARKS                       */}
+                                    {/* ========================================================= */}
+                                    {dlsModalTab === 'benchmarks' && (
+                                        <div className="sc-dls-tab-content">
+                                            {/* Pitch Par Score Benchmark (G Score) */}
+                                            <div className="sc-dls-field-group">
+                                                <div className="sc-dls-field-header-row">
+                                                    <label className="sc-dls-field-label">
+                                                        <MdTune className="sc-dls-icon-inline" /> Ground &amp; Pitch Par Benchmark (G Score):
+                                                        <span className="sc-dls-field-hint">The standard 20-over score on this pitch. Used by DLS target scaling and pitch par analytics (Default: 140 runs).</span>
+                                                    </label>
+                                                    <span className="sc-dls-benchmark-badge">{dlsBenchmarkScore} Runs</span>
+                                                </div>
+                                                <div className="sc-dls-benchmark-row">
+                                                    <input
+                                                        type="range"
+                                                        min="100"
+                                                        max="220"
+                                                        step="1"
+                                                        value={dlsBenchmarkScore}
+                                                        onChange={(e) => {
+                                                            const val = Number(e.target.value);
+                                                            setDlsBenchmarkScore(val);
+                                                            handleAutoCalculateDls({ benchmark: val });
+                                                        }}
+                                                        className="sc-dls-slider"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        min="80"
+                                                        max="250"
+                                                        value={dlsBenchmarkScore}
+                                                        onChange={(e) => {
+                                                            const val = Number(e.target.value);
+                                                            setDlsBenchmarkScore(val);
+                                                            if (val > 0) handleAutoCalculateDls({ benchmark: val });
+                                                        }}
+                                                        className="sc-dls-input-number benchmark-num"
+                                                    />
+                                                </div>
+                                                <div className="sc-dls-quick-chips">
+                                                    <span className="sc-dls-chips-title">Presets:</span>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 120 ? 'active' : ''}`}
+                                                        onClick={() => {
+                                                            setDlsBenchmarkScore(120);
+                                                            handleAutoCalculateDls({ benchmark: 120 });
+                                                        }}
+                                                    >
+                                                        120 (Bowlers Pitch)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 140 ? 'active' : ''}`}
+                                                        onClick={() => {
+                                                            setDlsBenchmarkScore(140);
+                                                            handleAutoCalculateDls({ benchmark: 140 });
+                                                        }}
+                                                    >
+                                                        140 (Pitch Par / Balanced)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 160 ? 'active' : ''}`}
+                                                        onClick={() => {
+                                                            setDlsBenchmarkScore(160);
+                                                            handleAutoCalculateDls({ benchmark: 160 });
+                                                        }}
+                                                    >
+                                                        160 (Batting Surface)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 180 ? 'active' : ''}`}
+                                                        onClick={() => {
+                                                            setDlsBenchmarkScore(180);
+                                                            handleAutoCalculateDls({ benchmark: 180 });
+                                                        }}
+                                                    >
+                                                        180 (High Scoring)
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Projected Score Reference Rates */}
+                                            <div className="sc-dls-field-group">
+                                                <div className="sc-dls-field-header-row">
+                                                    <label className="sc-dls-field-label">
+                                                        <MdTrackChanges className="sc-dls-icon-inline" /> Projected Score Reference Rates:
+                                                        <span className="sc-dls-field-hint">The spectator scoreboard calculates final totals at current CRR and at these two benchmark run rates (RPO).</span>
+                                                    </label>
+                                                </div>
+                                                <div className="sc-rate-benchmark-row">
+                                                    <div className="sc-rate-input-box">
+                                                        <span className="sc-rate-tag">Rate A (RPO)</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.5"
+                                                            min="4"
+                                                            max="20"
+                                                            value={projRateA}
+                                                            onChange={(e) => setProjRateA(Number(e.target.value))}
+                                                            className="sc-dls-input-number"
+                                                        />
+                                                    </div>
+                                                    <div className="sc-rate-input-box">
+                                                        <span className="sc-rate-tag">Rate B (RPO)</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.5"
+                                                            min="4"
+                                                            max="20"
+                                                            value={projRateB}
+                                                            onChange={(e) => setProjRateB(Number(e.target.value))}
+                                                            className="sc-dls-input-number"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="sc-dls-quick-chips">
+                                                    <span className="sc-dls-chips-title">Combos:</span>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${projRateA === 7 && projRateB === 9 ? 'active' : ''}`}
+                                                        onClick={() => { setProjRateA(7); setProjRateB(9); }}
+                                                    >
+                                                        7.0 &amp; 9.0 RPO
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${projRateA === 8 && projRateB === 10 ? 'active' : ''}`}
+                                                        onClick={() => { setProjRateA(8); setProjRateB(10); }}
+                                                    >
+                                                        8.0 &amp; 10.0 RPO (Standard)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${projRateA === 9 && projRateB === 11 ? 'active' : ''}`}
+                                                        onClick={() => { setProjRateA(9); setProjRateB(11); }}
+                                                    >
+                                                        9.0 &amp; 11.0 RPO (Death Overs)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-dls-chip ${projRateA === 10 && projRateB === 12 ? 'active' : ''}`}
+                                                        onClick={() => { setProjRateA(10); setProjRateB(12); }}
+                                                    >
+                                                        10.0 &amp; 12.0 RPO (Explosive)
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Live Spectator Projection Preview Card */}
+                                            <div className="sc-proj-preview-card">
+                                                <div className="sc-proj-preview-header">
+                                                    <MdInfoOutline /> Spectator Projection Card Live Preview
+                                                </div>
+                                                <div className="sc-proj-preview-body">
+                                                    <div className="sc-preview-row">
+                                                        <span className="lbl">Active Score:</span>
+                                                        <strong>{liveRuns}/{matchData[activeBatTeamKey]?.totalWickets || 0} ({liveOvers} ov)</strong>
+                                                    </div>
+                                                    <div className="sc-preview-pills">
+                                                        <span className="sc-proj-pill-demo crr">@ CRR ({liveCrr.toFixed(1)}): <strong>{previewProjCrr}</strong></span>
+                                                        <span className="sc-proj-pill-demo">@ {projRateA} RPO: <strong>{previewProjRateA}</strong></span>
+                                                        <span className="sc-proj-pill-demo">@ {projRateB} RPO: <strong>{previewProjRateB}</strong></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Display Toggles */}
+                                            <div className="sc-dls-field-group">
+                                                <label className="sc-dls-field-label">Scoreboard Spectator Feature Visibility:</label>
+                                                <div className="sc-toggle-setting-box">
+                                                    <label className="sc-setting-checkbox-label">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={showProjScoreSetting}
+                                                            onChange={(e) => setShowProjScoreSetting(e.target.checked)}
+                                                        />
+                                                        <div className="sc-setting-desc">
+                                                            <strong>Show Projected Score Widget on Live Scoreboard</strong>
+                                                            <span>Renders compact live projection pill in scoreboard center and over pills.</span>
+                                                        </div>
+                                                    </label>
+
+                                                    <label className="sc-setting-checkbox-label">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={showDlsParSetting}
+                                                            onChange={(e) => setShowDlsParSetting(e.target.checked)}
+                                                        />
+                                                        <div className="sc-setting-desc">
+                                                            <strong>Show Live DLS Par Pill on Live Scoreboard (2nd Innings)</strong>
+                                                            <span>Displays dynamic ball-by-ball Par score comparison (+ahead / -behind) to spectators.</span>
+                                                        </div>
+                                                    </label>
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Official Target Override Input */}
-                                    <div className="sc-dls-field-group target-override">
-                                        <div className="sc-dls-field-header-row">
-                                            <label className="sc-dls-field-label">
-                                                Official Target to Apply:
-                                                <span className="sc-dls-field-hint">Auto-filled from calculation. Edit manually if umpires specify an agreed target.</span>
-                                            </label>
-                                            {dlsIsManual && (
-                                                <span className="sc-dls-manual-badge">Custom Override</span>
-                                            )}
+                                    {/* ========================================================= */}
+                                    {/* TAB 3: SPECIAL MATCH RULES & FORMAT                       */}
+                                    {/* ========================================================= */}
+                                    {dlsModalTab === 'special' && (
+                                        <div className="sc-dls-tab-content">
+                                            {/* Match Format & Total Overs */}
+                                            <div className="sc-dls-field-group">
+                                                <div className="sc-dls-field-header-row">
+                                                    <label className="sc-dls-field-label">
+                                                        <MdSportsCricket className="sc-dls-icon-inline" /> Match Format (Total Overs Per Side):
+                                                        <span className="sc-dls-field-hint">Changes match length. Updates both teams' innings quotas and over limit.</span>
+                                                    </label>
+                                                    <span className="sc-dls-overs-badge">{overLimitSetting} Overs</span>
+                                                </div>
+                                                <div className="sc-dls-overs-input-row">
+                                                    <input
+                                                        type="number"
+                                                        min="5"
+                                                        max="50"
+                                                        value={overLimitSetting}
+                                                        onChange={(e) => {
+                                                            const val = Number(e.target.value);
+                                                            setOverLimitSetting(val);
+                                                            setMaxBowlerOversSetting(Math.ceil(val / 5));
+                                                        }}
+                                                        className="sc-dls-input-number"
+                                                    />
+                                                    <div className="sc-dls-quick-chips">
+                                                        <span className="sc-dls-chips-title">Presets:</span>
+                                                        {[5, 8, 10, 12, 15, 20].map(ov => (
+                                                            <button
+                                                                key={ov}
+                                                                type="button"
+                                                                className={`sc-dls-chip ${Number(overLimitSetting) === ov ? 'active' : ''}`}
+                                                                onClick={() => {
+                                                                    setOverLimitSetting(ov);
+                                                                    setMaxBowlerOversSetting(Math.ceil(ov / 5));
+                                                                }}
+                                                            >
+                                                                {ov} Ov
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Max Overs Per Bowler Quota */}
+                                            <div className="sc-dls-field-group">
+                                                <div className="sc-dls-field-header-row">
+                                                    <label className="sc-dls-field-label">
+                                                        Max Overs Per Bowler Quota:
+                                                        <span className="sc-dls-field-hint">Maximum overs any single bowler is allowed to bowl.</span>
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        className="sc-quota-calc-btn"
+                                                        onClick={() => setMaxBowlerOversSetting(Math.ceil(Number(overLimitSetting) / 5))}
+                                                    >
+                                                        Auto (Overs ÷ 5)
+                                                    </button>
+                                                </div>
+                                                <div className="sc-rate-input-box" style={{ maxWidth: '220px' }}>
+                                                    <span className="sc-rate-tag">Quota</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max={overLimitSetting}
+                                                        value={maxBowlerOversSetting}
+                                                        onChange={(e) => setMaxBowlerOversSetting(Number(e.target.value))}
+                                                        className="sc-dls-input-number"
+                                                    />
+                                                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>overs / bowler</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Special Match Mode & Badge */}
+                                            <div className="sc-dls-field-group">
+                                                <label className="sc-dls-field-label">Special / Exhibition Match Mode:</label>
+                                                <div className="sc-toggle-setting-box">
+                                                    <label className="sc-setting-checkbox-label">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSpecialMatchSetting}
+                                                            onChange={(e) => setIsSpecialMatchSetting(e.target.checked)}
+                                                        />
+                                                        <div className="sc-setting-desc">
+                                                            <strong>Enable Special / Exhibition Match Mode</strong>
+                                                            <span>Highlights match with unique gold badge on the 3D scoreboard and matches list.</span>
+                                                        </div>
+                                                    </label>
+                                                </div>
+
+                                                {isSpecialMatchSetting && (
+                                                    <div style={{ marginTop: '12px' }}>
+                                                        <label className="sc-dls-field-label">
+                                                            Special Match Badge / Tag:
+                                                            <span className="sc-dls-field-hint">Tag label shown on spectator scoreboard.</span>
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={specialMatchBadgeSetting}
+                                                            onChange={(e) => setSpecialMatchBadgeSetting(e.target.value)}
+                                                            className="sc-dls-input-broadcast"
+                                                            placeholder="e.g. Special Match, Grand Final, Alumni Trophy"
+                                                        />
+                                                        <div className="sc-dls-quick-chips" style={{ marginTop: '8px' }}>
+                                                            <span className="sc-dls-chips-title">Badge:</span>
+                                                            {['Special Match', 'Grand Final', 'Semi-Final', 'Exhibition Clash', 'Alumni Derby'].map(badge => (
+                                                                <button
+                                                                    key={badge}
+                                                                    type="button"
+                                                                    className={`sc-dls-chip ${specialMatchBadgeSetting === badge ? 'active' : ''}`}
+                                                                    onClick={() => setSpecialMatchBadgeSetting(badge)}
+                                                                >
+                                                                    {badge}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Custom Spectator Ticker / Announcement Banner */}
+                                            <div className="sc-dls-field-group">
+                                                <label className="sc-dls-field-label">
+                                                    Custom Scoreboard Announcement Banner:
+                                                    <span className="sc-dls-field-hint">Overrides status with a custom broadcast message for spectators (leave blank for automatic live status).</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={customBannerSetting}
+                                                    onChange={(e) => setCustomBannerSetting(e.target.value)}
+                                                    className="sc-dls-input-broadcast"
+                                                    placeholder="e.g. Match delayed due to wet outfield. Play resumes soon."
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="sc-dls-target-input-row">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={dlsOfficialTarget}
-                                                onChange={(e) => {
-                                                    setDlsOfficialTarget(e.target.value);
-                                                    setDlsIsManual(true);
-                                                }}
-                                                className="sc-dls-input-target"
-                                                placeholder="Enter target"
-                                            />
-                                            <span className="sc-dls-target-subtext">
-                                                {t2TeamName} needs <strong>{dlsOfficialTarget || 0}</strong> runs to win in {dlsRevisedOvers || originalOvers} overs.
-                                            </span>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
 
+                                {/* Modal Footers depending on Tab */}
                                 <div className="sc-dls-modal-footer">
-                                    {currentCommon.dls?.isApplied ? (
-                                        <button
-                                            type="button"
-                                            className="sc-dls-btn-reset"
-                                            onClick={handleResetDls}
-                                        >
-                                            Remove DLS
-                                        </button>
+                                    {dlsModalTab === 'dls' ? (
+                                        <>
+                                            {currentCommon.dls?.isApplied ? (
+                                                <button
+                                                    type="button"
+                                                    className="sc-dls-btn-reset"
+                                                    onClick={handleResetDls}
+                                                >
+                                                    Remove DLS
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="cx-btn-secondary"
+                                                    onClick={() => setShowDlsModal(false)}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                className="cx-btn-confirm primary"
+                                                onClick={handleApplyDls}
+                                            >
+                                                Apply DLS Target ({dlsOfficialTarget || 0})
+                                            </button>
+                                        </>
+                                    ) : dlsModalTab === 'benchmarks' ? (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="cx-btn-secondary"
+                                                onClick={() => setShowDlsModal(false)}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="cx-btn-confirm primary"
+                                                onClick={handleSaveMatchSettings}
+                                            >
+                                                <MdCheck /> Save Benchmarks &amp; Display
+                                            </button>
+                                        </>
                                     ) : (
-                                        <button
-                                            type="button"
-                                            className="cx-btn-secondary"
-                                            onClick={() => setShowDlsModal(false)}
-                                        >
-                                            Cancel
-                                        </button>
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="cx-btn-secondary"
+                                                onClick={() => setShowDlsModal(false)}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="cx-btn-confirm primary"
+                                                onClick={handleSaveMatchSettings}
+                                            >
+                                                <MdCheck /> Save Match Rules &amp; Format
+                                            </button>
+                                        </>
                                     )}
-                                    <button
-                                        type="button"
-                                        className="cx-btn-confirm primary"
-                                        onClick={handleApplyDls}
-                                    >
-                                        Apply DLS Target ({dlsOfficialTarget || 0})
-                                    </button>
                                 </div>
                             </div>
                         </div>

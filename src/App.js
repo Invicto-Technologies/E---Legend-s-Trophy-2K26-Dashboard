@@ -33,6 +33,7 @@ import ScoringConsole from './pages/Admin/Scoring/ScoringConsole';
 import StoriesManagement from './pages/Admin/StoriesManagement/StoriesManagement';
 import GalleryManagement from './pages/Admin/GalleryManagement/GalleryManagement';
 import TeamManagement from './pages/Admin/TeamManagement/TeamManagement';
+import TournamentAdjustments from './pages/Admin/TournamentAdjustments/TournamentAdjustments';
 import AdminLogin from './pages/Admin/Login/AdminLogin';
 
 // Scroll to top helper on route navigation
@@ -166,6 +167,26 @@ const AppLayout = () => {
                             element={
                                 isLoggedIn ? (
                                     <TeamManagement />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/adjustments"
+                            element={
+                                isLoggedIn ? (
+                                    <TournamentAdjustments />
+                                ) : (
+                                    <Navigate to="/admin/login" replace />
+                                )
+                            }
+                        />
+                        <Route
+                            path="/admin/benchmarks"
+                            element={
+                                isLoggedIn ? (
+                                    <Navigate to="/admin/adjustments" replace />
                                 ) : (
                                     <Navigate to="/admin/login" replace />
                                 )

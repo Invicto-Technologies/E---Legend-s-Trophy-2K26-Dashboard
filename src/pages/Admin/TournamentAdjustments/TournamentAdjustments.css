@@ -1,0 +1,1068 @@
+/* ==========================================================================
+   TOURNAMENT ADJUSTMENTS & RULES STYLES (Supports Light & Dark Modes)
+   ========================================================================== */
+
+.admin-adjustments-page {
+    min-height: 100vh;
+    background: var(--bg-space);
+    color: var(--text-main);
+    padding-top: 0;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.ta-content-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 30px 24px 80px;
+}
+
+/* --------------------------------------------------------------------------
+   HERO HEADER
+   -------------------------------------------------------------------------- */
+.ta-hero-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 30, 60, 0.75) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 18px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+}
+
+.ta-hero-info {
+    flex: 1;
+}
+
+.ta-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.ta-badge-primary {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #38bdf8;
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.ta-badge-active {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.ta-hero-header h1 {
+    font-size: 1.85rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ta-header-icon {
+    color: #38bdf8;
+    font-size: 2.1rem;
+    flex-shrink: 0;
+}
+
+.ta-hero-header p {
+    font-size: 0.95rem;
+    color: #94a3b8;
+    margin: 0;
+    line-height: 1.55;
+    max-width: 850px;
+}
+
+/* --------------------------------------------------------------------------
+   SELECTOR BOX
+   -------------------------------------------------------------------------- */
+.ta-selector-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 280px;
+}
+
+.ta-selector-box label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94a3b8;
+    letter-spacing: 0.5px;
+}
+
+.ta-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 12px;
+    padding: 10px 14px;
+    transition: all 0.2s ease;
+}
+
+.ta-select-icon {
+    font-size: 1.3rem;
+    color: #fbbf24;
+    flex-shrink: 0;
+}
+
+.ta-tourney-dropdown {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #f8fafc;
+    font-size: 0.95rem;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+}
+
+.ta-tourney-dropdown option {
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+/* --------------------------------------------------------------------------
+   GRID LAYOUT
+   -------------------------------------------------------------------------- */
+.ta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-bottom: 28px;
+}
+
+@media (max-width: 1024px) {
+    .ta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   SETTINGS CARDS
+   -------------------------------------------------------------------------- */
+.ta-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease;
+}
+
+.ta-card:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.ta-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.ta-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ta-card-title h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.card-icon {
+    font-size: 1.35rem;
+    color: #38bdf8;
+    flex-shrink: 0;
+}
+
+.ta-val-pill {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+    white-space: nowrap;
+}
+
+.ta-val-pill.highlight {
+    background: rgba(14, 165, 233, 0.18);
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #38bdf8;
+    font-weight: 800;
+}
+
+.ta-card-desc {
+    font-size: 0.88rem;
+    color: #94a3b8;
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+}
+
+.ta-field-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   INPUTS & SLIDERS
+   -------------------------------------------------------------------------- */
+.ta-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.ta-slider {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    accent-color: #0284c7;
+    cursor: pointer;
+}
+
+.ta-number-input {
+    width: 95px;
+    padding: 10px 12px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 800;
+    text-align: center;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.ta-number-input:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.ta-unit {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   QUICK PRESET CHIPS
+   -------------------------------------------------------------------------- */
+.ta-quick-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chips-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.ta-chip {
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ta-chip:hover {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
+.ta-chip.active {
+    background: rgba(56, 189, 248, 0.22);
+    border-color: #38bdf8;
+    color: #38bdf8;
+    font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   PLAIN-ENGLISH VALUE INSIGHTS
+   -------------------------------------------------------------------------- */
+.ta-value-insight {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(14, 165, 233, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    transition: all 0.2s ease;
+}
+
+.ta-value-insight .insight-icon {
+    font-size: 1.3rem;
+    color: #38bdf8;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.ta-value-insight strong {
+    display: block;
+    color: #38bdf8;
+    margin-bottom: 3px;
+    font-weight: 700;
+}
+
+.ta-value-insight p {
+    margin: 0;
+    color: #cbd5e1;
+}
+
+/* --------------------------------------------------------------------------
+   RATES ROW
+   -------------------------------------------------------------------------- */
+.ta-rates-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.ta-rate-box {
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+
+.rate-lbl {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94a3b8;
+    letter-spacing: 0.4px;
+}
+
+.rate-hint {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   INTERACTIVE SIMULATOR CARD
+   -------------------------------------------------------------------------- */
+.ta-sim-card {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 6px;
+    transition: all 0.2s ease;
+}
+
+.ta-sim-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #38bdf8;
+    margin-bottom: 12px;
+}
+
+.ta-sim-inputs {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.sim-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #cbd5e1;
+}
+
+.ta-sim-num {
+    width: 65px;
+    padding: 4px 8px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #f8fafc;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.ta-sim-pill-preview {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sim-pill {
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+}
+
+.sim-pill.crr {
+    background: rgba(14, 165, 233, 0.15);
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #e0f2fe;
+}
+
+.sim-pill strong {
+    color: #38bdf8;
+    font-size: 0.95rem;
+}
+
+/* --------------------------------------------------------------------------
+   PLAYING CONDITIONS LAYOUT
+   -------------------------------------------------------------------------- */
+.ta-row-group {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.ta-inline-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ta-inline-field label {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.ta-input-with-chips {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ta-label-with-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ta-mini-btn {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ta-mini-btn:hover {
+    background: rgba(56, 189, 248, 0.25);
+    color: #ffffff;
+}
+
+.ta-bowler-quota-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ta-rule-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.ta-rule-note svg {
+    color: #38bdf8;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   TOGGLES & ANNOUNCEMENTS
+   -------------------------------------------------------------------------- */
+.ta-toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ta-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: all 0.2s ease;
+}
+
+.ta-toggle-row:hover {
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(56, 189, 248, 0.2);
+}
+
+.ta-toggle-row input[type="checkbox"] {
+    margin-top: 3px;
+    accent-color: #0284c7;
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+}
+
+.ta-toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ta-toggle-text strong {
+    font-size: 0.88rem;
+    color: #f1f5f9;
+}
+
+.ta-toggle-text span {
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.ta-special-badge-input {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.ta-special-badge-input label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #fbbf24;
+}
+
+.ta-text-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 0.92rem;
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.ta-text-input:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.ta-announcement-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.ta-announcement-input-group label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.ta-field-hint {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 400;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   BOTTOM ACTION BAR
+   -------------------------------------------------------------------------- */
+.ta-action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(15, 30, 60, 0.8) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 16px;
+    padding: 18px 24px;
+    gap: 20px;
+    flex-wrap: wrap;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+}
+
+.ta-sync-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 600px;
+}
+
+.ta-sync-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.ta-sync-checkbox input[type="checkbox"] {
+    accent-color: #0284c7;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.ta-sync-hint {
+    font-size: 0.76rem;
+    color: #94a3b8;
+    margin-left: 28px;
+    line-height: 1.4;
+}
+
+.ta-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.ta-btn-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    color: #cbd5e1;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ta-btn-reset:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.ta-btn-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 26px;
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4);
+}
+
+.ta-btn-save:hover {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
+    transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   LIGHT MODE THEME ADAPTATIONS
+   ========================================================================== */
+[data-theme="light"] .admin-adjustments-page {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-hero-header {
+    background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+    border: 1px solid rgba(2, 132, 199, 0.25);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .ta-hero-header h1 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-header-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-hero-header p {
+    color: #475569;
+}
+
+[data-theme="light"] .ta-badge-primary {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .ta-badge-active {
+    color: #059669;
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="light"] .ta-selector-box label {
+    color: #475569;
+}
+
+[data-theme="light"] .ta-select-wrap {
+    background: #ffffff;
+    border-color: rgba(203, 213, 225, 0.9);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .ta-tourney-dropdown {
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-tourney-dropdown option {
+    background: #ffffff;
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .ta-card:hover {
+    border-color: rgba(2, 132, 199, 0.4);
+    box-shadow: 0 8px 24px rgba(2, 132, 199, 0.08);
+}
+
+[data-theme="light"] .ta-card-title h3 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .card-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-card-desc {
+    color: #475569;
+}
+
+[data-theme="light"] .ta-val-pill {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .ta-val-pill.highlight {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-number-input,
+[data-theme="light"] .ta-text-input {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-number-input:focus,
+[data-theme="light"] .ta-text-input:focus {
+    background: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 0 10px rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="light"] .ta-unit {
+    color: #64748b;
+}
+
+[data-theme="light"] .chips-label {
+    color: #64748b;
+}
+
+[data-theme="light"] .ta-chip {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+[data-theme="light"] .ta-chip:hover {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.4);
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-chip.active {
+    background: rgba(2, 132, 199, 0.14);
+    border-color: #0284c7;
+    color: #0284c7;
+    font-weight: 700;
+}
+
+[data-theme="light"] .ta-value-insight {
+    background: rgba(2, 132, 199, 0.05);
+    border-color: rgba(2, 132, 199, 0.25);
+    color: #334155;
+}
+
+[data-theme="light"] .ta-value-insight .insight-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-value-insight strong {
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-value-insight p {
+    color: #475569;
+}
+
+[data-theme="light"] .ta-rate-box {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .rate-lbl {
+    color: #334155;
+}
+
+[data-theme="light"] .rate-hint {
+    color: #64748b;
+}
+
+[data-theme="light"] .ta-sim-card {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.06) 0%, #f8fafc 100%);
+    border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .ta-sim-header {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sim-sub {
+    color: #334155;
+}
+
+[data-theme="light"] .ta-sim-num {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .sim-pill {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #475569;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.02);
+}
+
+[data-theme="light"] .sim-pill.crr {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.35);
+    color: #0f172a;
+}
+
+[data-theme="light"] .sim-pill strong {
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-inline-field label {
+    color: #1e293b;
+}
+
+[data-theme="light"] .ta-mini-btn {
+    background: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.3);
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-mini-btn:hover {
+    background: rgba(2, 132, 199, 0.2);
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-rule-note {
+    background: rgba(2, 132, 199, 0.06);
+    border-color: rgba(2, 132, 199, 0.2);
+    color: #334155;
+}
+
+[data-theme="light"] .ta-rule-note svg {
+    color: #0284c7;
+}
+
+[data-theme="light"] .ta-toggle-row {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .ta-toggle-row:hover {
+    background: #f1f5f9;
+    border-color: rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .ta-toggle-text strong {
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-toggle-text span {
+    color: #475569;
+}
+
+[data-theme="light"] .ta-special-badge-input {
+    background: #fffbeb;
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="light"] .ta-special-badge-input label {
+    color: #b45309;
+}
+
+[data-theme="light"] .ta-announcement-input-group label {
+    color: #1e293b;
+}
+
+[data-theme="light"] .ta-field-hint {
+    color: #64748b;
+}
+
+[data-theme="light"] .ta-action-bar {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .ta-sync-checkbox {
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-sync-hint {
+    color: #64748b;
+}
+
+[data-theme="light"] .ta-btn-reset {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .ta-btn-reset:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+[data-theme="light"] .ta-btn-save {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    border-color: rgba(2, 132, 199, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .ta-hero-header {
+        flex-direction: column;
+        padding: 20px;
+    }
+
+    .ta-selector-box {
+        width: 100%;
+    }
+
+    .ta-action-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ta-actions-right {
+        flex-direction: column;
+    }
+
+    .ta-btn-reset,
+    .ta-btn-save {
+        width: 100%;
+        justify-content: center;
+    }
+}

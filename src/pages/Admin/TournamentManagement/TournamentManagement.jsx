@@ -475,7 +475,7 @@ const TournamentManagement = () => {
                                             </span>
                                         )}
                                         <span className={`badge-status status-${status}`}>
-                                            {status === 'completed' ? 'Completed' : status === 'upcoming' ? 'Upcoming' : 'In Progress'}
+                                            {status === 'completed' ? 'Completed' : status === 'upcoming' ? 'Upcoming' : status === 'testing' ? 'Dev / Testing' : 'In Progress'}
                                         </span>
                                     </div>
                                 </div>
@@ -751,11 +751,19 @@ const TournamentManagement = () => {
                                         <label>Tournament Status *</label>
                                         <select
                                             value={formData.status}
-                                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                            onChange={(e) => {
+                                                const newStatus = e.target.value;
+                                                setFormData({
+                                                    ...formData,
+                                                    status: newStatus,
+                                                    setAsActive: newStatus === 'testing' ? false : formData.setAsActive
+                                                });
+                                            }}
                                         >
-                                            <option value="upcoming">Upcoming (Registration & Countdown Active)</option>
+                                            <option value="upcoming">Upcoming (Registration &amp; Countdown Active)</option>
                                             <option value="active">Active (Matches Underway / Live Tournament)</option>
                                             <option value="completed">Completed (Archived / Hall of Fame)</option>
+                                            <option value="testing">Testing / Dev Sandbox (Hidden from Public Users)</option>
                                         </select>
                                         <small>Controls live badges and operational state across the website</small>
                                     </div>
@@ -962,9 +970,10 @@ const TournamentManagement = () => {
                                             value={formData.status}
                                             onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                                         >
-                                            <option value="upcoming">Upcoming (Registration & Countdown Active)</option>
+                                            <option value="upcoming">Upcoming (Registration &amp; Countdown Active)</option>
                                             <option value="active">Active (Matches Underway / Live Tournament)</option>
                                             <option value="completed">Completed (Archived / Hall of Fame)</option>
+                                            <option value="testing">Testing / Dev Sandbox (Hidden from Public Users)</option>
                                         </select>
                                         <small>Controls live badges and operational state across the website</small>
                                     </div>

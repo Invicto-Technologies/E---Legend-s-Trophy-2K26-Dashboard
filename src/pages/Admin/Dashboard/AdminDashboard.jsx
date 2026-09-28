@@ -358,6 +358,20 @@ const AdminDashboard = () => {
                         </Link>
                     </TiltCard>
 
+                    {/* Rules & Benchmarks */}
+                    <TiltCard className="ad-action-card" maxTilt={8}>
+                        <div className="ad-card-top">
+                            <span className="ad-module-badge">RULES & BENCHMARKS</span>
+                        </div>
+                        <h3>Rules, Target & Pitch Adjustments</h3>
+                        <p>
+                            Configure tournament par score (G), projected score spectator rates, match overs format, and live display feature toggles.
+                        </p>
+                        <Link to="/admin/adjustments" className="ad-card-cta">
+                            Configure Rules & Benchmarks <MdArrowForward />
+                        </Link>
+                    </TiltCard>
+
                     {/* Live Match Center Audience View */}
                     <TiltCard className="ad-action-card" maxTilt={8}>
                         <div className="ad-card-top">

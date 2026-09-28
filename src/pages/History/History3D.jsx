@@ -59,8 +59,13 @@ const History3D = () => {
     // Derive active tournament id
     const activeTournamentId = activeTourney?.activeId || "E-Legend's Trophy 2K26";
 
-    // Filter out the active tournament (active tournament no need to show here)
+    // Filter out the active tournament and any private test/development editions
     const historyTournaments = (tournamentIndex || []).filter((ed) => {
+        const status = (ed.status || '').toLowerCase();
+        if (status === 'testing' || status === 'development' || status === 'draft' || ed.isTest) {
+            return false;
+        }
+
         const isMatchingActive =
             ed.id === activeTournamentId ||
             resolveTournamentKey(ed.id) === resolveTournamentKey(activeTournamentId) ||

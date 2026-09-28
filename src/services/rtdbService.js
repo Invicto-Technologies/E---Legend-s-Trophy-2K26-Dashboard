@@ -2393,6 +2393,88 @@ export const deleteTournament = async (editionId) => {
     return true;
 };
 
+export const subscribeTournamentSettings = (editionId, callback) => {
+    const targetKey = resolveTournamentKey(editionId || currentActiveTournamentId);
+    try {
+        const settingsRef = ref(database, `Tournaments/${targetKey}/settings`);
+        const unsubscribe = onValue(settingsRef, (snapshot) => {
+            const data = snapshot.val();
+            callback(data || null);
+        }, (err) => {
+            console.warn(`Error subscribing to Tournaments/${targetKey}/settings:`, err);
+            callback(null);
+        });
+        return unsubscribe;
+    } catch (error) {
+        console.error(`Error subscribing to settings for ${targetKey}:`, error);
+        callback(null);
+        return () => { };
+    }
+};
+
+export const getTournamentSettings = async (editionId) => {
+    const targetKey = resolveTournamentKey(editionId || currentActiveTournamentId);
+    try {
+        const snap = await get(ref(database, `Tournaments/${targetKey}/settings`));
+        return snap.exists() ? snap.val() : null;
+    } catch (err) {
+        console.warn(`Error getting settings for ${targetKey}:`, err);
+        return null;
+    }
+};
+
+export const updateTournamentSettings = async (editionId, updatedSettings, syncToLiveMatch = false) => {
+    const targetKey = resolveTournamentKey(editionId || currentActiveTournamentId);
+    const settingsRef = ref(database, `Tournaments/${targetKey}/settings`);
+    await update(settingsRef, {
+        ...updatedSettings,
+        lastUpdated: new Date().toISOString()
+    });
+
+    if (syncToLiveMatch) {
+        try {
+            const liveSnap = await get(ref(database, 'liveData'));
+            if (liveSnap.exists()) {
+                const currentLive = liveSnap.val() || {};
+                const matchPath = currentLive.currentMatchPath;
+                if (matchPath) {
+                    const matchRef = ref(database, `Tournaments/${targetKey}/FixturesData/${matchPath}`);
+                    const matchSnap = await get(matchRef);
+                    if (matchSnap.exists()) {
+                        const mData = matchSnap.val();
+                        mData.common = mData.common || {};
+                        if (updatedSettings.pitchBenchmark !== undefined) mData.common.pitchBenchmark = updatedSettings.pitchBenchmark;
+                        if (updatedSettings.projectedRates !== undefined) mData.common.projectedRates = updatedSettings.projectedRates;
+                        if (updatedSettings.showProjectedScore !== undefined) mData.common.showProjectedScore = updatedSettings.showProjectedScore;
+                        if (updatedSettings.showDlsPar !== undefined) mData.common.showDlsPar = updatedSettings.showDlsPar;
+                        if (updatedSettings.overLimit !== undefined) mData.common.overLimit = updatedSettings.overLimit;
+                        if (updatedSettings.maxOversPerBowler !== undefined) mData.common.maxOversPerBowler = updatedSettings.maxOversPerBowler;
+                        if (updatedSettings.isSpecialMatch !== undefined) mData.common.isSpecialMatch = updatedSettings.isSpecialMatch;
+                        if (updatedSettings.specialMatchBadge !== undefined) mData.common.specialMatchBadge = updatedSettings.specialMatchBadge;
+                        if (updatedSettings.globalAnnouncement !== undefined) mData.common.customBannerText = updatedSettings.globalAnnouncement;
+                        await set(matchRef, mData);
+                    }
+                }
+
+                // Also update liveData.liveScore
+                await update(ref(database, 'liveData/liveScore'), {
+                    pitchBenchmark: updatedSettings.pitchBenchmark,
+                    projectedRates: updatedSettings.projectedRates,
+                    showProjectedScore: updatedSettings.showProjectedScore,
+                    showDlsPar: updatedSettings.showDlsPar,
+                    overLimit: updatedSettings.overLimit,
+                    isSpecialMatch: updatedSettings.isSpecialMatch,
+                    specialMatchBadge: updatedSettings.specialMatchBadge,
+                    status: updatedSettings.globalAnnouncement || currentLive.liveScore?.status || 'Live Match In Progress'
+                });
+            }
+        } catch (e) {
+            console.warn('Error syncing tournament settings to live match:', e);
+        }
+    }
+    return true;
+};
+
 /* ==========================================================================
    APP DOWNLOAD & SYSTEM
    ========================================================================== */

@@ -78,7 +78,7 @@ const UserNavbar = () => {
         <header className={`user-nav-header ${isScrolled ? 'scrolled' : ''} ${mobileMenuOpen ? 'menu-open' : ''}`} ref={navRef}>
             <div className="user-nav-inner">
                 {/* Brand — left anchor */}
-                <Link to="/" className="user-nav-brand" data-tooltip={labels.fullName}>
+                <Link to="/" className="user-nav-brand">
                     <img src={logoImg} alt="E-Legends Logo" className="brand-logo-img" />
                     <span className="brand-text">
                         {labels.headerPrefix}{' '}

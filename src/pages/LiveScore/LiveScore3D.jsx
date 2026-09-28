@@ -567,9 +567,35 @@ const LiveScore3D = () => {
             firstInningsScore,
             secondInningsOvers: effectiveOvers,
             secondInningsBallsBowled: ballsBowled,
-            secondInningsWickets: currentChaseWickets
+            secondInningsWickets: currentChaseWickets,
+            customG50: dlsData?.customG50 || common.pitchBenchmark || 140
         });
     }
+
+    // Projected score calculation for active innings
+    const rateA = Number(common.projectedRates?.[0]) || 8;
+    const rateB = Number(common.projectedRates?.[1]) || 10;
+    const showProjectedScore = common.showProjectedScore !== false;
+    const showDlsPar = common.showDlsPar !== false;
+
+    const isFirstInningsActive = isLive && (activeInningsNumber === 1 || !isChasing);
+    const activeBatRuns = isFirstInningsActive ? firstBatRuns : currentChaseScore;
+    const activeBatOvers = isFirstInningsActive ? firstBatOvers : currentChaseOvers;
+    const activeBatBalls = Math.floor(activeBatOvers) * 6 + Math.round((activeBatOvers % 1) * 10);
+    const activeBatCrr = activeBatBalls > 0 ? (activeBatRuns / activeBatBalls) * 6 : 0;
+    const activeQuotaOvers = isChasing && isDls ? effectiveOvers : overLimit;
+    const activeBallsRemaining = Math.max(0, (activeQuotaOvers * 6) - activeBatBalls);
+
+    // Only compute projected score after at least 1 over (6 legal balls) has been bowled
+    const projAtCrr = (showProjectedScore && activeBatBalls >= 6)
+        ? Math.round(activeBatRuns + (activeBatCrr * (activeBallsRemaining / 6)))
+        : null;
+    const projAtRateA = (showProjectedScore && activeBatBalls >= 6)
+        ? Math.round(activeBatRuns + (rateA * (activeBallsRemaining / 6)))
+        : null;
+    const projAtRateB = (showProjectedScore && activeBatBalls >= 6)
+        ? Math.round(activeBatRuns + (rateB * (activeBallsRemaining / 6)))
+        : null;
 
     // Helper to resolve structured roster (Playing XI & Bench Reserves separately)
     const resolveTeamRoster = (teamMatchData, teamName) => {
@@ -1303,6 +1329,12 @@ const LiveScore3D = () => {
                                                     <span>Overs <strong>{firstBatOvers}</strong>/{overLimit}</span>
                                                     <span className="sb-crr-dot">•</span>
                                                     <span>CRR <strong>{firstBatTeamKey === 'team1' ? t1Crr : t2Crr}</strong></span>
+                                                    {isLive && !isChasing && projAtCrr !== null && (
+                                                        <>
+                                                            <span className="sb-crr-dot">•</span>
+                                                            <span className="sb-proj-inline">Proj <strong>{projAtCrr}</strong></span>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1310,21 +1342,43 @@ const LiveScore3D = () => {
                                             <div className="sb-center-col">
                                                 <div className="sb-vs-ring">VS</div>
                                                 <div className="sb-result-badge">
+                                                    {common.isSpecialMatch && common.specialMatchBadge && (
+                                                        <span className="sb-special-badge">{common.specialMatchBadge}</span>
+                                                    )}
                                                     {common.finished ? (
                                                         <span className="status-finished">
                                                             {common.result || 'Match Concluded'}
                                                         </span>
                                                     ) : (
                                                         <span className="status-live">
-                                                            {common.status || 'Live Match In Progress'}
+                                                            {common.customBannerText || common.status || 'Live Match In Progress'}
                                                         </span>
                                                     )}
                                                 </div>
+
+                                                {/* Projected Score Badge (Small, responsive area for 1st innings) */}
+                                                {isLive && !isChasing && showProjectedScore && projAtCrr !== null && (
+                                                    <div className="sb-projected-pill" title={`Projected final total at current run rate (${activeBatCrr.toFixed(2)} RPO)`}>
+                                                        <span className="proj-dot"></span>
+                                                        <span className="proj-title">Projected:</span>
+                                                        <strong className="proj-val">{projAtCrr}</strong>
+                                                        <div className="proj-rates">
+                                                            <span className="proj-sub-crr">(@ {activeBatCrr.toFixed(1)})</span>
+                                                            <span className="proj-sub-chip">@{rateA}: <strong>{projAtRateA}</strong></span>
+                                                            <span className="proj-sub-chip">@{rateB}: <strong>{projAtRateB}</strong></span>
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {/* Chasing equation pill if in 2nd innings */}
                                                 {isLive && isChasing && ballsRemaining > 0 && runsNeeded > 0 && (
                                                     <div className="sb-chase-equation">
                                                         <span>Need <strong>{runsNeeded}</strong> runs in <strong>{ballsRemaining}</strong> balls (RRR: {requiredRunRate})</span>
+                                                        {showProjectedScore && projAtCrr !== null && (
+                                                            <span className="sb-proj-chase-tag" title="Projected 2nd innings score at current rate">
+                                                                Proj: {projAtCrr}
+                                                            </span>
+                                                        )}
                                                         {isDls && (
                                                             <span className="sb-dls-subtag" title={`DLS Method target revised from ${overLimit} overs`}>
                                                                 <MdCloudQueue /> DLS Target: {targetScore} ({effectiveOvers} ov)
@@ -1334,9 +1388,14 @@ const LiveScore3D = () => {
                                                 )}
 
                                                 {/* Live DLS Par Score indicator during 2nd innings */}
-                                                {isLive && isChasing && dlsParInfo && (
-                                                    <div className="sb-dls-par-pill">
-                                                        <span className="sb-dls-par-title">DLS Par: <strong>{dlsParInfo.parScore}</strong></span>
+                                                {isLive && isChasing && showDlsPar && dlsParInfo && (
+                                                    <div
+                                                        className="sb-dls-par-pill"
+                                                        title={dlsParInfo.isOfficialResultEligible ? 'Official DLS Par Score (≥ 5.0 overs completed)' : 'DLS Par Score (Under 5.0 overs, unofficial until 5 overs bowled)'}
+                                                    >
+                                                        <span className="sb-dls-par-title">
+                                                            {dlsParInfo.isOfficialResultEligible ? 'DLS Par:' : 'DLS Par*:'} <strong>{dlsParInfo.parScore}</strong>
+                                                        </span>
                                                         <span className={`sb-dls-par-margin ${currentChaseScore >= dlsParInfo.parScore ? 'ahead' : 'behind'}`}>
                                                             {currentChaseScore >= dlsParInfo.parScore
                                                                 ? `(+${currentChaseScore - dlsParInfo.parScore} ahead)`

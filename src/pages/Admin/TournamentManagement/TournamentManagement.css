@@ -345,6 +345,12 @@
     color: #00f0ff;
 }
 
+.badge-status.status-testing {
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    color: #c084fc;
+}
+
 /* Card Main Body */
 .edition-card-body {
     flex: 1;
@@ -1430,6 +1436,12 @@
     background: rgba(99, 102, 241, 0.12);
     border-color: rgba(99, 102, 241, 0.35);
     color: #4f46e5;
+}
+
+[data-theme="light"] .badge-status.status-testing {
+    background: rgba(147, 51, 234, 0.1);
+    border-color: rgba(147, 51, 234, 0.35);
+    color: #7e22ce;
 }
 
 [data-theme="light"] .edition-name {
