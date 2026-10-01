@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
 import {
@@ -20,8 +20,11 @@ import {
     MdFormatListNumbered,
     MdNewspaper,
     MdPerson,
-    MdArrowForward
+    MdArrowForward,
+    MdGroups,
+    MdCheckCircle
 } from 'react-icons/md';
+import { parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
 import PageLoader from '../../components/common/PageLoader/PageLoader';
 import stadiumBgUrl from '../../Images/cricket_stadium_bg.jpg';
 import './History3D.css';
@@ -59,10 +62,23 @@ const History3D = () => {
     // Derive active tournament id
     const activeTournamentId = activeTourney?.activeId || "E-Legend's Trophy 2K26";
 
-    // Filter out the active tournament and any private test/development editions
+    // Detect if running on localhost / development environment
+    const isLocalhost = Boolean(
+        typeof window !== 'undefined' && (
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1' ||
+            window.location.hostname.startsWith('192.168.') ||
+            window.location.hostname.endsWith('.local')
+        )
+    );
+
+    // Filter out the active tournament (and on public production, filter out private test/dev editions)
     const historyTournaments = (tournamentIndex || []).filter((ed) => {
         const status = (ed.status || '').toLowerCase();
-        if (status === 'testing' || status === 'development' || status === 'draft' || ed.isTest) {
+        const isTest = status === 'testing' || status === 'development' || status === 'draft' || Boolean(ed.isTest);
+
+        // Hide test tournaments on production, but show on localhost
+        if (!isLocalhost && isTest) {
             return false;
         }
 
@@ -73,8 +89,13 @@ const History3D = () => {
         return !isMatchingActive;
     });
 
-    // Ensure selectedEditionId defaults to a valid historical tournament
+    // Ensure selectedEditionId defaults to a valid historical tournament (allows direct URL preview for any edition)
     useEffect(() => {
+        if (routeEditionId) {
+            setSelectedEditionId(routeEditionId);
+            return;
+        }
+
         if (historyTournaments.length > 0) {
             const currentIsValid = historyTournaments.some(
                 (t) => t.id === selectedEditionId ||
@@ -90,7 +111,7 @@ const History3D = () => {
                 }
             }
         }
-    }, [historyTournaments, selectedEditionId]);
+    }, [historyTournaments, selectedEditionId, routeEditionId]);
 
     // 3. Subscribe to selected tournament edition data
     useEffect(() => {
@@ -115,13 +136,226 @@ const History3D = () => {
     const info = editionData?.info || {};
     const awards = editionData?.awards || [];
 
-    // Extract matches from either tournament root keys (1st..Final) or matches object
-    const matchKeys = ['1st', '2nd', '3rd', '4th', '5th', '6th', 'Final'];
-    const matchesList = (editionData?.matches && Object.keys(editionData.matches).length > 0)
-        ? Object.keys(editionData.matches).map((key) => ({ id: key, ...editionData.matches[key] }))
-        : matchKeys
-            .filter((k) => editionData?.[k])
-            .map((k) => ({ id: k, ...editionData[k] }));
+    const currentEdFromIndex = (tournamentIndex || []).find(
+        (t) => t.id === selectedEditionId || resolveTournamentKey(t.id) === resolveTournamentKey(selectedEditionId)
+    );
+
+    const isDevHost = isLocalhost;
+
+    const isCurrentEditionTest = Boolean(
+        (info.status || '').toLowerCase() === 'testing' ||
+        (info.status || '').toLowerCase() === 'development' ||
+        (info.status || '').toLowerCase() === 'draft' ||
+        Boolean(editionData?.isTest) ||
+        (currentEdFromIndex?.status || '').toLowerCase() === 'testing' ||
+        (currentEdFromIndex?.status || '').toLowerCase() === 'development' ||
+        (currentEdFromIndex?.status || '').toLowerCase() === 'draft' ||
+        Boolean(currentEdFromIndex?.isTest) ||
+        String(selectedEditionId || '').toLowerCase().includes('test') ||
+        String(currentEdFromIndex?.name || '').toLowerCase().includes('test') ||
+        String(info.name || '').toLowerCase().includes('test')
+    );
+
+    // Helper to parse run/wicket/over figures from a score segment like "E22 115/3 (15)" or "115/3 (15.0 ov)"
+    const parseScoreSegment = (str) => {
+        if (!str || typeof str !== 'string') return null;
+        const match = str.match(/(\d+)\s*\/\s*(\d+)(?:\s*\(([\d.]+)(?:\s*ov)?\))?/i);
+        if (match) {
+            return {
+                totalRuns: parseInt(match[1], 10),
+                totalWickets: parseInt(match[2], 10),
+                overs: match[3] || '0'
+            };
+        }
+        return null;
+    };
+
+    // Extract matches with FixturesData as the authoritative source
+    const systemKeys = new Set([
+        'info', 'awards', 'FixturesData', 'fixturesData', 'LiveData', 'liveData',
+        'UpcomingMatchData', 'RankingData', 'rankings', 'teamData', 'stories',
+        'AllStories', 'rules', 'benchmarks', 'matches', 'isTest', 'status',
+        'year', 'name', 'fixtures', 'Fixtures'
+    ]);
+
+    const collectedMatches = [];
+    const seenMatchKeys = new Set();
+
+    const getMatchDedupeKey = (m) => {
+        if (!m || typeof m !== 'object') return null;
+        const rawTitle = String(m.title || m.common?.title || m.name || '').trim().toLowerCase();
+        const normTitle = rawTitle.replace(/\s+match$/, '').replace(/^match\s+/, 'm');
+        if (normTitle) return `title:${normTitle}`;
+
+        const rawTeams = String(m.teams || m.common?.teams || '').trim().toLowerCase();
+        if (rawTeams && rawTeams.includes(' vs ')) return `teams:${rawTeams}`;
+
+        const rawId = String(m.id || '').trim().toLowerCase();
+        if (rawId) return `id:${rawId}`;
+
+        return null;
+    };
+
+    const addMatchIfNew = (m, fallbackId) => {
+        if (!m || typeof m !== 'object') return;
+        const candidateId = String(m.id || fallbackId || m.title || m.common?.title || '').trim();
+        const candidate = {
+            ...m,
+            id: candidateId
+        };
+
+        const dedupeKey = getMatchDedupeKey(candidate) || String(fallbackId || '').toLowerCase();
+        if (!dedupeKey || seenMatchKeys.has(dedupeKey)) return;
+        seenMatchKeys.add(dedupeKey);
+
+        const rawTitle = String(m.title || m.common?.title || candidate.id || '').trim();
+        const normTitle = rawTitle.replace(/\s+match$/i, '').toLowerCase();
+        if (normTitle) seenMatchKeys.add(`title:${normTitle}`);
+
+        const rawTeams = String(m.teams || m.common?.teams || '').trim();
+        if (rawTeams && rawTeams.toLowerCase().includes(' vs ')) {
+            seenMatchKeys.add(`teams:${rawTeams.toLowerCase()}`);
+        }
+
+        // Link with root match node if available to preserve deep player/scorecard data for the modal
+        const rootMatch = (rawTitle && editionData?.[rawTitle]) ||
+            (rawTitle && editionData?.matches?.[rawTitle]) ||
+            (candidate.id && editionData?.[candidate.id]) ||
+            (candidate.id && editionData?.matches?.[candidate.id]) ||
+            {};
+
+        // Parse team names from teams string e.g. "E22 vs E23"
+        let t1Name = candidate.team1?.name || rootMatch.team1?.name || candidate.team1 || rootMatch.team1;
+        let t2Name = candidate.team2?.name || rootMatch.team2?.name || candidate.team2 || rootMatch.team2;
+        if (typeof t1Name !== 'string') t1Name = t1Name?.name || '';
+        if (typeof t2Name !== 'string') t2Name = t2Name?.name || '';
+
+        if ((!t1Name || !t2Name) && rawTeams.includes(' vs ')) {
+            const parts = rawTeams.split(' vs ');
+            t1Name = t1Name || parts[0]?.trim();
+            t2Name = t2Name || parts[1]?.trim();
+        }
+
+        // Parse team score figures if score string e.g. "E22 115/3 (15) • E23 109/7 (15)"
+        const rawScore = String(candidate.score || candidate.common?.score || rootMatch.score || rootMatch.common?.score || '').trim();
+        let seg1 = null;
+        let seg2 = null;
+        if (rawScore && rawScore.includes(' • ')) {
+            const scoreParts = rawScore.split(' • ');
+            seg1 = parseScoreSegment(scoreParts[0]);
+            seg2 = parseScoreSegment(scoreParts[1]);
+        } else if (rawScore) {
+            seg1 = parseScoreSegment(rawScore);
+        }
+
+        const enrichedMatch = {
+            ...rootMatch,
+            ...candidate,
+            id: candidate.id || rootMatch.id || rawTitle,
+            title: candidate.title || rootMatch.title || rootMatch.common?.title || rawTitle,
+            teams: rawTeams || rootMatch.teams || rootMatch.common?.teams || (t1Name && t2Name ? `${t1Name} vs ${t2Name}` : ''),
+            score: rawScore,
+            result: candidate.result || rootMatch.result || candidate.common?.result || rootMatch.common?.result || '',
+            mom: candidate.mom || rootMatch.mom || candidate.common?.mom || rootMatch.common?.mom || rootMatch.playerOfTheMatch || '',
+            date: candidate.date || rootMatch.date || candidate.common?.date || rootMatch.common?.date || '',
+            time: candidate.time || rootMatch.time || candidate.common?.time || rootMatch.common?.time || '',
+            common: {
+                ...(rootMatch.common || {}),
+                ...(candidate.common || {}),
+                title: candidate.title || rootMatch.title || rootMatch.common?.title || rawTitle,
+                teams: rawTeams || rootMatch.teams || rootMatch.common?.teams || '',
+                score: rawScore,
+                result: candidate.result || rootMatch.result || candidate.common?.result || rootMatch.common?.result || '',
+                mom: candidate.mom || rootMatch.mom || candidate.common?.mom || rootMatch.common?.mom || rootMatch.playerOfTheMatch || '',
+                date: candidate.date || rootMatch.date || candidate.common?.date || rootMatch.common?.date || '',
+                time: candidate.time || rootMatch.time || candidate.common?.time || rootMatch.common?.time || ''
+            },
+            team1: {
+                ...(rootMatch.team1 && typeof rootMatch.team1 === 'object' ? rootMatch.team1 : {}),
+                ...(candidate.team1 && typeof candidate.team1 === 'object' ? candidate.team1 : {}),
+                name: t1Name || 'Team 1',
+                totalRuns: (candidate.team1?.totalRuns ?? rootMatch.team1?.totalRuns ?? seg1?.totalRuns),
+                totalWickets: (candidate.team1?.totalWickets ?? rootMatch.team1?.totalWickets ?? seg1?.totalWickets),
+                overs: (candidate.team1?.overs ?? rootMatch.team1?.overs ?? seg1?.overs)
+            },
+            team2: {
+                ...(rootMatch.team2 && typeof rootMatch.team2 === 'object' ? rootMatch.team2 : {}),
+                ...(candidate.team2 && typeof candidate.team2 === 'object' ? candidate.team2 : {}),
+                name: t2Name || 'Team 2',
+                totalRuns: (candidate.team2?.totalRuns ?? rootMatch.team2?.totalRuns ?? seg2?.totalRuns),
+                totalWickets: (candidate.team2?.totalWickets ?? rootMatch.team2?.totalWickets ?? seg2?.totalWickets),
+                overs: (candidate.team2?.overs ?? rootMatch.team2?.overs ?? seg2?.overs)
+            }
+        };
+
+        collectedMatches.push(enrichedMatch);
+    };
+
+    // FixturesData is the authoritative source for match fixtures and finished results
+    const finishedMap = editionData?.FixturesData?.finishedMatches || {};
+    const publishedMap = editionData?.FixturesData?.publishedMatches || editionData?.FixturesData?.fixtures || {};
+    const hasFixturesData = Object.keys(finishedMap).length > 0 ||
+        (Array.isArray(publishedMap) ? publishedMap.length > 0 : Object.keys(publishedMap).length > 0);
+
+    if (hasFixturesData) {
+        // Priority 1: FixturesData.finishedMatches (completed matches with official scores)
+        Object.entries(finishedMap).forEach(([k, v]) => {
+            if (v && typeof v === 'object') {
+                addMatchIfNew(v, k);
+            }
+        });
+
+        // Priority 2: FixturesData.publishedMatches / fixtures (for any scheduled or ongoing matches)
+        const pubItems = Array.isArray(publishedMap) ? publishedMap : Object.entries(publishedMap);
+        pubItems.forEach((item, idx) => {
+            const matchObj = Array.isArray(publishedMap) ? item : item[1];
+            const matchKey = Array.isArray(publishedMap) ? `pub-${idx}` : item[0];
+            if (matchObj && typeof matchObj === 'object') {
+                addMatchIfNew(matchObj, matchKey);
+            }
+        });
+    } else {
+        // Fallback ONLY when FixturesData is completely absent or empty (e.g. legacy historical records)
+        if (editionData?.matches && typeof editionData.matches === 'object') {
+            Object.entries(editionData.matches).forEach(([k, v]) => addMatchIfNew(v, k));
+        }
+
+        const matchKeys = ['1st', '2nd', '3rd', '4th', '5th', '6th', 'Final'];
+        matchKeys.forEach((k) => {
+            if (editionData?.[k]) addMatchIfNew(editionData[k], k);
+        });
+
+        if (editionData && typeof editionData === 'object') {
+            Object.entries(editionData).forEach(([k, v]) => {
+                if (systemKeys.has(k) || !v || typeof v !== 'object') return;
+                if (v.team1 || v.team2 || v.common || v.title || v.score || v.result || v.overs) {
+                    addMatchIfNew(v, k);
+                }
+            });
+        }
+    }
+
+    const getMatchOrdinalRank = (m) => {
+        const raw = String(m?.title || m?.common?.title || m?.id || '').trim().toLowerCase();
+        if (raw === '1st' || raw.includes('match 1') || raw === 'm1') return 1;
+        if (raw === '2nd' || raw.includes('match 2') || raw === 'm2') return 2;
+        if (raw === '3rd' || raw.includes('match 3') || raw === 'm3') return 3;
+        if (raw === '4th' || raw.includes('match 4') || raw === 'm4') return 4;
+        if (raw === '5th' || raw.includes('match 5') || raw === 'm5') return 5;
+        if (raw === '6th' || raw.includes('match 6') || raw === 'm6') return 6;
+        if (raw.includes('semi-final 1') || raw.includes('sf 1') || raw.includes('sf1')) return 7;
+        if (raw.includes('semi-final 2') || raw.includes('sf 2') || raw.includes('sf2')) return 8;
+        if (raw.includes('final') && !raw.includes('semi')) return 99;
+        return 50;
+    };
+
+    // Sort matches in ascending chronological order of match date and time
+    const matchesList = [...collectedMatches].sort((a, b) => {
+        const timeA = parseMatchDateTime(a);
+        const timeB = parseMatchDateTime(b);
+        if (timeA !== timeB) return timeA - timeB;
+        return getMatchOrdinalRank(a) - getMatchOrdinalRank(b);
+    });
 
     const rankings = editionData?.RankingData || editionData?.rankings || {};
     const pointsTable = (rankings.pointsTable || []).filter(Boolean);
@@ -175,21 +409,29 @@ const History3D = () => {
 
                     {/* Interactive Edition Timeline Switcher (Historical Tournaments Only) */}
                     <div className="history-timeline-bar">
-                        {historyTournaments.map((ed) => (
-                            <button
-                                key={ed.id}
-                                className={`timeline-tab-btn ${selectedEditionId === ed.id ||
-                                    resolveTournamentKey(selectedEditionId) === resolveTournamentKey(ed.id)
-                                    ? 'active'
-                                    : ''
-                                    }`}
-                                onClick={() => handleSelectEdition(ed.id)}
-                            >
-                                <span className="timeline-year">{ed.year || ed.editionId || ed.id}</span>
-                                <span className="timeline-name">{ed.name || `E-Legends ${ed.id}`}</span>
-                                <span className="timeline-badge-done">Completed</span>
-                            </button>
-                        ))}
+                        {historyTournaments.map((ed) => {
+                            const isTest = (ed.status || '').toLowerCase() === 'testing' ||
+                                (ed.status || '').toLowerCase() === 'development' ||
+                                (ed.status || '').toLowerCase() === 'draft' ||
+                                Boolean(ed.isTest);
+                            return (
+                                <button
+                                    key={ed.id}
+                                    className={`timeline-tab-btn ${selectedEditionId === ed.id ||
+                                        resolveTournamentKey(selectedEditionId) === resolveTournamentKey(ed.id)
+                                        ? 'active'
+                                        : ''
+                                        } ${isTest ? 'timeline-tab-test' : ''}`}
+                                    onClick={() => handleSelectEdition(ed.id)}
+                                >
+                                    <span className="timeline-year">{ed.year || ed.editionId || ed.id}</span>
+                                    <span className="timeline-name">{ed.name || `E-Legends ${ed.id}`}</span>
+                                    <span className={`timeline-badge-done ${isTest ? 'badge-test' : ''}`}>
+                                        {isTest ? '🧪 Dev Test' : 'Completed'}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </section>
@@ -202,6 +444,11 @@ const History3D = () => {
                         <div className="eh-left">
                             <h2 className="eh-title">{info.title || `E-Legends Trophy ${selectedEditionId}`}</h2>
                             <div className="eh-meta">
+                                {(info.status === 'testing' || info.status === 'development' || editionData?.isTest) && (
+                                    <span className="eh-meta-item test-pill" style={{ color: '#c084fc', fontWeight: 800 }}>
+                                        🧪 Test Edition Preview (Hidden from Public Users)
+                                    </span>
+                                )}
                                 {info.dates && (
                                     <span className="eh-meta-item">
                                         <MdCalendarToday /> {info.dates}
@@ -214,16 +461,6 @@ const History3D = () => {
                                 )}
                             </div>
                         </div>
-
-                        {info.champion && info.status === 'completed' && (
-                            <div className="eh-champion-pill">
-                                <MdEmojiEvents className="eh-trophy-icon" />
-                                <div>
-                                    <span className="eh-champ-sub">TOURNAMENT CHAMPION</span>
-                                    <span className="eh-champ-name">{info.champion}</span>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* Champion & Awards Showcase for Completed Tournament */}
@@ -240,6 +477,15 @@ const History3D = () => {
                                 <p className="champ-note">
                                     {info.championNote || 'Undefeated Champion Run dominating throughout the tournament series.'}
                                 </p>
+                                {(info.organizers || editionData?.organizers || info.organizingBatch) && (
+                                    <div className="champ-organizer-row">
+                                        <MdGroups className="champ-organizer-icon" />
+                                        <span className="champ-organizer-label">Organized by:</span>
+                                        <strong className="champ-organizer-val">
+                                            {info.organizers}
+                                        </strong>
+                                    </div>
+                                )}
                                 <div className="champ-stats-row">
                                     <div className="cs-item">
                                         <MdEmojiEvents className="cs-icon" />
@@ -333,41 +579,159 @@ const History3D = () => {
                                         const c = match.common || {};
                                         const t1 = match.team1 || {};
                                         const t2 = match.team2 || {};
+                                        const matchTargetId = String(c.title || match.title || match.id || '1st').trim();
+
+                                        const isMatchLive = Boolean(
+                                            !c.finished &&
+                                            !match.finished &&
+                                            (
+                                                c.isLive ||
+                                                match.isLive ||
+                                                String(c.status || '').toLowerCase() === 'live' ||
+                                                String(match.status || '').toLowerCase() === 'live' ||
+                                                (editionData?.LiveData?.isLive && (
+                                                    String(editionData.LiveData?.currentMatchPath || '').toLowerCase().includes(matchTargetId.toLowerCase()) ||
+                                                    String(editionData.LiveData?.liveScore?.matchTitle || '').toLowerCase().includes(matchTargetId.toLowerCase())
+                                                ))
+                                            )
+                                        );
+
+                                        const isMatchFinished = Boolean(
+                                            c.finished === 1 ||
+                                            c.finished === true ||
+                                            c.isFinished ||
+                                            match.finished === 1 ||
+                                            match.finished === true ||
+                                            match.isFinished ||
+                                            (c.result && !['scheduled', 'upcoming', 'live', 'tbd'].includes(String(c.result).trim().toLowerCase())) ||
+                                            (match.result && !['scheduled', 'upcoming', 'live', 'tbd'].includes(String(match.result).trim().toLowerCase())) ||
+                                            (match.score && String(match.score).includes('/'))
+                                        );
+
+                                        const shouldOpenInUserLive = isDevHost && isCurrentEditionTest;
+                                        const userLiveUrl = `/match/${encodeURIComponent(matchTargetId)}?tourney=${encodeURIComponent(selectedEditionId)}`;
+
+                                        // Extract team names
+                                        let t1Name = t1.name;
+                                        let t2Name = t2.name;
+                                        const rawTeams = String(c.teams || match.teams || '').trim();
+                                        if ((!t1Name || !t2Name) && rawTeams.includes(' vs ')) {
+                                            const parts = rawTeams.split(' vs ');
+                                            t1Name = t1Name || parts[0]?.trim();
+                                            t2Name = t2Name || parts[1]?.trim();
+                                        }
+                                        t1Name = t1Name || 'Team 1';
+                                        t2Name = t2Name || 'Team 2';
+
+                                        // Extract team scores
+                                        let t1ScoreDisplay = '';
+                                        let t2ScoreDisplay = '';
+                                        if (t1.totalRuns !== undefined && t1.totalRuns !== null) {
+                                            t1ScoreDisplay = `${t1.totalRuns}/${t1.totalWickets ?? 0} (${t1.overs ?? 0} ov)`;
+                                        }
+                                        if (t2.totalRuns !== undefined && t2.totalRuns !== null) {
+                                            t2ScoreDisplay = `${t2.totalRuns}/${t2.totalWickets ?? 0} (${t2.overs ?? 0} ov)`;
+                                        }
+
+                                        const rawScore = String(c.score || match.score || '').trim();
+                                        if ((!t1ScoreDisplay || !t2ScoreDisplay) && rawScore && rawScore.toLowerCase() !== 'scheduled') {
+                                            if (rawScore.includes(' • ')) {
+                                                const parts = rawScore.split(' • ');
+                                                t1ScoreDisplay = t1ScoreDisplay || parts[0]?.replace(t1Name, '').trim() || parts[0]?.trim();
+                                                t2ScoreDisplay = t2ScoreDisplay || parts[1]?.replace(t2Name, '').trim() || parts[1]?.trim();
+                                            } else {
+                                                t1ScoreDisplay = t1ScoreDisplay || rawScore;
+                                            }
+                                        }
+
+                                        const displayTitle = c.title || match.title || match.name || match.id;
+                                        const displayResult = isMatchLive ? '🔴 Match is currently in progress' : (c.result || match.result || 'Match Completed');
+                                        const displayMom = c.mom || match.mom || match.playerOfTheMatch;
+                                        const displayDate = c.date || match.date || '';
+                                        const displayTime = c.time || match.time || '';
+                                        const dateLine = displayDate ? `${displayDate}${displayTime ? ` • ${displayTime}` : ''}` : displayTime;
+
                                         return (
-                                            <TiltCard key={match.id} className="history-match-card" maxTilt={8}>
+                                            <TiltCard
+                                                key={match.id}
+                                                className={`history-match-card ${isMatchLive ? 'is-live-card' : ''} ${shouldOpenInUserLive ? 'cursor-pointer' : ''}`}
+                                                maxTilt={8}
+                                                onClick={() => {
+                                                    if (shouldOpenInUserLive) {
+                                                        navigate(userLiveUrl);
+                                                    }
+                                                }}
+                                            >
                                                 <div className="hm-header">
-                                                    <span className="hm-title-badge">{c.title || match.id} Match</span>
-                                                    <span className="hm-date">{c.date} • {c.time}</span>
+                                                    <span className="hm-title-badge">{displayTitle} Match</span>
+                                                    {isMatchLive ? (
+                                                        <span className="hm-status-pill-live">
+                                                            <span className="hm-live-dot" /> LIVE NOW
+                                                        </span>
+                                                    ) : isMatchFinished ? (
+                                                        <span className="hm-status-pill-completed">
+                                                            <MdCheckCircle /> Completed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="hm-status-pill-upcoming">
+                                                            Scheduled
+                                                        </span>
+                                                    )}
+                                                    <span className="hm-date">{dateLine}</span>
                                                 </div>
 
-                                                <h3 className="hm-teams">{c.teams || `${t1.name || 'Team 1'} vs ${t2.name || 'Team 2'}`}</h3>
+                                                <h3 className="hm-teams">{rawTeams || `${t1Name} vs ${t2Name}`}</h3>
 
                                                 {/* Score summary */}
                                                 <div className="hm-scores-box">
                                                     <div className="hm-team-score">
-                                                        <span style={{ marginRight: '10px' }}>{t1.name || 'Team 1'}</span>
-                                                        <strong>{t1.totalRuns ?? 0}/{t1.totalWickets ?? 0} <small>({t1.overs ?? 0} ov)</small></strong>
+                                                        <span style={{ marginRight: '10px' }}>{t1Name}</span>
+                                                        <strong>{t1ScoreDisplay || '—'}</strong>
                                                     </div>
                                                     <div className="hm-team-score">
-                                                        <span style={{ marginRight: '10px' }}>{t2.name || 'Team 2'}</span>
-                                                        <strong>{t2.totalRuns ?? 0}/{t2.totalWickets ?? 0} <small>({t2.overs ?? 0} ov)</small></strong>
+                                                        <span style={{ marginRight: '10px' }}>{t2Name}</span>
+                                                        <strong>{t2ScoreDisplay || '—'}</strong>
                                                     </div>
                                                 </div>
 
-                                                <p className="hm-result-text">{c.result || 'Match Completed'}</p>
+                                                <p className="hm-result-text" style={{ color: isMatchLive ? '#f87171' : undefined }}>
+                                                    {displayResult}
+                                                </p>
 
-                                                {c.mom && (
+                                                {displayMom && (
                                                     <div className="hm-mom-pill">
-                                                        <span>Player of the Match: <strong>{c.mom}</strong></span>
+                                                        <span>Player of the Match: <strong>{displayMom}</strong></span>
                                                     </div>
                                                 )}
 
-                                                <button
-                                                    className="hm-view-scorecard-btn"
-                                                    onClick={() => setActiveScorecardModal(match)}
-                                                >
-                                                    View Full Scorecard <MdArrowForward />
-                                                </button>
+                                                {shouldOpenInUserLive ? (
+                                                    <Link
+                                                        to={userLiveUrl}
+                                                        className={`hm-view-scorecard-btn ${isMatchLive ? 'is-live-btn' : 'is-test-live-btn'}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        {isMatchLive ? (
+                                                            <>
+                                                                <span className="live-pulse-dot" /> Open Live Scoreboard <MdArrowForward />
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                Open in User Live Score Page <MdArrowForward />
+                                                            </>
+                                                        )}
+                                                    </Link>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        className="hm-view-scorecard-btn"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveScorecardModal(match);
+                                                        }}
+                                                    >
+                                                        View Full Scorecard <MdArrowForward />
+                                                    </button>
+                                                )}
                                             </TiltCard>
                                         );
                                     })}

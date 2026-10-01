@@ -165,6 +165,24 @@
     color: #00f0ff;
 }
 
+.timeline-badge-done.badge-test {
+    background: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    color: #c084fc;
+}
+
+.timeline-tab-btn.timeline-tab-test.active {
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
+    border-color: rgba(168, 85, 247, 0.6);
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.35);
+}
+
+.timeline-tab-btn.timeline-tab-test.active .timeline-badge-done.badge-test {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
 /* Main History Content Section */
 .history-content-section {
     position: relative;
@@ -224,16 +242,6 @@
     gap: 6px;
     color: var(--text-muted);
     font-size: 0.9rem;
-}
-
-.eh-champion-pill {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    background: linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(2, 132, 199, 0.06));
-    border: 1px solid rgba(0, 240, 255, 0.3);
-    padding: 12px 20px;
-    border-radius: 18px;
 }
 
 .eh-trophy-icon {
@@ -323,7 +331,41 @@
     color: var(--text-muted);
     font-size: 1rem;
     line-height: 1.6;
-    margin: 0 0 28px 0;
+    margin: 0 0 16px 0;
+}
+
+.champ-organizer-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.22);
+    border-radius: 999px;
+    margin: 0 0 24px 0;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    backdrop-filter: blur(8px);
+    width: fit-content;
+}
+
+.champ-organizer-icon {
+    font-size: 1.25rem;
+    color: var(--accent-cyan, #00f0ff);
+    flex-shrink: 0;
+}
+
+.champ-organizer-label {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+}
+
+.champ-organizer-val {
+    color: var(--text-main);
+    font-weight: 800;
 }
 
 /* Modern, Spacious Champion Stats Tiles (Un-packed) */
@@ -630,6 +672,107 @@
     box-shadow: 0 4px 14px rgba(0, 240, 255, 0.3);
 }
 
+.history-match-card.cursor-pointer {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.history-match-card.is-live-card {
+    border-color: rgba(239, 68, 68, 0.45);
+    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.12);
+}
+
+/* Status Pills in History Matches */
+.hm-status-pill-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    padding: 3px 9px;
+    border-radius: 9999px;
+    letter-spacing: 0.5px;
+}
+
+.hm-live-dot,
+.live-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+    animation: pulseLiveDot 1.4s infinite ease-in-out;
+}
+
+@keyframes pulseLiveDot {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.35;
+        transform: scale(1.3);
+    }
+}
+
+.hm-status-pill-completed {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 3px 9px;
+    border-radius: 9999px;
+}
+
+.hm-status-pill-upcoming {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 3px 9px;
+    border-radius: 9999px;
+}
+
+/* User Live Score Page Links for Test Tournaments */
+.hm-view-scorecard-btn.is-live-btn {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.3));
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    color: #fca5a5;
+    text-decoration: none;
+    font-weight: 800;
+}
+
+.hm-view-scorecard-btn.is-live-btn:hover {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #ffffff;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+}
+
+.hm-view-scorecard-btn.is-test-live-btn {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(2, 132, 199, 0.2));
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.hm-view-scorecard-btn.is-test-live-btn:hover {
+    background: linear-gradient(135deg, #00f0ff, #0284c7);
+    color: #041019;
+    box-shadow: 0 4px 16px rgba(0, 240, 255, 0.35);
+}
+
 /* Standings & Leaderboards Table */
 .history-table-card {
     background: var(--bg-card);
@@ -767,7 +910,7 @@
 
 .history-story-card {
     background: var(--bg-card);
-    background-image: 
+    background-image:
         radial-gradient(circle at 90% 10%, rgba(56, 189, 248, 0.08) 0%, transparent 55%),
         radial-gradient(circle at 10% 90%, rgba(37, 99, 235, 0.06) 0%, transparent 50%),
         url("data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2338bdf8' fill-opacity='0.032' fill-rule='evenodd'%3E%3Cpath d='M26 0L0 26l26 26 26-26L26 0zm0 6.83L45.17 26 26 45.17 6.83 26 26 6.83z'/%3E%3Ccircle cx='26' cy='26' r='4'/%3E%3C/g%3E%3C/svg%3E");
@@ -788,7 +931,7 @@
 }
 
 [data-theme="light"] .history-story-card {
-    background-image: 
+    background-image:
         radial-gradient(circle at 90% 10%, rgba(2, 132, 199, 0.06) 0%, transparent 55%),
         radial-gradient(circle at 10% 90%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
         url("data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%230284c7' fill-opacity='0.035' fill-rule='evenodd'%3E%3Cpath d='M26 0L0 26l26 26 26-26L26 0zm0 6.83L45.17 26 26 45.17 6.83 26 26 6.83z'/%3E%3Ccircle cx='26' cy='26' r='4'/%3E%3C/g%3E%3C/svg%3E");
@@ -1287,7 +1430,13 @@
     .champion-card-hero .champ-note {
         font-size: 0.84rem !important;
         line-height: 1.45 !important;
-        margin-bottom: 14px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .champ-organizer-row {
+        padding: 5px 12px !important;
+        font-size: 0.78rem !important;
+        margin-bottom: 16px !important;
     }
 
     .champ-stats-row {
@@ -1372,11 +1521,6 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 16px;
-    }
-
-    .eh-champion-pill {
-        width: 100%;
-        box-sizing: border-box;
     }
 
     .history-subtabs-nav {
@@ -1755,9 +1899,39 @@
     color: #ffffff;
 }
 
+[data-theme="light"] .timeline-badge-done.badge-test {
+    background: rgba(147, 51, 234, 0.12);
+    border: 1px solid rgba(147, 51, 234, 0.35);
+    color: #7e22ce;
+}
+
+[data-theme="light"] .timeline-tab-btn.timeline-tab-test.active {
+    background: linear-gradient(135deg, #9333ea, #7e22ce);
+    border-color: rgba(147, 51, 234, 0.6);
+    color: #ffffff;
+}
+
 [data-theme="light"] .champ-trophy-badge {
     background: linear-gradient(135deg, #0284c7, #0ea5e9);
     color: #ffffff;
+}
+
+[data-theme="light"] .champ-organizer-row {
+    background: rgba(2, 132, 199, 0.08);
+    border: 1px solid rgba(2, 132, 199, 0.25);
+    color: #334155;
+}
+
+[data-theme="light"] .champ-organizer-icon {
+    color: #0284c7;
+}
+
+[data-theme="light"] .champ-organizer-label {
+    color: #64748b;
+}
+
+[data-theme="light"] .champ-organizer-val {
+    color: #0f172a;
 }
 
 [data-theme="light"] .eh-champ-sub {

@@ -52,14 +52,14 @@ const DOT_TEMPLATES = {
         "Worked off the pads into the leg side, straight to {zone}. {batsman} calls a loud 'NO!'."
     ],
     general: [
-        "Good length probing delivery in the corridor of uncertainty, {batsman} shoulders arms safely.",
-        "Beaten all ends up! Lovely shape away outside off, whistling past the defensive edge.",
-        "Bouncer! Dug in short and sharp, {batsman} sways out of the firing line watchfully.",
+        "Good length probing delivery in the corridor of uncertainty, {batsman} defends solidly.",
+        "Beaten all ends up! Lovely shape away outside off, whistling past the edge.",
+        "Tight delivery from {bowler}, defended solidly on the pitch.",
         "Speared in full around off stump, defended solidly off the front foot. Tidy bowling by {bowler}.",
-        "Sharp movement off the deck! Cuts {batsman} in half as the ball thuds into the keeper's gloves.",
+        "Sharp movement off the deck! Beats the bat as the ball thuds into the keeper's gloves.",
         "Tight line and length on the off stump channel. {batsman} blocks it under the eyes into the pitch.",
         "Fuller delivery searching for swing, {batsman} respects the good ball and drops it on the turf.",
-        "Back of a length angling across the right-hander, left alone watchfully through to the keeper."
+        "Disciplined line and length from {bowler}, giving no room for {batsman} to score."
     ]
 };
 
@@ -103,23 +103,23 @@ const THREE_TEMPLATES = [
 ];
 
 const FOUR_TEMPLATES = [
-    "FOUR! Pure class! Leans gracefully into the drive and strokes it through {zone} — races away to the fence!",
-    "FOUR! Crunched! Short and wide, slapped with utter authority through {zone} for a scorching boundary!",
-    "FOUR! That is sublime! High elbow, straight bat, and drilled past {zone} like a tracer bullet!",
-    "FOUR! Deft touch! Opened the blade at the last split-second and glided it exquisitely through {zone}!",
-    "FOUR! Swatted away in style! Dispatches the length ball through {zone}, giving the sweepers no chance!",
-    "FOUR! Pulled with vengeance! In the hitting slot and crunched away through {zone} to the boundary rope!",
-    "FOUR! Gorgeous shot! Punched on the up through {zone}, beat the infield and into the ropes!",
-    "FOUR! Sliced over the infield! Clears backward point cleanly and bounces over the boundary line!"
+    "FOUR! Pure class! Beautifully timed through {zone} — races away to the fence!",
+    "FOUR! Crunched! Struck with utter authority through {zone} for a scorching boundary!",
+    "FOUR! That is sublime! Pierces the gap past {zone} like a tracer bullet!",
+    "FOUR! Deft touch! Found the gap exquisitely through {zone}!",
+    "FOUR! Put away in style! Dispatches the ball through {zone}, giving the sweepers no chance!",
+    "FOUR! Struck with power! In the slot and driven away through {zone} to the boundary rope!",
+    "FOUR! Gorgeous stroke! Beat the infield cleanly through {zone} and into the ropes!",
+    "FOUR! Finds the gap! Clears the inner circle towards {zone} and races over the boundary line!"
 ];
 
 const SIX_TEMPLATES = [
     "SIX! Colossal strike! Sits deep in the crease and launches it into orbit over {zone} for an enormous maximum!",
-    "SIX! Out of the screws! Stood tall and deposited deep into the grandstands over {zone}!",
-    "SIX! High, handsome and into the crowd! In the slot and punished with an effortless loft over {zone}!",
-    "SIX! Picked up off the pads and dispatched! Sails miles over {zone} — what an extraordinary shot!",
-    "SIX! Pure carnage! Dances down the track, gets under the length and sends it sailing out of the stadium!",
-    "SIX! Clean as a whistle! Flat-batted with sheer power over {zone} for six runs!"
+    "SIX! Out of the middle of the bat! Stood tall and deposited deep into the grandstands over {zone}!",
+    "SIX! High, handsome and into the crowd! Punished with an effortless loft over {zone}!",
+    "SIX! Smashed away with power! Sails miles over {zone} — what an extraordinary hit!",
+    "SIX! Pure power! Gets under the length and sends it sailing out into the stands!",
+    "SIX! Clean as a whistle! Struck with sheer power over {zone} for six runs!"
 ];
 
 const WICKET_TEMPLATES = {
@@ -159,7 +159,7 @@ const WICKET_TEMPLATES = {
 const EXTRA_TEMPLATES = {
     wide: [
         "Wide ball! Slips well outside the tramlines, keeper collects and an extra run is conceded.",
-        "Wide! Fired too far outside off stump, batsman leaves it alone and the umpire signals wide.",
+        "Wide! Fired too far outside off stump, well outside the tramline and the umpire signals wide.",
         "Wide ball! Strays down leg side past the batsman's pads, bonus run gifted to the batting team."
     ],
     noball: [

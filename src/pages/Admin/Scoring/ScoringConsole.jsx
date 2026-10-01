@@ -9,12 +9,15 @@ import {
     subscribeLiveData,
     updateMatchData,
     setMatchData as setRtdbMatchData,
+    undoMatchDelivery,
     getMatchData,
     updateLiveData as rtdbUpdateLiveData,
+    updateScopedLiveData,
     saveFinishedMatch,
     recordMatchRankings,
     syncMatch1Team2BowlersAndRankings,
     subscribeTournamentSettings,
+    resolveTournamentKey,
 } from '../../../services/rtdbService';
 import {
     MdUndo,
@@ -42,11 +45,9 @@ import {
     MdGroups,
     MdLock,
     MdLockOpen,
-    MdPersonPin,
     MdTune,
-    MdTableChart,
-    MdInfoOutline,
-    MdWarningAmber
+    MdWarningAmber,
+    MdShield
 } from 'react-icons/md';
 import { GiCricketBat } from 'react-icons/gi';
 import { FaCoins, FaTrophy } from 'react-icons/fa6';
@@ -54,10 +55,13 @@ import AdminSubNav from '../../../components/Navigation/AdminSubNav';
 import { useAdminTournament } from '../../../contexts/AdminTournamentContext';
 import { useAdminProcessing } from '../../../contexts/AdminProcessingContext';
 import { generateSmartCommentary } from '../../../utils/commentaryEngine';
+import { generateBallVoiceCommentary, ANALYST_REACTIONS } from '../../../utils/voiceCommentaryPhrases';
 import WagonWheel from '../../../components/3D/WagonWheel';
-import { calculateDlsTarget, generateDlsParTable } from '../../../utils/dlsEngine';
+import { calculateDlsTarget } from '../../../utils/dlsEngine';
 import { calculateMatchResult } from '../../../utils/cricketEngine';
 import { isMatchFinished } from '../../../components/common/MatchCard/MatchCard';
+import useVoiceCommentary from '../../../hooks/useVoiceCommentary';
+import VoiceDeskModal from '../../../components/common/VoiceCommentary/VoiceDeskModal';
 import './ScoringConsole.css';
 
 // Reusable helper to check if a player is dismissed in the batting innings
@@ -121,7 +125,7 @@ export const isPlayerDismissedInInnings = (player, battingTeamData) => {
 const ScoringConsole = () => {
     const location = useLocation();
     const toastRef = useRef();
-    const { selectedTournamentId, tournaments } = useAdminTournament();
+    const { selectedTournamentId, tournaments, selectTournament } = useAdminTournament();
     const { withProcessing } = useAdminProcessing();
 
     // Check if managing a test / sandbox tournament
@@ -144,11 +148,13 @@ const ScoringConsole = () => {
         }
     }, [isTestTournament]);
 
-    // Safe liveData proxy that intercepts updates during test/dev matches
+    // Safe liveData proxy that intercepts updates during test/dev matches.
+    // For test tournaments, write to the tournament's OWN LiveData node so
+    // the admin can reload and resume scoring without losing session context.
     const updateLiveData = async (payload) => {
         if (isSilentDevMode || isTestTournament) {
-            // Dev / Silent mode: do not broadcast to public spectator liveData
-            return;
+            // Scoped write to test tournament's LiveData only (not the public broadcast node)
+            return updateScopedLiveData(selectedTournamentId, payload);
         }
         return rtdbUpdateLiveData(payload);
     };
@@ -156,6 +162,17 @@ const ScoringConsole = () => {
     // Query param match selection
     const queryParams = new URLSearchParams(location.search);
     const initialMatch = queryParams.get('match') || '';
+    const initialTourney = queryParams.get('tourney') || queryParams.get('tournament') || '';
+
+    // Auto-sync tournament selection if passed via query parameter
+    useEffect(() => {
+        if (initialTourney && selectTournament) {
+            const resolved = resolveTournamentKey(initialTourney);
+            if (resolved && resolved !== selectedTournamentId) {
+                selectTournament(resolved);
+            }
+        }
+    }, [initialTourney, selectedTournamentId, selectTournament]);
 
     const [publishedMatches, setPublishedMatches] = useState([]);
     const [isDrawPublished, setIsDrawPublished] = useState(false);
@@ -221,12 +238,7 @@ const ScoringConsole = () => {
     const [nonStrikerId, setNonStrikerId] = useState(null);
     const [bowlerId, setBowlerId] = useState(null);
 
-    // Force Crease Batters & Bowler Modal & Inline Unlock
-    const [showForceChangeModal, setShowForceChangeModal] = useState(false);
-    const [forceStrikerId, setForceStrikerId] = useState('');
-    const [forceNonStrikerId, setForceNonStrikerId] = useState('');
-    const [forceBowlerId, setForceBowlerId] = useState('');
-    const [forceReinstateOut, setForceReinstateOut] = useState(true);
+    // Crease Batters & Bowler Inline Unlock
     const [isForceCreaseUnlocked, setIsForceCreaseUnlocked] = useState(false);
 
     // Wagon Wheel Modal State (for batsman stats inspection)
@@ -255,6 +267,49 @@ const ScoringConsole = () => {
     const [secondInningsNonStrikerId, setSecondInningsNonStrikerId] = useState('');
     const [secondInningsBowlerId, setSecondInningsBowlerId] = useState('');
     const [momSelection, setMomSelection] = useState('');
+    const [showVoiceDesk, setShowVoiceDesk] = useState(false);
+
+    // Voice Commentary integration for Admin Console
+    const latestAdminDelivery = React.useMemo(() => {
+        if (!matchData?.commentary) return null;
+        const list = Object.values(matchData.commentary);
+        if (list.length === 0) return null;
+        return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0] || null;
+    }, [matchData?.commentary]);
+
+    const voiceMatchContext = React.useMemo(() => {
+        const isF1 = (matchData?.common?.firstBat || 1) === 1;
+        const isI1 = (matchData?.common?.activeInnings || 1) === 1;
+        const bK = isI1 ? (isF1 ? 'team1' : 'team2') : (isF1 ? 'team2' : 'team1');
+        const bkTeam = matchData?.[bK];
+        const blK = bK === 'team1' ? 'team2' : 'team1';
+        const blTeam = matchData?.[blK];
+
+        return {
+            t1Name: matchData?.team1?.name || 'Team 1',
+            t2Name: matchData?.team2?.name || 'Team 2',
+            battingTeamName: bkTeam?.name || 'Batting Team',
+            bowlingTeamName: blTeam?.name || 'Bowling Team',
+            activeInnings: matchData?.common?.activeInnings || 1,
+            target: matchData?.common?.targetScore || 0,
+            runs: bkTeam?.totalRuns || 0,
+            wickets: bkTeam?.totalWickets || 0,
+            overs: bkTeam?.overs || 0,
+            striker: bkTeam?.ballFaceBatsman || null,
+            nonStriker: bkTeam?.otherSideBatsman || null,
+            bowler: blTeam?.bowler || null,
+            bowlerType: blTeam?.bowler?.bowlingStyle || blTeam?.bowler?.bowlingType || '',
+            runsNeeded: 0,
+            ballsRemaining: 0,
+            crr: 0
+        };
+    }, [matchData]);
+
+    const voiceState = useVoiceCommentary({
+        latestDelivery: latestAdminDelivery,
+        matchContext: voiceMatchContext,
+        enabledDefault: false
+    });
 
     // DLS & Match Adjustments Modal State
     const [showDlsModal, setShowDlsModal] = useState(false);
@@ -268,7 +323,13 @@ const ScoringConsole = () => {
     const [dlsT1OversBowled, setDlsT1OversBowled] = useState('');
     const [dlsT1WicketsFallen, setDlsT1WicketsFallen] = useState(0);
     const [dlsCustomBroadcastMsg, setDlsCustomBroadcastMsg] = useState('');
-    const [dlsShowParTable, setDlsShowParTable] = useState(false);
+
+    // Powerplay State
+    const [showPowerplayModal, setShowPowerplayModal] = useState(false);
+    const [powerplayActive, setPowerplayActive] = useState(false);
+    const [powerplayType, setPowerplayType] = useState('Mandatory');
+    const [powerplayOvers, setPowerplayOvers] = useState('1-6');
+    const [powerplayRestrictions, setPowerplayRestrictions] = useState('Max 2 fielders outside 30-yard circle');
 
     // Benchmarks & Visibility Settings
     const [projRateA, setProjRateA] = useState(8);
@@ -392,8 +453,12 @@ const ScoringConsole = () => {
         }
     }, [initialMatch, isDrawPublished, publishedMatches.length]);
 
-    // 1b. Automatically redirect to active match scoring board if a match is live in this tournament
+    // 1b. Automatically redirect to active match scoring board if a match is live in this tournament.
+    // Pass selectedTournamentId so that for test tournaments the admin reads from the test
+    // tournament's own LiveData node and can seamlessly resume scoring after a page reload.
     useEffect(() => {
+        if (!selectedTournamentId) return;
+
         const unsubLive = subscribeLiveData((data) => {
             liveDataRef.current = data;
             if (data?.isLive && !userClosedLauncherRef.current) {
@@ -407,10 +472,10 @@ const ScoringConsole = () => {
                     setIsScoringActive(true);
                 }
             }
-        });
+        }, selectedTournamentId);
 
         return () => unsubLive();
-    }, [isScoringActive, activeMatchTitle]);
+    }, [isScoringActive, activeMatchTitle, selectedTournamentId]);
 
     // Helper to find team data from teamsData registry by name/key/id
     const findTeamData = (teamIdentifier) => {
@@ -846,7 +911,7 @@ const ScoringConsole = () => {
                 strikeRate: matchedMatchP?.strikeRate || '0.00',
                 dismissal: matchedMatchP?.dismissal || '',
                 status: matchedMatchP?.status || 'yet to bat',
-                groundArrivalOrder: matchedMatchP?.groundArrivalOrder,
+                groundArrivalOrder: (matchedMatchP?.groundArrivalOrder !== undefined && matchedMatchP?.groundArrivalOrder !== null) ? Number(matchedMatchP.groundArrivalOrder) : null,
                 shots: matchedMatchP?.shots || {},
                 id: finalId,
                 name: sp.name || (matchedMatchP && !isDummyPlayer(matchedMatchP, teamName) ? matchedMatchP.name : `${teamName} Player ${idx + 1}`),
@@ -887,7 +952,7 @@ const ScoringConsole = () => {
                 strikeRate: matchedMatchP?.strikeRate || '0.00',
                 dismissal: matchedMatchP?.dismissal || '',
                 status: matchedMatchP?.status || 'yet to bat',
-                groundArrivalOrder: matchedMatchP?.groundArrivalOrder,
+                groundArrivalOrder: (matchedMatchP?.groundArrivalOrder !== undefined && matchedMatchP?.groundArrivalOrder !== null) ? Number(matchedMatchP.groundArrivalOrder) : null,
                 shots: matchedMatchP?.shots || {},
                 id: finalId,
                 name: ep.name || matchedMatchP?.name || `${teamName} Reserve ${idx + 1}`,
@@ -1181,24 +1246,18 @@ const ScoringConsole = () => {
                     }
                 }
 
-                // Fallback check to players marked as 'batting' / 'striker' / 'non-striker'
+                // Fallback check ONLY if the innings has NOT started yet (0 balls & 0 wickets): default to first 2 available not-out openers
                 const notOutBatters = bList.filter(p => !isPlayerDismissedInInnings(p, currentBatting));
-                if (resolvedStrikerId == null) {
-                    const activeBat = notOutBatters.find(p => (p.status === 'batting' || p.status === 'striker') && String(p.id) !== String(resolvedNonStrikerId));
-                    if (activeBat) resolvedStrikerId = activeBat.id;
-                }
-                if (resolvedNonStrikerId == null) {
-                    const activeNonBat = notOutBatters.find(p => (p.status === 'non-striker' || (p.status === 'batting' && String(p.id) !== String(resolvedStrikerId))));
-                    if (activeNonBat) resolvedNonStrikerId = activeNonBat.id;
-                }
-
-                // ONLY if the innings has NOT started yet (0 balls & 0 wickets): default to first 2 available not-out openers
                 if (totalBalls === 0 && totalWickets === 0) {
-                    if (resolvedStrikerId == null && notOutBatters.length >= 1) {
-                        resolvedStrikerId = notOutBatters[0].id;
+                    if (resolvedStrikerId == null) {
+                        const activeBat = notOutBatters.find(p => (p.status === 'batting' || p.status === 'striker') && String(p.id) !== String(resolvedNonStrikerId));
+                        if (activeBat) resolvedStrikerId = activeBat.id;
+                        else if (notOutBatters.length >= 1) resolvedStrikerId = notOutBatters[0].id;
                     }
-                    if (resolvedNonStrikerId == null && notOutBatters.length >= 2) {
-                        resolvedNonStrikerId = notOutBatters.find(p => String(p.id) !== String(resolvedStrikerId))?.id || notOutBatters[1]?.id;
+                    if (resolvedNonStrikerId == null) {
+                        const activeNonBat = notOutBatters.find(p => (p.status === 'non-striker' || (p.status === 'batting' && String(p.id) !== String(resolvedStrikerId))));
+                        if (activeNonBat) resolvedNonStrikerId = activeNonBat.id;
+                        else if (notOutBatters.length >= 2) resolvedNonStrikerId = notOutBatters.find(p => String(p.id) !== String(resolvedStrikerId))?.id || notOutBatters[1]?.id;
                     }
                 }
 
@@ -1212,6 +1271,17 @@ const ScoringConsole = () => {
                     setBowlerId(currentBowling.bowler.id);
                 } else if (bowlList.length > 0) {
                     setBowlerId(prev => prev || bowlList[0].id);
+                }
+
+                // Sync Powerplay state from match data
+                const pp = data.common?.powerplay;
+                if (pp) {
+                    setPowerplayActive(Boolean(pp.active ?? pp.isActive));
+                    if (pp.type) setPowerplayType(pp.type);
+                    if (pp.overs) setPowerplayOvers(pp.overs);
+                    if (pp.restrictions) setPowerplayRestrictions(pp.restrictions);
+                } else if (data.common?.isPowerplay != null) {
+                    setPowerplayActive(Boolean(data.common.isPowerplay));
                 }
             } else {
                 setMatchData(null);
@@ -2387,9 +2457,9 @@ const ScoringConsole = () => {
     const tabBattingTeamKey = activeInningsTab || currentBattingTeamKey;
     const tabBattingTeamData = matchData[tabBattingTeamKey] || (tabBattingTeamKey === 'team1' ? team1 : team2);
     const tabBowlingTeamKey = tabBattingTeamKey === 'team1' ? 'team2' : 'team1';
-    const tabBowlingTeamData = matchData[tabBowlingTeamKey] || (tabBowlingTeamKey === 'team1' ? team2 : team1);
-    const tabBattingTeamName = tabBattingTeamKey === 'team1' ? t1Name : t2Name;
-    const tabBowlingTeamName = tabBowlingTeamKey === 'team1' ? t2Name : t1Name;
+    const tabBowlingTeamData = matchData[tabBowlingTeamKey] || (tabBowlingTeamKey === 'team1' ? team1 : team2);
+    const tabBattingTeamName = tabBattingTeamKey === 'team1' ? (t1Name || 'Team 1') : (t2Name || 'Team 2');
+    const tabBowlingTeamName = tabBowlingTeamKey === 'team1' ? (t1Name || 'Team 1') : (t2Name || 'Team 2');
 
     const { playingXI: rawTabPlayingXI, reserves: tabReserves } = resolveConsoleTeamRoster(
         tabBattingTeamData,
@@ -2634,6 +2704,11 @@ const ScoringConsole = () => {
     };
 
     const executeBallDelivery = async (ballEvent) => {
+        if (!striker?.id || !nonStriker?.id) {
+            toastRef.current?.showToast('warning', 'Please choose the incoming batsman at the crease before recording this delivery.');
+            return;
+        }
+
         await withProcessing(async () => {
             pushHistoryState();
 
@@ -2710,6 +2785,10 @@ const ScoringConsole = () => {
 
             // Update Team Total Runs & Extras Tally
             bTeam.totalRuns = (bTeam.totalRuns || 0) + deliveryTotalRuns;
+            bTeam.overHistory = bTeam.overHistory || {};
+            if (!bTeam.overHistory[0]) {
+                bTeam.overHistory[0] = { over: 0, runs: 0, wickets: 0, balls: 0 };
+            }
 
             if (isExtra && extraAmountForTeam > 0) {
                 bTeam.totalExtraAmount = (bTeam.totalExtraAmount || 0) + extraAmountForTeam;
@@ -2752,9 +2831,20 @@ const ScoringConsole = () => {
                     // Save shot zone (for normal bat scoring runs > 0 OR No Ball with bat runs > 0)
                     if (wagonZone && strikerRunsScored > 0 && (!isExtra || isNbBatRuns)) {
                         sPlayer.shots = sPlayer.shots || {};
-                        sPlayer.shots[wagonZone] = sPlayer.shots[wagonZone] || { runs: 0, count: 0 };
+                        sPlayer.shots[wagonZone] = sPlayer.shots[wagonZone] || { runs: 0, count: 0, shotRuns: [] };
                         sPlayer.shots[wagonZone].runs += strikerRunsScored;
                         sPlayer.shots[wagonZone].count += 1;
+                        sPlayer.shots[wagonZone].shotRuns = Array.isArray(sPlayer.shots[wagonZone].shotRuns)
+                            ? [...sPlayer.shots[wagonZone].shotRuns, strikerRunsScored]
+                            : [strikerRunsScored];
+
+                        sPlayer.shotList = Array.isArray(sPlayer.shotList) ? sPlayer.shotList : [];
+                        sPlayer.shotList.push({
+                            zone: wagonZone,
+                            runs: strikerRunsScored,
+                            ball: sPlayer.balls,
+                            over: getOversString(bTeam)
+                        });
                     }
                 }
             } else if (extraType === 'Bye' || extraType === 'Leg Bye') {
@@ -3011,29 +3101,92 @@ const ScoringConsole = () => {
                     nextNonStrikerId = temp;
                 }
                 const overNum = Math.floor(bTeam.totalBalls / 6);
+                bTeam.overHistory = bTeam.overHistory || {};
+                bTeam.overHistory[overNum] = {
+                    over: overNum,
+                    runs: bTeam.totalRuns || 0,
+                    wickets: bTeam.totalWickets || 0,
+                    balls: bTeam.totalBalls || 0
+                };
                 toastRef.current?.showToast('info', `Over ${overNum} complete! Strike rotated.`);
+
+                // Automatically turn off Powerplay when the set over is reached (e.g. 1-6 -> turns off at over 6)
+                const ppData = updated.common?.powerplay || common.powerplay;
+                const isPpActive = Boolean(ppData?.active || ppData?.isActive || updated.common?.isPowerplay || common.isPowerplay || powerplayActive);
+                if (isPpActive && ppData?.overs) {
+                    const ppEndOverMatch = String(ppData.overs).match(/(\d+)\s*$/);
+                    const ppEndOver = ppEndOverMatch ? parseInt(ppEndOverMatch[1], 10) : 6;
+                    if (overNum >= ppEndOver) {
+                        if (!updated.common) updated.common = {};
+                        if (!updated.common.powerplay) updated.common.powerplay = { ...(ppData || {}) };
+                        updated.common.powerplay.active = false;
+                        updated.common.powerplay.isActive = false;
+                        updated.common.isPowerplay = false;
+                        setPowerplayActive(false);
+                        toastRef.current?.showToast('info', `⚡ Powerplay concluded! Field restrictions lifted after Over ${overNum}.`);
+                    }
+                }
 
                 const overLimit = Number(common.overLimit || 20);
                 const isFirstInnings = (common.activeInnings || 1) === 1;
                 const is1stInningsOverLimitReached = isFirstInnings && bTeam.totalBalls >= (overLimit * 6);
+                const is2ndInningsOverLimitReached = !isFirstInnings && bTeam.totalBalls >= (overLimit * 6);
 
-                if (is1stInningsOverLimitReached) {
-                    toastRef.current?.showToast('info', `1st Innings overs completed (${overLimit} overs)!`);
+                const availableIncomingBatters = playingXI.filter(p => {
+                    const isOut = isDismissedPlayer(p);
+                    const isCurrentCrease = String(p.id) === String(striker.id) || String(p.id) === String(nonStriker.id);
+                    return !isOut && !isCurrentCrease;
+                });
+                const isAllOut = bTeam.totalWickets >= (playingXI.length > 0 ? (playingXI.length - 1) : 10) || bTeam.totalWickets >= 10 || (isWicket && availableIncomingBatters.length === 0);
+
+                // Check if target is reached in 2nd innings
+                let isTargetReached = false;
+                if (!isFirstInnings) {
+                    const dlsTarget = updated.common?.dls?.isApplied && updated.common?.dls?.revisedTarget
+                        ? Number(updated.common.dls.revisedTarget)
+                        : null;
+                    const targetScore = dlsTarget !== null ? dlsTarget : (Number(bowlTeam.totalRuns ?? bowlTeam.runs ?? 0) + 1);
+                    if (targetScore > 0 && bTeam.totalRuns >= targetScore) {
+                        isTargetReached = true;
+                    }
+                }
+
+                if (is1stInningsOverLimitReached || (isFirstInnings && isAllOut)) {
+                    const finalOv = Number(getOversString(bTeam)) || (bTeam.totalBalls / 6);
+                    bTeam.overHistory = bTeam.overHistory || {};
+                    bTeam.overHistory[`final_${bTeam.totalBalls}`] = {
+                        over: finalOv,
+                        runs: bTeam.totalRuns || 0,
+                        wickets: bTeam.totalWickets || 0,
+                        balls: bTeam.totalBalls || 0
+                    };
+                    toastRef.current?.showToast('info', isAllOut
+                        ? `1st Innings all out (${bTeam.totalWickets} wickets)! Switching innings...`
+                        : `1st Innings overs completed (${overLimit} overs)!`);
                     setSecondInningsStrikerId('');
                     setSecondInningsNonStrikerId('');
                     setSecondInningsBowlerId('');
                     setShowSwitchInningsModal(true);
-                } else {
-                    // Trigger compulsory Next Bowler Selection Modal
-                    // If next batter modal is active, defer next bowler modal until incoming batter is confirmed
-                    const availableIncomingBatters = playingXI.filter(p => {
-                        const isOut = isDismissedPlayer(p);
-                        const isCurrentCrease = String(p.id) === String(striker.id) || String(p.id) === String(nonStriker.id);
-                        return !isOut && !isCurrentCrease;
-                    });
-                    const isAllOut = bTeam.totalWickets >= (playingXI.length - 1) || bTeam.totalWickets >= 10 || availableIncomingBatters.length === 0;
-
-                    if (!isWicket || isAllOut) {
+                } else if (!isFirstInnings && (isTargetReached || isAllOut || is2ndInningsOverLimitReached)) {
+                    const finalOv = Number(getOversString(bTeam)) || (bTeam.totalBalls / 6);
+                    bTeam.overHistory = bTeam.overHistory || {};
+                    bTeam.overHistory[`final_${bTeam.totalBalls}`] = {
+                        over: finalOv,
+                        runs: bTeam.totalRuns || 0,
+                        wickets: bTeam.totalWickets || 0,
+                        balls: bTeam.totalBalls || 0
+                    };
+                    // Match concluded — no new bowler needed
+                    if (isTargetReached) {
+                        toastRef.current?.showToast('success', `🎯 Target reached! ${bTeam.name || 'Batting team'} wins the match!`);
+                    } else if (isAllOut) {
+                        toastRef.current?.showToast('info', `All out! 2nd innings concluded.`);
+                    } else {
+                        toastRef.current?.showToast('info', `2nd innings overs completed.`);
+                    }
+                } else if (!isAllOut && !isTargetReached) {
+                    // Only ask to choose new bowler if the match/innings is still active and not a wicket
+                    if (!isWicket) {
                         setLastBowlerId(bowler.id);
                         setCompletedOverNumber(overNum);
                         setSelectedNextBowlerId('');
@@ -3064,25 +3217,123 @@ const ScoringConsole = () => {
                 ballIndex: bTeam.totalBalls || 0
             });
 
+            // ── Pre-generate voice commentary text at write-time ────────────────────
+            // By generating the voice text here (admin side) and saving it into the
+            // commEntry, ALL viewers will read and speak the EXACT same commentary text.
+            // Without this, each browser independently picks a random phrase, so every
+            // Check golden duck / duck status for dismissed batter
+            const outBatterObj = isWicket ? (bTeam.players?.[outBatterId] || striker) : null;
+            const batterRuns = Number(outBatterObj?.runs ?? 0);
+            const batterBalls = Number(outBatterObj?.balls ?? 0);
+            const batterFours = isWicket ? Number(outBatterObj?.boundaries?.fours ?? outBatterObj?.fours ?? 0) : 0;
+            const batterSixes = isWicket ? Number(outBatterObj?.boundaries?.sixes ?? outBatterObj?.sixes ?? 0) : 0;
+            const isGoldenDuck = isWicket && batterRuns === 0 && batterBalls <= 1;
+            const isDuck = isWicket && !isGoldenDuck && batterRuns === 0;
+
+            const voiceDelivery = {
+                runs: deliveryTotalRuns,
+                isWicket,
+                dismissalType: ballEvent.dismissalType || '',
+                dismissalFielder: ballEvent.dismissalFielder || '',
+                isExtra,
+                extraType,
+                extraAdditional: additionalExtraRuns, // runs beyond base extra penalty (e.g. wide+boundary)
+                batsman: outBatterName,
+                bowler: bowler.name,
+                wagonZone,
+                isGoldenDuck,
+                isDuck
+            };
+            const voiceText = generateBallVoiceCommentary(voiceDelivery);
+
+
+            // Pick analyst reaction based on delivery outcome (natural broadcast frequencies)
+            let analystKey = null;
+            let analystChance = 0;
+            if (isWicket) {
+                const dtype = (ballEvent.dismissalType || '').toLowerCase();
+                const dfielder = (ballEvent.dismissalFielder || '').toLowerCase();
+                const isCB = dtype.includes('c & b') || dtype.includes('c&b') || dtype.includes('caught and bowled') || dtype.includes('caught & bowled');
+                const isBehind = !isCB && (dtype.includes('behind') || (dtype.includes('caught') && dfielder.includes('keeper')) || dtype.includes('keeper'));
+
+                if (isCB) analystKey = 'wicket_caughtandbowled';
+                else if (isBehind) analystKey = 'wicket_caughtbehind';
+                else if (dtype.includes('bowled') || dtype.startsWith('b ') || dtype === 'b') analystKey = 'wicket_bowled';
+                else if (dtype.includes('caught') || dtype.startsWith('c ')) analystKey = 'wicket_caught';
+                else if (dtype.includes('lbw') || dtype.includes('leg before')) analystKey = 'wicket_lbw';
+                else if (dtype.includes('run out') || dtype.includes('runout')) analystKey = 'wicket_runout';
+                else if (dtype.includes('stump')) analystKey = 'wicket_stumped';
+                else if (dtype.includes('hit wicket') || dtype.includes('hitwicket')) analystKey = 'wicket_hitwicket';
+                else if (dtype.includes('retired')) analystKey = 'wicket_retired';
+                else analystKey = 'wicket_general';
+                analystChance = 0.75;
+            } else if (isExtra && (extraType || '').toLowerCase().includes('wide')) {
+                analystKey = 'wide';
+                analystChance = 0.40;
+            } else if (isExtra && (extraType || '').toLowerCase().includes('no ball')) {
+                analystKey = 'noball';
+                analystChance = 0.75;
+            } else if (deliveryTotalRuns >= 6) {
+                analystKey = 'six';
+                analystChance = 0.80;
+            } else if (deliveryTotalRuns === 4) {
+                analystKey = 'four';
+                analystChance = 0.75;
+            } else if (deliveryTotalRuns === 0 && !isExtra) {
+                analystKey = 'dot';
+                analystChance = 0.20; // 80% natural silence on dots, only 20% occasional remark
+            }
+            // Note: 1, 2, 3 runs leave analystKey = null (lead commentator calls the single/double without chat)
+
+            const analystPool = analystKey ? (ANALYST_REACTIONS[analystKey] || null) : null;
+            const shouldIncludeAnalyst = analystPool && (Math.random() < analystChance);
+            const analystPick = shouldIncludeAnalyst ? analystPool[Math.floor(Math.random() * analystPool.length)] : null;
+
+            // ── Build commEntry with voice fields ───────────────────────────────────
             updated.commentary = updated.commentary || {};
             const commEntry = {
                 id: commTimestamp,
                 over: `${getOversString(bTeam)}`,
                 runs: deliveryTotalRuns,
                 isWicket,
+                dismissalType: ballEvent.dismissalType || '',
+                dismissalFielder: ballEvent.dismissalFielder || '',
                 isExtra,
                 extraType,
                 extraRuns: additionalExtraRuns,
                 text: commText,
                 timestamp: commTimestamp,
-                batsman: striker.name,
-                bowler: bowler.name
+                batsman: outBatterName,
+                bowler: bowler.name,
+                // Voice commentary fields — same text for ALL users
+                voiceText: voiceText || '',
+                voiceEmotion: isWicket ? 'sad' : (deliveryTotalRuns >= 6 ? 'roar' : (deliveryTotalRuns >= 4 ? 'bat_crack' : 'neutral')),
+                voiceSpeaker: 'Arthur',
+                analystText: analystPick?.text || '',
+                analystEmotion: analystPick?.emotion || 'none',
+                // Dismissed batter scorecard stats (used for post-wicket stat read-out)
+                ...(isWicket && {
+                    dismissedBatterRuns: batterRuns,
+                    dismissedBatterBalls: batterBalls,
+                    dismissedBatterFours: batterFours,
+                    dismissedBatterSixes: batterSixes,
+                    isGoldenDuck,
+                    isDuck
+                })
             };
             const isNbBatRuns = isExtra && extraType === 'No Ball' && additionalExtraRuns > 0;
             if (wagonZone && (deliveryTotalRuns > 0 && (!isExtra || isNbBatRuns))) {
                 commEntry.wagonZone = wagonZone;
             }
             updated.commentary[commTimestamp] = commEntry;
+
+            // ── Keep only the last 5 commentary entries in RTDB ─────────────────────
+            // Prevents unlimited growth and keeps the database lean on the free plan.
+            const allCommKeys = Object.keys(updated.commentary).map(Number).sort((a, b) => a - b);
+            if (allCommKeys.length > 5) {
+                const toRemove = allCommKeys.slice(0, allCommKeys.length - 5);
+                toRemove.forEach(k => { delete updated.commentary[k]; });
+            }
 
             // Maintain overBallsTypes in common for live over timeline (Flutter & Web)
             let ballToken = String(runs);
@@ -3102,6 +3353,8 @@ const ScoringConsole = () => {
             }
 
             updated.common = updated.common || {};
+            updated.common.lastAction = 'delivery';
+            updated.common.lastDeliveryTimestamp = commTimestamp;
             const existingOverBalls = Array.isArray(updated.common.overBallsTypes)
                 ? [...updated.common.overBallsTypes]
                 : Object.values(updated.common.overBallsTypes || {});
@@ -3187,18 +3440,53 @@ const ScoringConsole = () => {
         }
 
         await withProcessing(async () => {
-            const previousState = historyStack[0];
+            const previousState = JSON.parse(JSON.stringify(historyStack[0]));
             setHistoryStack(prev => prev.slice(1));
+            previousState.common = previousState.common || {};
+            delete previousState.common.lastAction;
+            previousState.common.undoTimestamp = Date.now();
+
+            // Reconstruct genuine toss or target status instead of 'Ball undone by admin'
+            const prevInningsNum = previousState.common?.activeInnings || 1;
+            const restoredStatus = prevInningsNum === 2 && previousState.common?.targetScore
+                ? `Target ${previousState.common.targetScore} runs`
+                : (previousState.common?.tossWinner
+                    ? `${previousState.common.tossWinner} won toss & elected to ${previousState.common.tossDecision || 'bat'} first`
+                    : (previousState.common?.status && !previousState.common.status.toLowerCase().includes('undone')
+                        ? previousState.common.status
+                        : 'Live Match In Progress'));
+            previousState.common.status = restoredStatus;
+
+            // Restore crease batter IDs and bowler in React state
+            const prevBatTeam = previousState[currentBattingTeamKey];
+            const prevBowlTeam = previousState[currentBowlingTeamKey];
+            if (prevBatTeam?.ballFaceBatsman?.id != null) {
+                setStrikerId(prevBatTeam.ballFaceBatsman.id);
+            }
+            if (prevBatTeam?.otherSideBatsman?.id != null) {
+                setNonStrikerId(prevBatTeam.otherSideBatsman.id);
+            }
+            if (prevBowlTeam?.bowler?.id != null) {
+                setBowlerId(prevBowlTeam.bowler.id);
+            }
+
+            // Close any event modals triggered by that ball
+            setShowNextBatterModal(false);
+            setShowNextBowlerModal(false);
+            setShowSwitchInningsModal(false);
+
             setMatchData(previousState);
 
-            await updateMatchData(activeMatchTitle, previousState, selectedTournamentId);
+            // Fully revert match, commentary, recent overBallsTypes, and scorecards in RTDB
+            await undoMatchDelivery(activeMatchTitle, previousState, matchData, selectedTournamentId);
+
             await updateLiveData({
                 isLive: 1,
                 currentMatchPath: activeMatchTitle,
                 liveScore: {
                     matchTitle: activeMatchTitle,
                     firstBat: previousState.common?.firstBat,
-                    status: 'Ball undone by admin',
+                    status: restoredStatus,
                     team1: {
                         name: previousState.team1?.name,
                         overs: previousState.team1?.overs ?? 0,
@@ -3214,8 +3502,8 @@ const ScoringConsole = () => {
                 }
             });
 
-            toastRef.current?.showToast('info', 'Last ball delivery undone successfully.');
-        }, 'Undoing Delivery...', 'Reverting last ball and synchronizing scorecard...');
+            toastRef.current?.showToast('info', 'Last ball delivery undone successfully. Commentary and recent balls reversed.');
+        }, 'Undoing Delivery...', 'Reverting last ball, commentary, and synchronizing scorecard...');
     };
 
     // Shift Striker & Non-Striker Batters
@@ -3275,20 +3563,11 @@ const ScoringConsole = () => {
         }, 'Shifting Crease Batters...', 'Swapping striker and non-striker positions...');
     };
 
-    // Open Force Player Change Modal
-    const handleOpenForceChangeModal = () => {
-        setForceStrikerId(striker.id || '');
-        setForceNonStrikerId(nonStriker.id || '');
-        setForceBowlerId(bowler.id || '');
-        setForceReinstateOut(true);
-        setShowForceChangeModal(true);
-    };
-
     // Force Change Striker & Non-Striker Batters & Bowler
-    const handleExecuteForceChange = async (overrideStrikerId, overrideNonStrikerId, overrideBowlerId, reinstateOut = forceReinstateOut) => {
-        const finalStrikerId = overrideStrikerId !== undefined ? overrideStrikerId : forceStrikerId;
-        const finalNonStrikerId = overrideNonStrikerId !== undefined ? overrideNonStrikerId : forceNonStrikerId;
-        const finalBowlerId = overrideBowlerId !== undefined ? overrideBowlerId : forceBowlerId;
+    const handleExecuteForceChange = async (overrideStrikerId, overrideNonStrikerId, overrideBowlerId, reinstateOut = true) => {
+        const finalStrikerId = overrideStrikerId !== undefined ? overrideStrikerId : strikerId;
+        const finalNonStrikerId = overrideNonStrikerId !== undefined ? overrideNonStrikerId : nonStrikerId;
+        const finalBowlerId = (overrideBowlerId !== undefined && typeof overrideBowlerId !== 'boolean') ? overrideBowlerId : bowlerId;
 
         if (!finalStrikerId || !finalNonStrikerId) {
             toastRef.current?.showToast('error', 'Please select both Striker and Non-Striker.');
@@ -3449,7 +3728,6 @@ const ScoringConsole = () => {
                 }
             });
 
-            setShowForceChangeModal(false);
             const bowlerMsg = activeBowlerObj ? ` & Bowler (${activeBowlerObj.name})` : '';
             toastRef.current?.showToast('success', `Forcefully updated crease: ${newStriker.name} (*), ${newNonStriker.name}${bowlerMsg}!`);
         }, 'Force Changing Crease...', 'Assigning Striker, Non-Striker and Bowler at the crease...');
@@ -3534,8 +3812,8 @@ const ScoringConsole = () => {
                 const existingArrivals = Object.values(updated[bKey].players || {})
                     .filter(p => {
                         const isCrease = (updated[bKey].ballFaceBatsman && String(updated[bKey].ballFaceBatsman.id) === String(p.id)) ||
-                                         (updated[bKey].otherSideBatsman && String(updated[bKey].otherSideBatsman.id) === String(p.id)) ||
-                                         p.status === 'batting';
+                            (updated[bKey].otherSideBatsman && String(updated[bKey].otherSideBatsman.id) === String(p.id)) ||
+                            p.status === 'batting';
                         const hasBattedCheck = Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0 || (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat');
                         return isCrease || hasBattedCheck || (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
                     })
@@ -3627,6 +3905,7 @@ const ScoringConsole = () => {
             if (!updated[bowlKey].bowlers[newBowlerId]) {
                 updated[bowlKey].bowlers[newBowlerId] = {
                     ...newBowlerObj,
+                    groundArrivalOrder: newBowlerObj.groundArrivalOrder || null,
                     overs: newBowlerObj.overs ?? 0,
                     runs: newBowlerObj.runs ?? 0,
                     wickets: newBowlerObj.wickets ?? 0,
@@ -3848,7 +4127,6 @@ const ScoringConsole = () => {
         setDlsT1OversBowled(t1Overs);
         setDlsT1WicketsFallen(t1Wkts);
         setDlsRevisedOvers(revOvers);
-        setDlsShowParTable(false);
 
         // Benchmarks & Display states (match-level override or tourney defaults)
         setProjRateA(currentCommon.projectedRates?.[0] ?? tourneySettings?.projectedRates?.[0] ?? 8);
@@ -3887,24 +4165,6 @@ const ScoringConsole = () => {
         setShowDlsModal(true);
     };
 
-    const handleLoadTournamentDefaults = () => {
-        if (!tourneySettings) {
-            toastRef.current?.showToast('info', 'No custom tournament rules found in RTDB, using standard defaults.');
-            return;
-        }
-        setDlsBenchmarkScore(tourneySettings.pitchBenchmark || 140);
-        setProjRateA(tourneySettings.projectedRates?.[0] ?? 8);
-        setProjRateB(tourneySettings.projectedRates?.[1] ?? 10);
-        setShowProjScoreSetting(tourneySettings.showProjectedScore !== false);
-        setShowDlsParSetting(tourneySettings.showDlsPar !== false);
-        if (tourneySettings.overLimit) setOverLimitSetting(tourneySettings.overLimit);
-        if (tourneySettings.maxOversPerBowler) setMaxBowlerOversSetting(tourneySettings.maxOversPerBowler);
-        if (tourneySettings.isSpecialMatch !== undefined) setIsSpecialMatchSetting(Boolean(tourneySettings.isSpecialMatch));
-        if (tourneySettings.specialMatchBadge !== undefined) setSpecialMatchBadgeSetting(tourneySettings.specialMatchBadge || '');
-        if (tourneySettings.customBannerText !== undefined) setCustomBannerSetting(tourneySettings.customBannerText || '');
-        toastRef.current?.showToast('success', 'Inherited defaults from Tournament Rules & Benchmarks!');
-    };
-
     const handleAutoCalculateDls = (customParams = {}) => {
         const currentCommon = matchData?.common || {};
         const originalOvers = Number(currentCommon.overLimit) || 20;
@@ -3934,6 +4194,7 @@ const ScoringConsole = () => {
         setDlsCustomBroadcastMsg(`${secondBatName} needs ${res.revisedTarget} runs in ${revOvers} ov (DLS Method)`);
     };
 
+    // eslint-disable-next-line no-unused-vars -- retained for future reconnection to admin adjustments tab
     const handleSaveMatchSettings = async () => {
         if (!matchData || !activeMatchTitle) return;
 
@@ -4127,6 +4388,38 @@ const ScoringConsole = () => {
             setShowDlsModal(false);
             toastRef.current?.showToast('info', 'DLS method removed. Normal match target restored.');
         }, 'Resetting DLS Method...', 'Restoring standard match target and overs...');
+    };
+
+    // Save & Sync Match Powerplay State
+    const handleSavePowerplay = async (desiredActiveState = null) => {
+        if (!matchData || !activeMatchTitle) return;
+        const nextActive = desiredActiveState !== null ? desiredActiveState : powerplayActive;
+
+        await withProcessing(async () => {
+            const ppPayload = {
+                active: Boolean(nextActive),
+                isActive: Boolean(nextActive),
+                type: powerplayType || 'Mandatory',
+                overs: powerplayOvers || '1-6',
+                restrictions: powerplayRestrictions || 'Max 2 fielders outside 30-yard circle',
+                updatedAt: Date.now()
+            };
+
+            const updated = JSON.parse(JSON.stringify(matchData));
+            if (!updated.common) updated.common = {};
+            updated.common.powerplay = ppPayload;
+            updated.common.isPowerplay = Boolean(nextActive);
+
+            setMatchData(updated);
+            await updateMatchData(activeMatchTitle, {
+                'common/powerplay': ppPayload,
+                'common/isPowerplay': Boolean(nextActive)
+            }, selectedTournamentId);
+
+            setPowerplayActive(Boolean(nextActive));
+            setShowPowerplayModal(false);
+            toastRef.current?.showToast('success', nextActive ? `⚡ Powerplay Activated (${ppPayload.type} • Overs ${ppPayload.overs})` : 'Powerplay Deactivated');
+        }, nextActive ? 'Activating Powerplay...' : 'Deactivating Powerplay...', 'Synchronizing powerplay field restrictions...');
     };
 
     // Finish Match
@@ -4592,9 +4885,20 @@ const ScoringConsole = () => {
                         <div className="cx-score-header-card compact">
                             <div className="cx-sh-top">
                                 <span>{common.title} • {common.date}</span>
-                                <span className={`cx-status-pill ${common.finished === 0 ? 'cx-live' : ''}`}>
-                                    {common.finished === 0 ? '● LIVE' : 'FINISHED'}
-                                </span>
+                                <div className="cx-sh-top-actions">
+                                    {(common.powerplay?.active || common.isPowerplay || powerplayActive) && (
+                                        <span
+                                            className="sc-powerplay-compact-pill"
+                                            onClick={() => setShowPowerplayModal(true)}
+                                            title="Powerplay is Active! Click to manage powerplay settings"
+                                        >
+                                            <MdBolt className="sc-pp-bolt-pulse" /> PP ({common.powerplay?.overs || powerplayOvers || '1-6'})
+                                        </span>
+                                    )}
+                                    <span className={`cx-status-pill ${common.finished === 0 ? 'cx-live' : ''}`}>
+                                        {common.finished === 0 ? '● LIVE' : 'FINISHED'}
+                                    </span>
+                                </div>
                             </div>
 
                             {(() => {
@@ -4679,17 +4983,17 @@ const ScoringConsole = () => {
                             {/* Crease Toolbar with Force Unlock Toggle */}
                             <div className="sc-crease-toolbar">
                                 <div className="sc-crease-toolbar-title">
-                                    <span>Crease Batters & Bowler</span>
+                                    <span>Change Batters & Bowler</span>
                                 </div>
                                 <div className="sc-crease-toolbar-actions">
                                     <button
                                         type="button"
                                         className={`sc-crease-unlock-btn ${isForceCreaseUnlocked ? 'unlocked' : ''}`}
                                         onClick={() => setIsForceCreaseUnlocked(prev => !prev)}
-                                        title={isForceCreaseUnlocked ? "Click to lock crease selectors" : "Click to unlock crease selectors and change batters or bowler directly on board"}
+                                        title={isForceCreaseUnlocked ? "Click to lock player selectors" : "Click to unlock player selectors and change batters or bowler directly on board"}
                                     >
                                         {isForceCreaseUnlocked ? <MdLockOpen /> : <MdLock />}
-                                        <span>{isForceCreaseUnlocked ? 'Crease Unlocked' : 'Unlock Crease'}</span>
+                                        <span>{isForceCreaseUnlocked ? 'Unlocked' : 'Locked'}</span>
                                     </button>
                                 </div>
                             </div>
@@ -4867,49 +5171,41 @@ const ScoringConsole = () => {
                         <div className="sc-control-card">
                             <div className="sc-control-header">
                                 <div className="sc-control-title">
-                                    <MdSportsCricket />
-                                    <h4>Scoring Console</h4>
-                                    {(isSilentDevMode || isTestTournament) && (
-                                        <span className="sc-silent-mode-badge" title="Silent Dev Mode: Actions are not broadcast to public users">
-                                            🧪 DEV / SILENT MODE
-                                        </span>
-                                    )}
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                        <MdSportsCricket />
+                                        <h4>Scoring Console</h4>
+                                        {(isSilentDevMode || isTestTournament) && (
+                                            <span className="sc-silent-mode-badge" title="Silent Dev Mode: Actions are not broadcast to public users">
+                                                🧪 DEV / SILENT MODE
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        {common.activeInnings !== 2 && (
+                                            <button
+                                                className="sc-action-btn switch"
+                                                onClick={() => {
+                                                    setSecondInningsStrikerId('');
+                                                    setSecondInningsNonStrikerId('');
+                                                    setSecondInningsBowlerId('');
+                                                    setShowSwitchInningsModal(true);
+                                                }}
+                                                title="Conclude 1st Innings & Start 2nd Innings Chase"
+                                            >
+                                                <MdSwapHoriz /> Switch Innings
+                                            </button>
+                                        )}
+                                        <button className="sc-action-btn finish" onClick={() => setShowFinishModal(true)} title="Finalize Match">
+                                            <MdCheckCircle /> Finish Match
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="sc-control-actions">
-                                    <button
-                                        type="button"
-                                        className={`sc-action-btn broadcast ${isSilentDevMode || isTestTournament ? 'silent' : 'public'}`}
-                                        onClick={() => {
-                                            if (isTestTournament) {
-                                                toastRef.current?.showToast('info', 'This tournament is set to Dev / Testing. Matches in this tournament are always kept private.');
-                                                return;
-                                            }
-                                            const next = !isSilentDevMode;
-                                            setIsSilentDevMode(next);
-                                            toastRef.current?.showToast(
-                                                next ? 'warning' : 'success',
-                                                next
-                                                    ? 'Silent Dev Mode ON: Live updates are NOT broadcast to public users.'
-                                                    : 'Public Broadcast ON: Live score updates are broadcasting to public visitors.'
-                                            );
-                                        }}
-                                        title={isSilentDevMode || isTestTournament ? "Silent Dev Mode: Public users cannot see this match" : "Public Live Broadcast: Live score is visible on /live"}
-                                    >
-                                        {isSilentDevMode || isTestTournament ? '🧪 Silent Dev' : '📡 Public'}
-                                    </button>
                                     <button className="sc-action-btn undo" onClick={() => setShowUndoConfirmModal(true)} title="Undo Last Delivery">
                                         <MdUndo /> Undo
                                     </button>
                                     <button className="sc-action-btn shift" onClick={handleShiftBatters} title="Shift Striker & Non-Striker Batters">
-                                        <MdSwapHoriz /> Shift
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="sc-action-btn force-batters"
-                                        onClick={handleOpenForceChangeModal}
-                                        title="Forcefully change Striker & Non-Striker at the crease"
-                                    >
-                                        <MdPersonPin /> Force Batters
+                                        <MdSwapHoriz /> Shift Batters
                                     </button>
                                     <button
                                         className="sc-action-btn squad"
@@ -4919,31 +5215,28 @@ const ScoringConsole = () => {
                                         }}
                                         title="Manage Match Playing XI & Reserves"
                                     >
-                                        <MdGroups /> Squad XI
+                                        <MdGroups /> Change Squad XI
                                     </button>
                                     <button
                                         className={`sc-action-btn dls ${common.dls?.isApplied ? 'active-dls' : ''}`}
                                         onClick={() => handleOpenDlsModal('dls')}
                                         title="Match Adjustments, Pitch Benchmarks, Projected Rates & DLS"
                                     >
-                                        <MdTune /> Match &amp; DLS {common.dls?.isApplied ? `(${common.dls.revisedTarget})` : ''}
+                                        <MdTune /> DLS Apply {common.dls?.isApplied ? `(${common.dls.revisedTarget})` : ''}
                                     </button>
-                                    {common.activeInnings !== 2 && (
-                                        <button
-                                            className="sc-action-btn switch"
-                                            onClick={() => {
-                                                setSecondInningsStrikerId('');
-                                                setSecondInningsNonStrikerId('');
-                                                setSecondInningsBowlerId('');
-                                                setShowSwitchInningsModal(true);
-                                            }}
-                                            title="Conclude 1st Innings & Start 2nd Innings Chase"
-                                        >
-                                            <MdSwapHoriz /> Switch Innings
-                                        </button>
-                                    )}
-                                    <button className="sc-action-btn finish" onClick={() => setShowFinishModal(true)} title="Finalize Match">
-                                        <MdCheckCircle /> Finish
+                                    <button
+                                        type="button"
+                                        className={`sc-action-btn powerplay ${(common.powerplay?.active || common.isPowerplay || powerplayActive) ? 'active-powerplay' : ''}`}
+                                        onClick={() => {
+                                            if (!powerplayOvers) {
+                                                const defaultOvers = (common.overLimit || 20) <= 10 ? `1-${Math.ceil((common.overLimit || 20) * 0.3)}` : '1-6';
+                                                setPowerplayOvers(defaultOvers);
+                                            }
+                                            setShowPowerplayModal(true);
+                                        }}
+                                        title="Configure & Activate/Deactivate Match Powerplay"
+                                    >
+                                        <MdBolt /> Powerplay {(common.powerplay?.active || common.isPowerplay || powerplayActive) ? '⚡ ON' : ''}
                                     </button>
                                 </div>
                             </div>
@@ -5188,7 +5481,7 @@ const ScoringConsole = () => {
                                                 </button>
                                             </div>
                                             <div className="sc-icb-body">
-                                                 <div className="sc-icb-field">
+                                                <div className="sc-icb-field">
                                                     <label>Dismissal Type</label>
                                                     <select
                                                         value={dismissalType}
@@ -5269,7 +5562,7 @@ const ScoringConsole = () => {
                                                         >
                                                             <option value="">Select Fielder ({bowlingTeamName})...</option>
                                                             {bowlingPlayersList.map(p => (
-                                                                 <option key={p.id} value={p.name}>{p.name}</option>
+                                                                <option key={p.id} value={p.name}>{p.name}</option>
                                                             ))}
                                                         </select>
                                                     </div>
@@ -5883,30 +6176,59 @@ const ScoringConsole = () => {
                 {/* ============================================================= */}
                 {showWWheelModal && selectedBatsmanForWheel && (() => {
                     const extractedShots = [];
-                    if (selectedBatsmanForWheel.shots) {
-                        Object.entries(selectedBatsmanForWheel.shots).forEach(([zoneName, zoneData]) => {
-                            const count = zoneData?.count || 0;
-                            const totalRuns = zoneData?.runs || 0;
-                            const avgRuns = count > 0 ? Math.max(1, Math.round(totalRuns / count)) : 0;
-                            if (avgRuns > 0) {
-                                for (let i = 0; i < count; i++) {
-                                    extractedShots.push({
-                                        zone: zoneName,
-                                        runs: avgRuns
-                                    });
+                    const b = selectedBatsmanForWheel;
+
+                    // 1. Primary Source: Exact recorded delivery shots list
+                    if (Array.isArray(b.shotList) && b.shotList.length > 0) {
+                        b.shotList.forEach((s, idx) => {
+                            if ((s.zone || s.wagonZone) && Number(s.runs) > 0) {
+                                extractedShots.push({
+                                    zone: s.zone || s.wagonZone,
+                                    runs: Number(s.runs),
+                                    ball: s.ball,
+                                    over: s.over,
+                                    ballId: idx
+                                });
+                            }
+                        });
+                    } else if (b.shots && Object.keys(b.shots).length > 0) {
+                        // 2. Secondary Source: Aggregate zone object with exact shotRuns array
+                        Object.entries(b.shots).forEach(([zoneName, zoneData]) => {
+                            if (Array.isArray(zoneData?.shotRuns) && zoneData.shotRuns.length > 0) {
+                                zoneData.shotRuns.forEach(r => {
+                                    if (Number(r) > 0) {
+                                        extractedShots.push({
+                                            zone: zoneName,
+                                            runs: Number(r)
+                                        });
+                                    }
+                                });
+                            } else {
+                                const count = zoneData?.count || 0;
+                                const totalRuns = zoneData?.runs || 0;
+                                const avgRuns = count > 0 ? Math.max(1, Math.round(totalRuns / count)) : 0;
+                                if (avgRuns > 0) {
+                                    for (let i = 0; i < count; i++) {
+                                        extractedShots.push({
+                                            zone: zoneName,
+                                            runs: avgRuns
+                                        });
+                                    }
                                 }
                             }
                         });
                     }
+
+                    const batsmanBatStyle = b.hand || b.battingStyle || b.batStyle || 'RHB';
 
                     return (
                         <div className="cx-ww-modal-backdrop" onClick={() => setShowWWheelModal(false)}>
                             <div className="cx-ww-modal-content" onClick={(e) => e.stopPropagation()}>
                                 <div className="cx-ww-modal-header">
                                     <div>
-                                        <h3>{selectedBatsmanForWheel.name}'s Shot Zone Analysis</h3>
+                                        <h3>{b.name}'s Shot Zone Analysis</h3>
                                         <p className="cx-ww-modal-sub">
-                                            {(selectedBatsmanForWheel.hand === 'LHB' || selectedBatsmanForWheel.hand === 'LHS' || String(selectedBatsmanForWheel.hand || '').toLowerCase().includes('left')) ? 'LHB • Left Hand' : 'RHB • Right Hand'} Batsman • Visual Wagon Wheel
+                                            {(batsmanBatStyle === 'LHB' || batsmanBatStyle === 'LHS' || String(batsmanBatStyle || '').toLowerCase().includes('left')) ? 'LHB • Left Hand' : 'RHB • Right Hand'} Batsman • Visual Wagon Wheel
                                         </p>
                                     </div>
                                     <button className="cx-btn-close-ww" onClick={() => setShowWWheelModal(false)}>
@@ -5917,8 +6239,8 @@ const ScoringConsole = () => {
                                 <div className="cx-ww-modal-body" style={{ justifyContent: 'center' }}>
                                     <WagonWheel
                                         shots={extractedShots}
-                                        batsmanName={selectedBatsmanForWheel.name}
-                                        batsmanHand={selectedBatsmanForWheel.hand || 'RHB'}
+                                        batsmanName={b.name}
+                                        batsmanHand={batsmanBatStyle}
                                         size={380}
                                     />
                                 </div>
@@ -6473,7 +6795,7 @@ const ScoringConsole = () => {
 
                 {/* COMPULSORY NEXT BATSMAN SELECTION MODAL (WICKET FALLEN - CANNOT BE CLOSED UNTIL SET) */}
                 {showNextBatterModal && nextBatterModalData && (
-                    <div className="sc-modal-overlay mandatory-modal">
+                    <div className="sc-modal-overlay">
                         <div className="sc-modal-card sc-next-batter-modal" onClick={(e) => e.stopPropagation()}>
                             <div className="sc-nb-header sc-next-batter-header">
                                 <div className="sc-nb-title-group">
@@ -6484,9 +6806,18 @@ const ScoringConsole = () => {
                                         <MdSportsCricket className="sc-nb-swap-icon" /> Select Next Batsman
                                     </h3>
                                     <p>
-                                        <strong>{nextBatterModalData.outBatter?.name}</strong> is out ({nextBatterModalData.outBatter?.dismissal || 'Wicket'}). Select the incoming batsman to take the crease.
+                                        <strong>{nextBatterModalData.outBatter?.name}</strong> is out ({nextBatterModalData.outBatter?.dismissal || 'Wicket'}). Select the incoming batsman to take the crease, or choose directly from the Crease cards.
                                     </p>
                                 </div>
+                                <button
+                                    type="button"
+                                    className="sc-modal-close-btn"
+                                    onClick={() => setShowNextBatterModal(false)}
+                                    title="Choose from Crease cards"
+                                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.4rem' }}
+                                >
+                                    <MdClose />
+                                </button>
                             </div>
 
                             <div className="sc-nb-body">
@@ -6604,7 +6935,7 @@ const ScoringConsole = () => {
                                     </div>
                                 </div>
 
-                                <div className="sc-nb-footer">
+                                <div className="sc-nb-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <button
                                         type="button"
                                         disabled={!selectedNextBatterId}
@@ -6651,13 +6982,13 @@ const ScoringConsole = () => {
                                                         };
                                                     }
                                                     bTeam.players[incomingBatterId].status = 'batting';
-                                                    
+
                                                     // Determine next ground arrival order
                                                     const existingArrivals = Object.values(bTeam.players || {})
                                                         .filter(p => {
                                                             const isCrease = (bTeam.ballFaceBatsman && String(bTeam.ballFaceBatsman.id) === String(p.id)) ||
-                                                                             (bTeam.otherSideBatsman && String(bTeam.otherSideBatsman.id) === String(p.id)) ||
-                                                                             p.status === 'batting';
+                                                                (bTeam.otherSideBatsman && String(bTeam.otherSideBatsman.id) === String(p.id)) ||
+                                                                p.status === 'batting';
                                                             const hasBattedCheck = Number(p.balls || 0) > 0 || Number(p.runs || 0) > 0 || (p.dismissal && p.dismissal.trim() !== '' && p.dismissal.trim().toLowerCase() !== 'yet to bat');
                                                             return isCrease || hasBattedCheck || (p.groundArrivalOrder && Number(p.groundArrivalOrder) > 0);
                                                         })
@@ -6731,12 +7062,27 @@ const ScoringConsole = () => {
                                                 toastRef.current?.showToast('success', `${newBatterObj.name} is the new batsman!`);
                                                 setShowNextBatterModal(false);
 
-                                                // If over completed on the same ball, trigger next bowler modal now
+                                                // If over completed on the same ball, trigger next bowler modal now (only if match/innings is still active)
                                                 if (nextBatterModalData.overCompletedOnThisBall) {
-                                                    setLastBowlerId(nextBatterModalData.lastBowlerId);
-                                                    setCompletedOverNumber(nextBatterModalData.completedOverNum);
-                                                    setSelectedNextBowlerId('');
-                                                    setShowNextBowlerModal(true);
+                                                    const isFirstInn = (updated.common?.activeInnings || 1) === 1;
+                                                    const ovLimit = Number(updated.common?.overLimit || 20);
+                                                    const bKey = nextBatterModalData.battingTeamKey;
+                                                    const bBalls = updated[bKey]?.totalBalls || 0;
+                                                    const bRuns = updated[bKey]?.totalRuns || 0;
+                                                    const bowlKey = bKey === 'team1' ? 'team2' : 'team1';
+                                                    const dlsTarget = updated.common?.dls?.isApplied && updated.common?.dls?.revisedTarget
+                                                        ? Number(updated.common.dls.revisedTarget)
+                                                        : null;
+                                                    const targetScore = dlsTarget !== null ? dlsTarget : (Number(updated[bowlKey]?.totalRuns || 0) + 1);
+                                                    const targetReached = !isFirstInn && targetScore > 0 && bRuns >= targetScore;
+                                                    const overLimitReached = bBalls >= (ovLimit * 6);
+
+                                                    if (!targetReached && !overLimitReached) {
+                                                        setLastBowlerId(nextBatterModalData.lastBowlerId);
+                                                        setCompletedOverNumber(nextBatterModalData.completedOverNum);
+                                                        setSelectedNextBowlerId('');
+                                                        setShowNextBowlerModal(true);
+                                                    }
                                                 }
                                                 setNextBatterModalData(null);
                                             }, 'Setting Incoming Batsman...', 'Registering new batsman at the crease...');
@@ -6745,220 +7091,6 @@ const ScoringConsole = () => {
                                         Confirm Next Batsman
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* FORCE CHANGE CREASE BATTERS MODAL */}
-                {showForceChangeModal && (
-                    <div className="sc-modal-overlay">
-                        <div className="sc-modal-card force-change-modal" onClick={(e) => e.stopPropagation()}>
-                            <div className="sc-fc-header">
-                                <div className="sc-fc-title-group">
-                                    <span className="sc-fc-badge">CREASE OVERRIDE</span>
-                                    <h3>
-                                        <MdPersonPin className="sc-fc-icon" /> Force Change Batters & Bowler
-                                    </h3>
-                                    <p>Forcefully assign or replace Striker, Non-Striker, and Bowler at the crease.</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    className="sc-fc-close-btn"
-                                    onClick={() => setShowForceChangeModal(false)}
-                                    title="Close"
-                                >
-                                    <MdClose />
-                                </button>
-                            </div>
-
-                            <div className="sc-fc-body">
-                                <div className="sc-fc-selector-row">
-                                    {/* Striker Selector Card */}
-                                    <div className="sc-fc-card striker">
-                                        <div className="sc-fc-card-top">
-                                            <span className="sc-fc-label">STRIKER (*)</span>
-                                            <span className="sc-fc-pill">On Strike</span>
-                                        </div>
-                                        <div className="sc-fc-field">
-                                            <label>Select Striker</label>
-                                            <select
-                                                className="sc-fc-select"
-                                                value={forceStrikerId}
-                                                onChange={(e) => setForceStrikerId(Number(e.target.value))}
-                                            >
-                                                <option value="" disabled>-- Select Striker --</option>
-                                                {activeBattingSquad.map(p => {
-                                                    if (!p) return null;
-                                                    const isOut = isPlayerDismissedInInnings(p, battingTeamData);
-                                                    const isOther = String(p.id) === String(forceNonStrikerId);
-                                                    return (
-                                                        <option key={p.id} value={p.id} disabled={isOther}>
-                                                            {p.name} {isOut ? '⚠️ [Out]' : ''} {p.status === 'batting' ? '🏏 [Batting]' : ''}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </div>
-                                        {forceStrikerId && (
-                                            <div className="sc-fc-stats-preview">
-                                                {(() => {
-                                                    const sP = activeBattingSquad.find(p => String(p.id) === String(forceStrikerId)) || battingTeamData.players?.[forceStrikerId];
-                                                    const isOut = isPlayerDismissedInInnings(sP, battingTeamData);
-                                                    return (
-                                                        <>
-                                                            <span>Runs: <strong>{sP?.runs || 0}</strong> ({sP?.balls || 0}b)</span>
-                                                            <span>4s: <strong>{sP?.boundaries?.fours || 0}</strong> | 6s: <strong>{sP?.boundaries?.sixes || 0}</strong></span>
-                                                            <span className={`sc-fc-status-badge ${isOut ? 'out' : 'active'}`}>
-                                                                {isOut ? (sP?.dismissal || 'Out') : 'Active / Ready'}
-                                                            </span>
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Swap Button */}
-                                    <div className="sc-fc-swap-wrap">
-                                        <button
-                                            type="button"
-                                            className="sc-fc-swap-btn"
-                                            title="Swap Striker and Non-Striker selections"
-                                            onClick={() => {
-                                                const temp = forceStrikerId;
-                                                setForceStrikerId(forceNonStrikerId);
-                                                setForceNonStrikerId(temp);
-                                            }}
-                                        >
-                                            <MdSwapHoriz />
-                                            <span>Swap</span>
-                                        </button>
-                                    </div>
-
-                                    {/* Non-Striker Selector Card */}
-                                    <div className="sc-fc-card non-striker">
-                                        <div className="sc-fc-card-top">
-                                            <span className="sc-fc-label">NON-STRIKER</span>
-                                            <span className="sc-fc-pill">Runner End</span>
-                                        </div>
-                                        <div className="sc-fc-field">
-                                            <label>Select Non-Striker</label>
-                                            <select
-                                                className="sc-fc-select"
-                                                value={forceNonStrikerId}
-                                                onChange={(e) => setForceNonStrikerId(Number(e.target.value))}
-                                            >
-                                                <option value="" disabled>-- Select Non-Striker --</option>
-                                                {activeBattingSquad.map(p => {
-                                                    if (!p) return null;
-                                                    const isOut = isPlayerDismissedInInnings(p, battingTeamData);
-                                                    const isOther = String(p.id) === String(forceStrikerId);
-                                                    return (
-                                                        <option key={p.id} value={p.id} disabled={isOther}>
-                                                            {p.name} {isOut ? '⚠️ [Out]' : ''} {p.status === 'batting' ? '🏏 [Batting]' : ''}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </div>
-                                        {forceNonStrikerId && (
-                                            <div className="sc-fc-stats-preview">
-                                                {(() => {
-                                                    const nsP = activeBattingSquad.find(p => String(p.id) === String(forceNonStrikerId)) || battingTeamData.players?.[forceNonStrikerId];
-                                                    const isOut = isPlayerDismissedInInnings(nsP, battingTeamData);
-                                                    return (
-                                                        <>
-                                                            <span>Runs: <strong>{nsP?.runs || 0}</strong> ({nsP?.balls || 0}b)</span>
-                                                            <span>4s: <strong>{nsP?.boundaries?.fours || 0}</strong> | 6s: <strong>{nsP?.boundaries?.sixes || 0}</strong></span>
-                                                            <span className={`sc-fc-status-badge ${isOut ? 'out' : 'active'}`}>
-                                                                {isOut ? (nsP?.dismissal || 'Out') : 'Active / Ready'}
-                                                            </span>
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Bowler Selector Card */}
-                                <div className="sc-fc-bowler-row" style={{ marginTop: '14px' }}>
-                                    <div className="sc-fc-card bowler">
-                                        <div className="sc-fc-card-top">
-                                            <span className="sc-fc-label">BOWLER (🔴)</span>
-                                            <span className="sc-fc-pill bowler-pill">Bowling End</span>
-                                        </div>
-                                        <div className="sc-fc-field">
-                                            <label>Select Bowler</label>
-                                            <select
-                                                className="sc-fc-select"
-                                                value={forceBowlerId}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setForceBowlerId(isNaN(Number(val)) ? val : Number(val));
-                                                }}
-                                            >
-                                                <option value="" disabled>-- Select Bowler --</option>
-                                                {activeBowlingSquad.map(p => {
-                                                    if (!p) return null;
-                                                    return (
-                                                        <option key={p.id} value={p.id}>
-                                                            {p.name} {p.bowlingStyle ? `(${p.bowlingStyle})` : ''}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </div>
-                                        {forceBowlerId && (
-                                            <div className="sc-fc-stats-preview">
-                                                {(() => {
-                                                    const bP = activeBowlingSquad.find(p => String(p.id) === String(forceBowlerId)) || bowler;
-                                                    return (
-                                                        <>
-                                                            <span>Overs: <strong>{bP?.overs ?? 0}</strong> ({bP?.balls ?? 0}b)</span>
-                                                            <span>Runs: <strong>{bP?.runs ?? 0}</strong> | Wkts: <strong>{bP?.wickets ?? 0}</strong></span>
-                                                            <span className="sc-fc-status-badge active">
-                                                                Econ: {bP?.economy ?? '0.00'}
-                                                            </span>
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="sc-fc-options-box">
-                                    <label className="sc-fc-checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={forceReinstateOut}
-                                            onChange={(e) => setForceReinstateOut(e.target.checked)}
-                                        />
-                                        <span>
-                                            <strong>Reinstate if marked Out by mistake:</strong> Clears previous dismissal & marks player as 'batting' Not Out.
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="sc-fc-footer">
-                                <button
-                                    type="button"
-                                    className="cx-btn-secondary"
-                                    onClick={() => setShowForceChangeModal(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    className="cx-btn-confirm primary"
-                                    onClick={() => handleExecuteForceChange()}
-                                    disabled={!forceStrikerId || !forceNonStrikerId || String(forceStrikerId) === String(forceNonStrikerId)}
-                                >
-                                    <MdCheck /> Apply Force Change
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -7030,17 +7162,28 @@ const ScoringConsole = () => {
                                                 const updated = JSON.parse(JSON.stringify(matchData));
                                                 const bowlTeam = updated[currentBowlingTeamKey];
                                                 if (bowlTeam) {
-                                                    bowlTeam.bowler = bowlTeam.bowlers?.[selectedNextBowlerId] || newBowlerObj;
+                                                    const cleanBowlerObj = {
+                                                        ...newBowlerObj,
+                                                        groundArrivalOrder: newBowlerObj.groundArrivalOrder || null,
+                                                        bowlingStyle: newBowlerObj.bowlingStyle || newBowlerObj.bowlingType || ''
+                                                    };
+                                                    bowlTeam.bowler = {
+                                                        ...(bowlTeam.bowlers?.[selectedNextBowlerId] || {}),
+                                                        ...cleanBowlerObj
+                                                    };
                                                     bowlTeam.bowlers = bowlTeam.bowlers || {};
                                                     if (!bowlTeam.bowlers[selectedNextBowlerId]) {
                                                         bowlTeam.bowlers[selectedNextBowlerId] = {
                                                             id: selectedNextBowlerId,
                                                             name: newBowlerObj.name,
+                                                            bowlingStyle: cleanBowlerObj.bowlingStyle,
                                                             overs: 0,
                                                             runs: 0,
                                                             wickets: 0,
                                                             economy: '0.00'
                                                         };
+                                                    } else if (cleanBowlerObj.bowlingStyle) {
+                                                        bowlTeam.bowlers[selectedNextBowlerId].bowlingStyle = cleanBowlerObj.bowlingStyle;
                                                     }
                                                 }
 
@@ -7076,37 +7219,16 @@ const ScoringConsole = () => {
                     const currentRevOvers = Number(dlsRevisedOvers) || originalOvers;
                     const isUnderMinOvers = currentRevOvers < 5;
 
-                    const parTableData = dlsShowParTable ? generateDlsParTable({
-                        totalOvers: originalOvers,
-                        firstInningsScore: t1Runs,
-                        secondInningsOvers: currentRevOvers,
-                        customG50: dlsBenchmarkScore,
-                        minOver: 5,
-                        maxWickets: 6
-                    }) : [];
 
-                    // Live calculation for preview
-                    const activeBatTeamKey = currentBattingTeamKey;
-                    const liveRuns = matchData[activeBatTeamKey]?.totalRuns || 0;
-                    const liveOvers = matchData[activeBatTeamKey]?.overs || 0;
-                    const liveBalls = Math.floor(liveOvers) * 6 + Math.round((liveOvers % 1) * 10);
-                    const liveCrr = liveBalls > 0 ? (liveRuns / liveBalls) * 6 : 0;
-                    const previewMatchOvers = Number(overLimitSetting) || originalOvers;
-                    const remBalls = Math.max(0, (previewMatchOvers * 6) - liveBalls);
-                    const previewProjCrr = Math.round(liveRuns + (liveCrr * (remBalls / 6)));
-                    const previewProjRateA = Math.round(liveRuns + ((Number(projRateA) || 8) * (remBalls / 6)));
-                    const previewProjRateB = Math.round(liveRuns + ((Number(projRateB) || 10) * (remBalls / 6)));
+
 
                     return (
                         <div className="sc-modal-overlay" onClick={() => setShowDlsModal(false)}>
                             <div className="sc-modal-card sc-dls-modal" onClick={(e) => e.stopPropagation()}>
                                 <div className="sc-dls-modal-header">
                                     <div className="sc-dls-title-group">
-                                        <span className="sc-dls-pill-tag">ADMIN MATCH CONTROL</span>
-                                        <h3>
-                                            <MdTune className="sc-dls-cloud-icon" /> Match Adjustments, Benchmarks &amp; DLS
-                                        </h3>
-                                        <p>Fine-tune pitch benchmarks, projected score rates, match over formats, or apply DLS rain targets.</p>
+                                        <span className="sc-dls-pill-tag">DLS RAIN TARGET</span>
+                                        <p>Adjust & apply DLS rain targets.</p>
                                     </div>
                                     <button
                                         type="button"
@@ -7118,47 +7240,12 @@ const ScoringConsole = () => {
                                     </button>
                                 </div>
 
-                                {/* Modal Tab Navigation */}
-                                <div className="sc-dls-tabs-nav">
-                                    <button
-                                        type="button"
-                                        className={`sc-dls-tab-btn ${dlsModalTab === 'dls' ? 'active' : ''}`}
-                                        onClick={() => setDlsModalTab('dls')}
-                                    >
-                                        <MdCloudQueue /> DLS &amp; Rain Target
-                                        {currentCommon.dls?.isApplied && <span className="sc-tab-active-dot" title="DLS Active" />}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`sc-dls-tab-btn ${dlsModalTab === 'benchmarks' ? 'active' : ''}`}
-                                        onClick={() => setDlsModalTab('benchmarks')}
-                                    >
-                                        <MdTrackChanges /> Pitch &amp; Projected Benchmarks
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`sc-dls-tab-btn ${dlsModalTab === 'special' ? 'active' : ''}`}
-                                        onClick={() => setDlsModalTab('special')}
-                                    >
-                                        <MdSportsCricket /> Special Rules &amp; Format
-                                        {currentCommon.isSpecialMatch && <span className="sc-tab-active-dot special" title="Special Match Active" />}
-                                    </button>
-                                </div>
-
                                 {/* Tournament Tab link & Quick Inherit Strip */}
                                 <div className="sc-dls-tourney-link-strip">
                                     <div className="sc-dls-tourney-info">
                                         <MdTune />
                                         <span>Tournament defaults can be adjusted in the dedicated <Link to="/admin/adjustments" target="_blank" rel="noopener noreferrer" className="sc-tourney-tab-link">Rules &amp; Benchmarks Tab ↗</Link></span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="sc-btn-load-tourney"
-                                        onClick={handleLoadTournamentDefaults}
-                                        title="Load settings from Tournament Rules & Benchmarks"
-                                    >
-                                        <MdAutorenew /> Inherit Tournament Defaults
-                                    </button>
                                 </div>
 
                                 <div className="sc-dls-modal-body">
@@ -7405,460 +7492,37 @@ const ScoringConsole = () => {
                                                 />
                                             </div>
 
-                                            {/* DLS Par Score Matrix Sheet Toggle */}
-                                            <div className="sc-dls-par-sheet-section">
-                                                <button
-                                                    type="button"
-                                                    className={`sc-dls-btn-par-toggle ${dlsShowParTable ? 'active' : ''}`}
-                                                    onClick={() => setDlsShowParTable(prev => !prev)}
-                                                >
-                                                    <MdTableChart /> {dlsShowParTable ? 'Hide' : 'View'} Official DLS Par Score Sheet (Overs 5 – {currentRevOvers})
-                                                </button>
 
-                                                {dlsShowParTable && (
-                                                    <div className="sc-dls-par-table-wrap">
-                                                        <div className="sc-dls-table-note">
-                                                            <MdInfoOutline /> Par score is the score needed at the end of each over if rain permanently halts play. Comparing actual score against par decides the winner.
-                                                        </div>
-                                                        <div className="sc-dls-table-scroll">
-                                                            <table className="sc-dls-matrix-table">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th>Over</th>
-                                                                        <th>0 Wkt</th>
-                                                                        <th>1 Wkt</th>
-                                                                        <th>2 Wkts</th>
-                                                                        <th>3 Wkts</th>
-                                                                        <th>4 Wkts</th>
-                                                                        <th>5 Wkts</th>
-                                                                        <th>6 Wkts</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {parTableData.map(row => (
-                                                                        <tr key={row.over}>
-                                                                            <td className="ov-col">Ov {row.over}</td>
-                                                                            {row.pars.map(p => (
-                                                                                <td key={p.wickets}>{p.par}</td>
-                                                                            ))}
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* ========================================================= */}
-                                    {/* TAB 2: PITCH & PROJECTED BENCHMARKS                       */}
-                                    {/* ========================================================= */}
-                                    {dlsModalTab === 'benchmarks' && (
-                                        <div className="sc-dls-tab-content">
-                                            {/* Pitch Par Score Benchmark (G Score) */}
-                                            <div className="sc-dls-field-group">
-                                                <div className="sc-dls-field-header-row">
-                                                    <label className="sc-dls-field-label">
-                                                        <MdTune className="sc-dls-icon-inline" /> Ground &amp; Pitch Par Benchmark (G Score):
-                                                        <span className="sc-dls-field-hint">The standard 20-over score on this pitch. Used by DLS target scaling and pitch par analytics (Default: 140 runs).</span>
-                                                    </label>
-                                                    <span className="sc-dls-benchmark-badge">{dlsBenchmarkScore} Runs</span>
-                                                </div>
-                                                <div className="sc-dls-benchmark-row">
-                                                    <input
-                                                        type="range"
-                                                        min="100"
-                                                        max="220"
-                                                        step="1"
-                                                        value={dlsBenchmarkScore}
-                                                        onChange={(e) => {
-                                                            const val = Number(e.target.value);
-                                                            setDlsBenchmarkScore(val);
-                                                            handleAutoCalculateDls({ benchmark: val });
-                                                        }}
-                                                        className="sc-dls-slider"
-                                                    />
-                                                    <input
-                                                        type="number"
-                                                        min="80"
-                                                        max="250"
-                                                        value={dlsBenchmarkScore}
-                                                        onChange={(e) => {
-                                                            const val = Number(e.target.value);
-                                                            setDlsBenchmarkScore(val);
-                                                            if (val > 0) handleAutoCalculateDls({ benchmark: val });
-                                                        }}
-                                                        className="sc-dls-input-number benchmark-num"
-                                                    />
-                                                </div>
-                                                <div className="sc-dls-quick-chips">
-                                                    <span className="sc-dls-chips-title">Presets:</span>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 120 ? 'active' : ''}`}
-                                                        onClick={() => {
-                                                            setDlsBenchmarkScore(120);
-                                                            handleAutoCalculateDls({ benchmark: 120 });
-                                                        }}
-                                                    >
-                                                        120 (Bowlers Pitch)
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 140 ? 'active' : ''}`}
-                                                        onClick={() => {
-                                                            setDlsBenchmarkScore(140);
-                                                            handleAutoCalculateDls({ benchmark: 140 });
-                                                        }}
-                                                    >
-                                                        140 (Pitch Par / Balanced)
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 160 ? 'active' : ''}`}
-                                                        onClick={() => {
-                                                            setDlsBenchmarkScore(160);
-                                                            handleAutoCalculateDls({ benchmark: 160 });
-                                                        }}
-                                                    >
-                                                        160 (Batting Surface)
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${dlsBenchmarkScore === 180 ? 'active' : ''}`}
-                                                        onClick={() => {
-                                                            setDlsBenchmarkScore(180);
-                                                            handleAutoCalculateDls({ benchmark: 180 });
-                                                        }}
-                                                    >
-                                                        180 (High Scoring)
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Projected Score Reference Rates */}
-                                            <div className="sc-dls-field-group">
-                                                <div className="sc-dls-field-header-row">
-                                                    <label className="sc-dls-field-label">
-                                                        <MdTrackChanges className="sc-dls-icon-inline" /> Projected Score Reference Rates:
-                                                        <span className="sc-dls-field-hint">The spectator scoreboard calculates final totals at current CRR and at these two benchmark run rates (RPO).</span>
-                                                    </label>
-                                                </div>
-                                                <div className="sc-rate-benchmark-row">
-                                                    <div className="sc-rate-input-box">
-                                                        <span className="sc-rate-tag">Rate A (RPO)</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.5"
-                                                            min="4"
-                                                            max="20"
-                                                            value={projRateA}
-                                                            onChange={(e) => setProjRateA(Number(e.target.value))}
-                                                            className="sc-dls-input-number"
-                                                        />
-                                                    </div>
-                                                    <div className="sc-rate-input-box">
-                                                        <span className="sc-rate-tag">Rate B (RPO)</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.5"
-                                                            min="4"
-                                                            max="20"
-                                                            value={projRateB}
-                                                            onChange={(e) => setProjRateB(Number(e.target.value))}
-                                                            className="sc-dls-input-number"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="sc-dls-quick-chips">
-                                                    <span className="sc-dls-chips-title">Combos:</span>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${projRateA === 7 && projRateB === 9 ? 'active' : ''}`}
-                                                        onClick={() => { setProjRateA(7); setProjRateB(9); }}
-                                                    >
-                                                        7.0 &amp; 9.0 RPO
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${projRateA === 8 && projRateB === 10 ? 'active' : ''}`}
-                                                        onClick={() => { setProjRateA(8); setProjRateB(10); }}
-                                                    >
-                                                        8.0 &amp; 10.0 RPO (Standard)
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${projRateA === 9 && projRateB === 11 ? 'active' : ''}`}
-                                                        onClick={() => { setProjRateA(9); setProjRateB(11); }}
-                                                    >
-                                                        9.0 &amp; 11.0 RPO (Death Overs)
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`sc-dls-chip ${projRateA === 10 && projRateB === 12 ? 'active' : ''}`}
-                                                        onClick={() => { setProjRateA(10); setProjRateB(12); }}
-                                                    >
-                                                        10.0 &amp; 12.0 RPO (Explosive)
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Live Spectator Projection Preview Card */}
-                                            <div className="sc-proj-preview-card">
-                                                <div className="sc-proj-preview-header">
-                                                    <MdInfoOutline /> Spectator Projection Card Live Preview
-                                                </div>
-                                                <div className="sc-proj-preview-body">
-                                                    <div className="sc-preview-row">
-                                                        <span className="lbl">Active Score:</span>
-                                                        <strong>{liveRuns}/{matchData[activeBatTeamKey]?.totalWickets || 0} ({liveOvers} ov)</strong>
-                                                    </div>
-                                                    <div className="sc-preview-pills">
-                                                        <span className="sc-proj-pill-demo crr">@ CRR ({liveCrr.toFixed(1)}): <strong>{previewProjCrr}</strong></span>
-                                                        <span className="sc-proj-pill-demo">@ {projRateA} RPO: <strong>{previewProjRateA}</strong></span>
-                                                        <span className="sc-proj-pill-demo">@ {projRateB} RPO: <strong>{previewProjRateB}</strong></span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Display Toggles */}
-                                            <div className="sc-dls-field-group">
-                                                <label className="sc-dls-field-label">Scoreboard Spectator Feature Visibility:</label>
-                                                <div className="sc-toggle-setting-box">
-                                                    <label className="sc-setting-checkbox-label">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={showProjScoreSetting}
-                                                            onChange={(e) => setShowProjScoreSetting(e.target.checked)}
-                                                        />
-                                                        <div className="sc-setting-desc">
-                                                            <strong>Show Projected Score Widget on Live Scoreboard</strong>
-                                                            <span>Renders compact live projection pill in scoreboard center and over pills.</span>
-                                                        </div>
-                                                    </label>
-
-                                                    <label className="sc-setting-checkbox-label">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={showDlsParSetting}
-                                                            onChange={(e) => setShowDlsParSetting(e.target.checked)}
-                                                        />
-                                                        <div className="sc-setting-desc">
-                                                            <strong>Show Live DLS Par Pill on Live Scoreboard (2nd Innings)</strong>
-                                                            <span>Displays dynamic ball-by-ball Par score comparison (+ahead / -behind) to spectators.</span>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* ========================================================= */}
-                                    {/* TAB 3: SPECIAL MATCH RULES & FORMAT                       */}
-                                    {/* ========================================================= */}
-                                    {dlsModalTab === 'special' && (
-                                        <div className="sc-dls-tab-content">
-                                            {/* Match Format & Total Overs */}
-                                            <div className="sc-dls-field-group">
-                                                <div className="sc-dls-field-header-row">
-                                                    <label className="sc-dls-field-label">
-                                                        <MdSportsCricket className="sc-dls-icon-inline" /> Match Format (Total Overs Per Side):
-                                                        <span className="sc-dls-field-hint">Changes match length. Updates both teams' innings quotas and over limit.</span>
-                                                    </label>
-                                                    <span className="sc-dls-overs-badge">{overLimitSetting} Overs</span>
-                                                </div>
-                                                <div className="sc-dls-overs-input-row">
-                                                    <input
-                                                        type="number"
-                                                        min="5"
-                                                        max="50"
-                                                        value={overLimitSetting}
-                                                        onChange={(e) => {
-                                                            const val = Number(e.target.value);
-                                                            setOverLimitSetting(val);
-                                                            setMaxBowlerOversSetting(Math.ceil(val / 5));
-                                                        }}
-                                                        className="sc-dls-input-number"
-                                                    />
-                                                    <div className="sc-dls-quick-chips">
-                                                        <span className="sc-dls-chips-title">Presets:</span>
-                                                        {[5, 8, 10, 12, 15, 20].map(ov => (
-                                                            <button
-                                                                key={ov}
-                                                                type="button"
-                                                                className={`sc-dls-chip ${Number(overLimitSetting) === ov ? 'active' : ''}`}
-                                                                onClick={() => {
-                                                                    setOverLimitSetting(ov);
-                                                                    setMaxBowlerOversSetting(Math.ceil(ov / 5));
-                                                                }}
-                                                            >
-                                                                {ov} Ov
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Max Overs Per Bowler Quota */}
-                                            <div className="sc-dls-field-group">
-                                                <div className="sc-dls-field-header-row">
-                                                    <label className="sc-dls-field-label">
-                                                        Max Overs Per Bowler Quota:
-                                                        <span className="sc-dls-field-hint">Maximum overs any single bowler is allowed to bowl.</span>
-                                                    </label>
-                                                    <button
-                                                        type="button"
-                                                        className="sc-quota-calc-btn"
-                                                        onClick={() => setMaxBowlerOversSetting(Math.ceil(Number(overLimitSetting) / 5))}
-                                                    >
-                                                        Auto (Overs ÷ 5)
-                                                    </button>
-                                                </div>
-                                                <div className="sc-rate-input-box" style={{ maxWidth: '220px' }}>
-                                                    <span className="sc-rate-tag">Quota</span>
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        max={overLimitSetting}
-                                                        value={maxBowlerOversSetting}
-                                                        onChange={(e) => setMaxBowlerOversSetting(Number(e.target.value))}
-                                                        className="sc-dls-input-number"
-                                                    />
-                                                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>overs / bowler</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Special Match Mode & Badge */}
-                                            <div className="sc-dls-field-group">
-                                                <label className="sc-dls-field-label">Special / Exhibition Match Mode:</label>
-                                                <div className="sc-toggle-setting-box">
-                                                    <label className="sc-setting-checkbox-label">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSpecialMatchSetting}
-                                                            onChange={(e) => setIsSpecialMatchSetting(e.target.checked)}
-                                                        />
-                                                        <div className="sc-setting-desc">
-                                                            <strong>Enable Special / Exhibition Match Mode</strong>
-                                                            <span>Highlights match with unique gold badge on the 3D scoreboard and matches list.</span>
-                                                        </div>
-                                                    </label>
-                                                </div>
-
-                                                {isSpecialMatchSetting && (
-                                                    <div style={{ marginTop: '12px' }}>
-                                                        <label className="sc-dls-field-label">
-                                                            Special Match Badge / Tag:
-                                                            <span className="sc-dls-field-hint">Tag label shown on spectator scoreboard.</span>
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={specialMatchBadgeSetting}
-                                                            onChange={(e) => setSpecialMatchBadgeSetting(e.target.value)}
-                                                            className="sc-dls-input-broadcast"
-                                                            placeholder="e.g. Special Match, Grand Final, Alumni Trophy"
-                                                        />
-                                                        <div className="sc-dls-quick-chips" style={{ marginTop: '8px' }}>
-                                                            <span className="sc-dls-chips-title">Badge:</span>
-                                                            {['Special Match', 'Grand Final', 'Semi-Final', 'Exhibition Clash', 'Alumni Derby'].map(badge => (
-                                                                <button
-                                                                    key={badge}
-                                                                    type="button"
-                                                                    className={`sc-dls-chip ${specialMatchBadgeSetting === badge ? 'active' : ''}`}
-                                                                    onClick={() => setSpecialMatchBadgeSetting(badge)}
-                                                                >
-                                                                    {badge}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Custom Spectator Ticker / Announcement Banner */}
-                                            <div className="sc-dls-field-group">
-                                                <label className="sc-dls-field-label">
-                                                    Custom Scoreboard Announcement Banner:
-                                                    <span className="sc-dls-field-hint">Overrides status with a custom broadcast message for spectators (leave blank for automatic live status).</span>
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={customBannerSetting}
-                                                    onChange={(e) => setCustomBannerSetting(e.target.value)}
-                                                    className="sc-dls-input-broadcast"
-                                                    placeholder="e.g. Match delayed due to wet outfield. Play resumes soon."
-                                                />
-                                            </div>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Modal Footers depending on Tab */}
+                                {/* Modal Footer */}
                                 <div className="sc-dls-modal-footer">
-                                    {dlsModalTab === 'dls' ? (
-                                        <>
-                                            {currentCommon.dls?.isApplied ? (
-                                                <button
-                                                    type="button"
-                                                    className="sc-dls-btn-reset"
-                                                    onClick={handleResetDls}
-                                                >
-                                                    Remove DLS
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    className="cx-btn-secondary"
-                                                    onClick={() => setShowDlsModal(false)}
-                                                >
-                                                    Cancel
-                                                </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                className="cx-btn-confirm primary"
-                                                onClick={handleApplyDls}
-                                            >
-                                                Apply DLS Target ({dlsOfficialTarget || 0})
-                                            </button>
-                                        </>
-                                    ) : dlsModalTab === 'benchmarks' ? (
-                                        <>
-                                            <button
-                                                type="button"
-                                                className="cx-btn-secondary"
-                                                onClick={() => setShowDlsModal(false)}
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="cx-btn-confirm primary"
-                                                onClick={handleSaveMatchSettings}
-                                            >
-                                                <MdCheck /> Save Benchmarks &amp; Display
-                                            </button>
-                                        </>
+                                    {currentCommon.dls?.isApplied ? (
+                                        <button
+                                            type="button"
+                                            className="sc-dls-btn-reset"
+                                            onClick={handleResetDls}
+                                        >
+                                            Remove DLS
+                                        </button>
                                     ) : (
-                                        <>
-                                            <button
-                                                type="button"
-                                                className="cx-btn-secondary"
-                                                onClick={() => setShowDlsModal(false)}
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="cx-btn-confirm primary"
-                                                onClick={handleSaveMatchSettings}
-                                            >
-                                                <MdCheck /> Save Match Rules &amp; Format
-                                            </button>
-                                        </>
+                                        <button
+                                            type="button"
+                                            className="cx-btn-secondary"
+                                            onClick={() => setShowDlsModal(false)}
+                                        >
+                                            Cancel
+                                        </button>
                                     )}
+                                    <button
+                                        type="button"
+                                        className="cx-btn-confirm primary"
+                                        onClick={handleApplyDls}
+                                    >
+                                        Apply DLS Target ({dlsOfficialTarget || 0})
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -7867,7 +7531,240 @@ const ScoringConsole = () => {
 
                 {renderSquadManagerModal()}
                 {renderTossModal()}
+
+                {/* Powerplay Configuration & Activation Modal */}
+                {(() => {
+                    if (!showPowerplayModal || !matchData) return null;
+
+                    const isCurrentlyActive = Boolean(common.powerplay?.active || common.isPowerplay || powerplayActive);
+                    const matchOverLimit = Number(common.overLimit) || 20;
+
+                    return (
+                        <div className="sc-modal-overlay" onClick={() => setShowPowerplayModal(false)}>
+                            <div className="sc-modal-card sc-powerplay-modal" onClick={(e) => e.stopPropagation()}>
+                                {/* Modal Header */}
+                                <div className="sc-powerplay-modal-header">
+                                    <div className="sc-pp-header-title-wrap">
+                                        <div className="sc-pp-icon-badge">
+                                            <MdBolt />
+                                        </div>
+                                        <div>
+                                            <div className="sc-pp-badge-row">
+                                                <span className="sc-pp-pill-tag">PLAYING CONDITIONS</span>
+                                                <span className={`sc-pp-live-status-pill ${isCurrentlyActive ? 'active' : ''}`}>
+                                                    {isCurrentlyActive ? '● POWERPLAY ON' : '○ POWERPLAY OFF'}
+                                                </span>
+                                            </div>
+                                            <h3 className="sc-pp-modal-title">Powerplay Configuration</h3>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="sc-modal-close-btn"
+                                        onClick={() => setShowPowerplayModal(false)}
+                                        aria-label="Close Powerplay Modal"
+                                    >
+                                        <MdClose />
+                                    </button>
+                                </div>
+
+                                {/* Modal Scrollable Body */}
+                                <div className="sc-powerplay-modal-body">
+                                    {/* 1. Status Hero Banner */}
+                                    <div className={`sc-pp-status-hero ${isCurrentlyActive ? 'active' : 'inactive'}`}>
+                                        <div className="sc-pp-status-icon">
+                                            <MdBolt />
+                                        </div>
+                                        <div className="sc-pp-status-text">
+                                            <span className="sc-pp-status-label">POWERPLAY ENGINE STATUS</span>
+                                            <strong className="sc-pp-status-state">
+                                                {isCurrentlyActive ? '⚡ Powerplay is Active in Match' : 'Powerplay is Inactive'}
+                                            </strong>
+                                            <p className="sc-pp-status-sub">
+                                                {isCurrentlyActive
+                                                    ? `${common.powerplay?.type || powerplayType || 'Mandatory'} (${common.powerplay?.overs || powerplayOvers || '1-6'}) • ${common.powerplay?.restrictions || powerplayRestrictions || 'Max 2 fielders outside circle'}`
+                                                    : 'Standard fielding rules apply with no special boundary limits.'}
+                                            </p>
+                                        </div>
+                                        <div className="sc-pp-status-toggle">
+                                            <button
+                                                type="button"
+                                                className={`sc-pp-hero-toggle-btn ${isCurrentlyActive ? 'active' : ''}`}
+                                                onClick={() => handleSavePowerplay(!isCurrentlyActive)}
+                                            >
+                                                {isCurrentlyActive ? 'Turn OFF' : '⚡ Turn ON'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Phase / Type Selector */}
+                                    <div className="sc-pp-section">
+                                        <label className="sc-pp-section-label">
+                                            <span>Powerplay Phase / Format</span>
+                                            <small>Choose the regulation powerplay category</small>
+                                        </label>
+                                        <div className="sc-pp-type-selector">
+                                            {[
+                                                { id: 'Mandatory', label: 'Mandatory (P1)', desc: 'Compulsory opening fielding restrictions' },
+                                                { id: 'Batting', label: 'Batting Powerplay (P2)', desc: 'Called by batting captain' },
+                                                { id: 'Bowling', label: 'Bowling Powerplay (P3)', desc: 'Called by fielding captain' },
+                                                { id: 'Power Surge', label: 'Power Surge', desc: 'Floating 2-over field restriction' }
+                                            ].map((type) => (
+                                                <button
+                                                    key={type.id}
+                                                    type="button"
+                                                    className={`sc-pp-type-card ${powerplayType === type.id ? 'selected' : ''}`}
+                                                    onClick={() => setPowerplayType(type.id)}
+                                                >
+                                                    <div className="sc-pp-tc-top">
+                                                        <span className="sc-pp-tc-name">{type.label}</span>
+                                                        {powerplayType === type.id && <MdCheck className="sc-pp-tc-check" />}
+                                                    </div>
+                                                    <span className="sc-pp-tc-desc">{type.desc}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 3. Bottom Part: Overs Range with Custom Styled Input & Pills */}
+                                    <div className="sc-pp-section">
+                                        <label className="sc-pp-section-label">
+                                            <span>Overs in Effect</span>
+                                            <small>Specify applicable over range or select a preset</small>
+                                        </label>
+                                        <div className="sc-pp-input-card">
+                                            <div className="sc-pp-input-row">
+                                                <div className="sc-pp-input-field-wrap">
+                                                    <span className="sc-pp-input-prefix"><MdTimer /> Overs</span>
+                                                    <input
+                                                        type="text"
+                                                        className="sc-pp-text-input"
+                                                        value={powerplayOvers}
+                                                        onChange={(e) => setPowerplayOvers(e.target.value)}
+                                                        placeholder="e.g. 1-6"
+                                                    />
+                                                </div>
+                                                {/* Preset Chips */}
+                                                <div className="sc-pp-preset-group">
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-pp-chip ${powerplayOvers === '1-6' ? 'active' : ''}`}
+                                                        onClick={() => setPowerplayOvers('1-6')}
+                                                    >
+                                                        1-6 (T20)
+                                                    </button>
+                                                    {matchOverLimit <= 10 && (
+                                                        <button
+                                                            type="button"
+                                                            className={`sc-pp-chip ${powerplayOvers === '1-3' ? 'active' : ''}`}
+                                                            onClick={() => setPowerplayOvers('1-3')}
+                                                        >
+                                                            1-3 (T10)
+                                                        </button>
+                                                    )}
+                                                    {matchOverLimit <= 6 && (
+                                                        <button
+                                                            type="button"
+                                                            className={`sc-pp-chip ${powerplayOvers === '1-2' ? 'active' : ''}`}
+                                                            onClick={() => setPowerplayOvers('1-2')}
+                                                        >
+                                                            1-2 (T5)
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className={`sc-pp-chip ${powerplayOvers === `1-${Math.ceil(matchOverLimit * 0.3)}` ? 'active' : ''}`}
+                                                        onClick={() => setPowerplayOvers(`1-${Math.ceil(matchOverLimit * 0.3)}`)}
+                                                    >
+                                                        30% (1-{Math.ceil(matchOverLimit * 0.3)})
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 4. Bottom Part: Fielding Restrictions Card */}
+                                    <div className="sc-pp-section">
+                                        <label className="sc-pp-section-label">
+                                            <span>Fielding Restrictions Note</span>
+                                            <small>Broadcast note displayed on live screens</small>
+                                        </label>
+                                        <div className="sc-pp-input-card">
+                                            <div className="sc-pp-rule-input-wrap">
+                                                <MdShield className="sc-pp-rule-icon" />
+                                                <input
+                                                    type="text"
+                                                    className="sc-pp-text-input full"
+                                                    value={powerplayRestrictions}
+                                                    onChange={(e) => setPowerplayRestrictions(e.target.value)}
+                                                    placeholder="Max 2 fielders outside 30-yard circle"
+                                                />
+                                            </div>
+                                            {/* Quick Rule Presets */}
+                                            <div className="sc-pp-preset-group rule-presets">
+                                                {[
+                                                    'Max 2 fielders outside 30-yard circle',
+                                                    'Max 3 fielders outside 30-yard circle',
+                                                    'Max 4 fielders outside 30-yard circle'
+                                                ].map((rule) => (
+                                                    <button
+                                                        key={rule}
+                                                        type="button"
+                                                        className={`sc-pp-chip rule ${powerplayRestrictions === rule ? 'active' : ''}`}
+                                                        onClick={() => setPowerplayRestrictions(rule)}
+                                                    >
+                                                        {rule}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 5. Bottom Modal Footer: Purpose-Built & Polished */}
+                                <div className="sc-powerplay-modal-footer">
+                                    <div className="sc-pp-footer-left">
+                                        {isCurrentlyActive && (
+                                            <button
+                                                type="button"
+                                                className="sc-pp-btn-danger"
+                                                onClick={() => handleSavePowerplay(false)}
+                                                title="Deactivate and restore normal fielding"
+                                            >
+                                                <MdClose /> Deactivate Powerplay
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="sc-pp-footer-right">
+                                        <button
+                                            type="button"
+                                            className="sc-pp-btn-cancel"
+                                            onClick={() => setShowPowerplayModal(false)}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="sc-pp-btn-confirm"
+                                            onClick={() => handleSavePowerplay(true)}
+                                        >
+                                            <MdBolt /> {isCurrentlyActive ? 'Update Powerplay' : 'Save & Activate Powerplay'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
+
+            {/* Voice Desk Modal */}
+            <VoiceDeskModal
+                isOpen={showVoiceDesk}
+                onClose={() => setShowVoiceDesk(false)}
+                voiceState={voiceState}
+            />
+
             <Footer />
         </div>
     );

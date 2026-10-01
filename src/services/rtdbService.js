@@ -2,11 +2,15 @@ import { ref, onValue, get, set, update, remove } from 'firebase/database';
 import { database, firebaseConfig, auth } from '../components/firebase';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import fallbackExport from '../data/fallbackData.json';
 import { getMatchOutcome } from '../utils/cricketEngine';
 
-// Cached fallback data for offline / empty state
-const cachedFallbackData = fallbackExport || {};
+// Safe default fallback structure for initial / offline state (independent of data folder)
+const cachedFallbackData = {
+    activeTournamentId: "E-Legend's Trophy 2K26",
+    Tournaments: {},
+    TournamentIndex: {},
+    LiveData: { isLive: 0, currentMatchPath: "", liveScore: null }
+};
 
 export const getFallbackData = () => cachedFallbackData;
 
@@ -31,18 +35,71 @@ try {
 
 export const getActiveTournamentId = () => currentActiveTournamentId;
 
+// Dynamic registry of known tournament keys
+const knownTournamentKeys = new Set([
+    '2K01',
+    '2001',
+    "E-Legend's Trophy 2K01",
+    "E-Legend's Trophy 2K25",
+    "E-Legend's Trophy 2K26",
+    '2K25',
+    '2K26'
+]);
+
+// Keep knownTournamentKeys in sync with TournamentIndex
+try {
+    const idxRef = ref(database, 'TournamentIndex');
+    onValue(idxRef, (snapshot) => {
+        const val = snapshot.val();
+        if (Array.isArray(val)) {
+            val.forEach(item => {
+                if (item?.id) knownTournamentKeys.add(String(item.id).trim());
+                if (item?.editionId) knownTournamentKeys.add(String(item.editionId).trim());
+                if (item?.name) knownTournamentKeys.add(String(item.name).trim());
+            });
+        }
+    });
+} catch (e) {
+    // Offline mode
+}
+
 export const resolveTournamentKey = (id) => {
     const targetId = id || currentActiveTournamentId || "E-Legend's Trophy 2K26";
-    const tournaments = cachedFallbackData?.Tournaments || {};
+    const str = String(targetId).trim();
 
-    if (tournaments[targetId]) return targetId;
+    // Direct mapping for 2001 test tournament
+    if (str === '2001' || str === '2K01' || /2001/i.test(str)) {
+        return '2K01';
+    }
+
+    // Direct mapping for 2026 active tournament
+    if (str === "E-Legend's Trophy 2K26" || str === '2K26' || str === '2026') {
+        return "E-Legend's Trophy 2K26";
+    }
+
+    // Direct mapping for 2025 completed tournament
+    if (str === "E-Legend's Trophy 2K25" || str === '2K25' || str === '2025') {
+        return "E-Legend's Trophy 2K25";
+    }
+
+    if (knownTournamentKeys.has(str)) return str;
 
     // Check if stripped or full exists
-    const stripped = String(targetId).replace(/^E-Legend's Trophy\s*/i, '').replace(/^E-Legends Trophy\s*/i, '').trim();
-    if (tournaments[stripped]) return stripped;
+    const stripped = str.replace(/^E-Legend's\s*Trophy\s*/i, '').replace(/^E-Legends\s*Trophy\s*/i, '').trim();
+    if (knownTournamentKeys.has(stripped)) return stripped;
 
-    const full = `E-Legend's Trophy ${targetId}`;
-    if (tournaments[full]) return full;
+    // Year normalizations (e.g. 2001 -> 2K01, 2026 -> 2K26)
+    const yearMatch = stripped.match(/\b(19|20)(\d{2})\b/);
+    if (yearMatch) {
+        const yearNorm = `2K${yearMatch[2]}`;
+        if (yearNorm === '2K01') return '2K01';
+        if (yearNorm === '2K26') return "E-Legend's Trophy 2K26";
+        if (yearNorm === '2K25') return "E-Legend's Trophy 2K25";
+        if (knownTournamentKeys.has(yearNorm)) return yearNorm;
+    }
+
+    const full = `E-Legend's Trophy ${stripped}`;
+    if (knownTournamentKeys.has(full)) return full;
 
     return targetId;
 };
@@ -119,11 +176,29 @@ export const getFallbackTournament = (key) => {
 };
 
 /* ==========================================================================
-   LIVE DATA (Scoped to active tournament)
+   LIVE DATA (Scoped to active tournament or custom tournament)
    ========================================================================== */
 
-export const subscribeLiveData = (callback) => {
+export const subscribeLiveData = (callback, customTourneyId) => {
     try {
+        if (customTourneyId) {
+            const targetKey = resolveTournamentKey(customTourneyId);
+            const liveRef = ref(database, `Tournaments/${targetKey}/LiveData`);
+            return onValue(liveRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    callback(data);
+                } else {
+                    const fallbackTourney = getFallbackTournament(targetKey);
+                    callback(fallbackTourney?.LiveData || cachedFallbackData?.LiveData || { isLive: 0, currentMatchPath: "", liveScore: null });
+                }
+            }, (error) => {
+                console.warn(`LiveData subscription error for ${targetKey}, using fallback:`, error);
+                const fallbackTourney = getFallbackTournament(targetKey);
+                callback(fallbackTourney?.LiveData || cachedFallbackData?.LiveData || { isLive: 0, currentMatchPath: "", liveScore: null });
+            });
+        }
+
         const activeRef = ref(database, 'activeTournamentId');
         let currentUnsub = null;
 
@@ -161,7 +236,7 @@ export const subscribeLiveData = (callback) => {
         };
     } catch (error) {
         console.error('Error creating LiveData subscription:', error);
-        const targetKey = resolveTournamentKey(currentActiveTournamentId);
+        const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
         const fallbackTourney = getFallbackTournament(targetKey);
         callback(fallbackTourney?.LiveData || cachedFallbackData?.LiveData || { isLive: 0, currentMatchPath: "", liveScore: null });
         return () => { };
@@ -170,6 +245,19 @@ export const subscribeLiveData = (callback) => {
 
 export const updateLiveData = async (liveData) => {
     const targetKey = resolveTournamentKey(currentActiveTournamentId);
+    const liveRef = ref(database, `Tournaments/${targetKey}/LiveData`);
+    return update(liveRef, liveData);
+};
+
+/**
+ * Write LiveData to a specific tournament's own LiveData node.
+ * Used by the admin scoring console for test/sandbox tournaments so that
+ * live state is persisted under the test tournament (not the public one),
+ * allowing the admin to reload and continue scoring seamlessly.
+ */
+export const updateScopedLiveData = async (tourneyId, liveData) => {
+    if (!tourneyId) return updateLiveData(liveData);
+    const targetKey = resolveTournamentKey(tourneyId);
     const liveRef = ref(database, `Tournaments/${targetKey}/LiveData`);
     return update(liveRef, liveData);
 };
@@ -445,8 +533,16 @@ export const enrichMatchWithFixturesData = (matchData, finishedMatches, matchTit
         (Number(matchData.team2?.totalRuns || 0) > 0 || Number(matchData.team2?.overs || 0) > 0)
     ) && matchData.common?.result;
 
+    const LIVE_IN_PROGRESS_PHRASES = [
+        'scheduled', 'match scheduled', 'tbd', 'live',
+        'in progress', 'match in progress', 'live match in progress',
+        'live scoring', 'match started', 'innings in progress',
+        '1st innings', '2nd innings', 'innings break', 'drinks break'
+    ];
+
     const isMatchConcluded = Boolean(
-        found.result && !['scheduled', 'match scheduled', 'tbd', 'live'].includes(String(found.result).trim().toLowerCase())
+        found.result &&
+        !LIVE_IN_PROGRESS_PHRASES.some(p => String(found.result).trim().toLowerCase().includes(p))
     );
 
     const base = matchData ? { ...matchData } : {};
@@ -463,9 +559,13 @@ export const enrichMatchWithFixturesData = (matchData, finishedMatches, matchTit
         venue: found.venue || baseCommon.venue || '',
         umpire1: found.umpire1 || baseCommon.umpire1 || '',
         umpire2: found.umpire2 || baseCommon.umpire2 || '',
-        result: (isMatchConcluded ? found.result : baseCommon.result) || found.result || '',
-        score: (isMatchConcluded ? found.score : baseCommon.score) || found.score || '',
-        status: (isMatchConcluded ? found.result : baseCommon.status) || found.result || baseCommon.status || 'Match Finished',
+        // For live/non-concluded matches: only use baseCommon.result (what's already in RTDB),
+        // never bleed the fixture's stale result string into a live match.
+        result: isMatchConcluded ? found.result : (baseCommon.result || ''),
+        score: isMatchConcluded ? (found.score || baseCommon.score || '') : (baseCommon.score || found.score || ''),
+        status: isMatchConcluded
+            ? (found.result || baseCommon.status || 'Match Finished')
+            : (baseCommon.status || found.status || 'Match In Progress'),
         finished: isMatchConcluded ? 1 : (baseCommon.finished ?? 0),
         isFinished: isMatchConcluded ? true : Boolean(baseCommon.isFinished)
     };
@@ -533,31 +633,92 @@ export const subscribeMatch = (matchTitle, callback, customTourneyId) => {
                 const normTargetSpaced = normTarget.replace(/[-_]/g, ' ');
                 const finishedMatches = tourneyVal.FixturesData?.finishedMatches || {};
 
-                // 1. Direct key (exact or decoded)
-                let directMatch = tourneyVal[cleanTitle] || tourneyVal[rawClean];
+                // 1. Direct key (exact, decoded, or inside matches object)
+                let directMatch = tourneyVal[cleanTitle] || tourneyVal[rawClean] || tourneyVal.matches?.[cleanTitle] || tourneyVal.matches?.[rawClean] || tourneyVal.Matches?.[cleanTitle] || tourneyVal.Matches?.[rawClean];
                 if (directMatch) {
                     const enriched = enrichMatchWithFixturesData(directMatch, finishedMatches, cleanTitle, targetKey);
                     cb(enriched);
                     return;
                 }
 
-                // 2. Search children in tournament (matching title, matchId, id, or key)
-                for (const [k, v] of Object.entries(tourneyVal)) {
-                    if (!v || typeof v !== 'object' || k === 'FixturesData' || k === 'LiveData' || k === 'UpcomingMatchData' || k === 'RankingData' || k === 'teamData') continue;
+                // Helper to check match node against target
+                const checkMatchObject = (v, k) => {
+                    if (!v || typeof v !== 'object') return false;
                     const vTitle = String(v.common?.title || v.title || v.common?.matchId || v.id || k).trim().toLowerCase();
                     const vTitleSpaced = vTitle.replace(/[-_]/g, ' ');
-                    if (vTitle === normTarget || vTitleSpaced === normTargetSpaced || String(v.id) === String(cleanTitle) || String(v.common?.matchId) === String(cleanTitle)) {
+                    const vTitleNoMatch = vTitle.replace(/\s+match$/i, '').trim();
+                    const normTargetNoMatch = normTarget.replace(/\s+match$/i, '').trim();
+                    return (
+                        vTitle === normTarget ||
+                        vTitleSpaced === normTargetSpaced ||
+                        vTitleNoMatch === normTargetNoMatch ||
+                        String(v.id) === String(cleanTitle) ||
+                        String(v.common?.matchId) === String(cleanTitle) ||
+                        k.toLowerCase() === normTarget ||
+                        k.toLowerCase() === normTargetNoMatch
+                    );
+                };
+
+                // 2. Search children in tournament (matching title, matchId, id, or key, including inside matches container)
+                for (const [k, v] of Object.entries(tourneyVal)) {
+                    if (!v || typeof v !== 'object' || k === 'FixturesData' || k === 'LiveData' || k === 'UpcomingMatchData' || k === 'RankingData' || k === 'teamData') continue;
+                    if (k === 'matches' || k === 'Matches') {
+                        for (const [subK, subV] of Object.entries(v)) {
+                            if (checkMatchObject(subV, subK)) {
+                                const enriched = enrichMatchWithFixturesData(subV, finishedMatches, cleanTitle, targetKey);
+                                cb(enriched);
+                                return;
+                            }
+                        }
+                        continue;
+                    }
+                    if (checkMatchObject(v, k)) {
                         const enriched = enrichMatchWithFixturesData(v, finishedMatches, cleanTitle, targetKey);
                         cb(enriched);
                         return;
                     }
                 }
 
-                // 3. Check FixturesData/finishedMatches directly
-                const enrichedFromFixtures = enrichMatchWithFixturesData(null, finishedMatches, cleanTitle, targetKey);
+                // 3. Check FixturesData/finishedMatches or publishedMatches directly
+                const allFixtures = {
+                    ...(tourneyVal.FixturesData?.publishedMatches || {}),
+                    ...(tourneyVal.FixturesData?.fixtures || {}),
+                    ...finishedMatches
+                };
+                const enrichedFromFixtures = enrichMatchWithFixturesData(null, allFixtures, cleanTitle, targetKey);
                 if (enrichedFromFixtures) {
                     cb(enrichedFromFixtures);
                     return;
+                }
+
+                // 4. If not found in targetKey and customTourneyId wasn't passed, search across all Tournaments
+                if (!customTourneyId) {
+                    const allTourneysSnap = await get(ref(database, 'Tournaments'));
+                    const allTourneys = allTourneysSnap.val();
+                    if (allTourneys) {
+                        for (const [tKey, tData] of Object.entries(allTourneys)) {
+                            if (tKey === targetKey || !tData) continue;
+                            const tFinished = tData.FixturesData?.finishedMatches || {};
+                            let found = tData[cleanTitle] || tData[rawClean] || tData.matches?.[cleanTitle] || tData.matches?.[rawClean];
+                            if (!found) {
+                                for (const [k, v] of Object.entries(tData)) {
+                                    if (!v || typeof v !== 'object') continue;
+                                    const vTitle = String(v.common?.title || v.title || v.common?.matchId || v.id || k).trim().toLowerCase();
+                                    if (vTitle === normTarget || String(v.id) === String(cleanTitle)) {
+                                        found = v;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!found && tFinished) {
+                                found = enrichMatchWithFixturesData(null, tFinished, cleanTitle, tKey);
+                            }
+                            if (found) {
+                                cb(enrichMatchWithFixturesData(found, tFinished, cleanTitle, tKey));
+                                return;
+                            }
+                        }
+                    }
                 }
             }
         } catch (e) {
@@ -708,18 +869,127 @@ export const getMatchData = async (matchTitle, customTourneyId) => {
     }
 };
 
+/**
+ * Recursively strips undefined values so Firebase Realtime Database never rejects updates
+ */
+export const sanitizeForFirebase = (data) => {
+    if (data === undefined) return null;
+    if (data === null || typeof data !== 'object') return data;
+    if (Array.isArray(data)) {
+        return data.map(item => sanitizeForFirebase(item));
+    }
+    const clean = {};
+    for (const key of Object.keys(data)) {
+        const val = data[key];
+        if (val !== undefined) {
+            clean[key] = sanitizeForFirebase(val);
+        }
+    }
+    return clean;
+};
+
 export const updateMatchData = async (matchTitle, data, customTourneyId) => {
     const cleanTitle = String(matchTitle || '').replace(/^\//, '').split('/').pop();
     const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
     const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
-    return update(matchRef, data);
+    const cleanData = sanitizeForFirebase(data);
+    return update(matchRef, cleanData);
 };
 
 export const setMatchData = async (matchTitle, data, customTourneyId) => {
     const cleanTitle = String(matchTitle || '').replace(/^\//, '').split('/').pop();
     const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
     const matchRef = ref(database, `Tournaments/${targetKey}/${cleanTitle}`);
-    return set(matchRef, data);
+    const cleanData = sanitizeForFirebase(data);
+    return set(matchRef, cleanData);
+};
+
+/**
+ * Fully undo a ball delivery in Firebase RTDB:
+ * 1. Explicitly removes any undone commentary items from Tournaments/${targetKey}/${cleanTitle}/commentary
+ * 2. Explicitly sets/reverts common/overBallsTypes (recent balls) to delete trailing balls
+ * 3. Explicitly cleans up any undone fallOfWickets, partnerships, or overHistory entries
+ * 4. Uses set() to overwrite the entire match tree cleanly so no orphaned nodes linger
+ */
+export const undoMatchDelivery = async (matchTitle, previousState, currentMatchData, customTourneyId) => {
+    const cleanTitle = String(matchTitle || '').replace(/^\//, '').split('/').pop();
+    const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
+    const basePath = `Tournaments/${targetKey}/${cleanTitle}`;
+
+    // 1. Cleanly remove any commentary keys that were recorded after previousState
+    const currentCommKeys = Object.keys(currentMatchData?.commentary || {});
+    const prevCommKeys = new Set(Object.keys(previousState?.commentary || {}));
+    const commKeysToRemove = currentCommKeys.filter(k => !prevCommKeys.has(k));
+
+    for (const commKey of commKeysToRemove) {
+        try {
+            await remove(ref(database, `${basePath}/commentary/${commKey}`));
+        } catch (e) {
+            console.warn(`[RTDB] Failed to remove undone commentary key ${commKey}:`, e);
+        }
+    }
+
+    // 2. Revert commentary container
+    if (!previousState.commentary || Object.keys(previousState.commentary).length === 0) {
+        previousState.commentary = {};
+        try {
+            await remove(ref(database, `${basePath}/commentary`));
+        } catch (e) {}
+    } else {
+        try {
+            await set(ref(database, `${basePath}/commentary`), sanitizeForFirebase(previousState.commentary));
+        } catch (e) {}
+    }
+
+    // 3. Revert overBallsTypes (Recent Balls strip for web & mobile)
+    if (previousState.common?.overBallsTypes && previousState.common.overBallsTypes.length > 0) {
+        try {
+            await set(ref(database, `${basePath}/common/overBallsTypes`), sanitizeForFirebase(previousState.common.overBallsTypes));
+        } catch (e) {}
+    } else {
+        if (!previousState.common) previousState.common = {};
+        previousState.common.overBallsTypes = [];
+        try {
+            await remove(ref(database, `${basePath}/common/overBallsTypes`));
+        } catch (e) {}
+    }
+
+    // 4. Revert any undone fallOfWickets, partnerships, or overHistory
+    for (const teamKey of ['team1', 'team2']) {
+        // Fall of wickets
+        const currFowKeys = Object.keys(currentMatchData?.[teamKey]?.fallOfWickets || {});
+        const prevFowKeys = new Set(Object.keys(previousState?.[teamKey]?.fallOfWickets || {}));
+        const fowToRemove = currFowKeys.filter(k => !prevFowKeys.has(k));
+        for (const fk of fowToRemove) {
+            try {
+                await remove(ref(database, `${basePath}/${teamKey}/fallOfWickets/${fk}`));
+            } catch (e) {}
+        }
+
+        // Partnerships
+        const currPartKeys = Object.keys(currentMatchData?.[teamKey]?.partnerships || {});
+        const prevPartKeys = new Set(Object.keys(previousState?.[teamKey]?.partnerships || {}));
+        const partToRemove = currPartKeys.filter(k => !prevPartKeys.has(k));
+        for (const pk of partToRemove) {
+            try {
+                await remove(ref(database, `${basePath}/${teamKey}/partnerships/${pk}`));
+            } catch (e) {}
+        }
+
+        // Over history
+        const currOhKeys = Object.keys(currentMatchData?.[teamKey]?.overHistory || {});
+        const prevOhKeys = new Set(Object.keys(previousState?.[teamKey]?.overHistory || {}));
+        const ohToRemove = currOhKeys.filter(k => !prevOhKeys.has(k));
+        for (const ok of ohToRemove) {
+            try {
+                await remove(ref(database, `${basePath}/${teamKey}/overHistory/${ok}`));
+            } catch (e) {}
+        }
+    }
+
+    // 5. Overwrite the entire match state with previousState using set()
+    const cleanPayload = sanitizeForFirebase(previousState);
+    return set(ref(database, basePath), cleanPayload);
 };
 
 /**

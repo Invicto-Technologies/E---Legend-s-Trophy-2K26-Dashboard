@@ -943,7 +943,9 @@
 
 .sc-control-title {
     display: flex;
+    width: 100%;
     align-items: center;
+    justify-content: space-between;
     gap: 6px;
     font-size: 0.98rem;
     color: #00f0ff;
@@ -3499,8 +3501,7 @@
 }
 
 .sc-embedded-wheeler-svg-wrap {
-    width: 100%;
-    max-width: 248px;
+    width: 90%;
     aspect-ratio: 1/1;
     display: flex;
     align-items: center;
@@ -4821,26 +4822,826 @@
     border-radius: 4px;
 }
 
-/* DLS Modal Structure */
-.sc-dls-modal {
-    max-width: 620px;
-    width: 94%;
-    background: #0b1329;
-    border: 1px solid rgba(56, 189, 248, 0.3);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 40px rgba(14, 165, 233, 0.15);
-    border-radius: 18px;
-    padding: 26px;
+/* ==========================================================================
+   POWERPLAY ACTION BUTTON, ACTIVE BANNER & CONFIGURATION MODAL
+   ========================================================================== */
+
+.sc-action-btn.powerplay {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    gap: 6px;
+}
+
+.sc-action-btn.powerplay:hover {
+    background: rgba(245, 158, 11, 0.22);
+    border-color: #fbbf24;
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+}
+
+.sc-action-btn.powerplay.active-powerplay {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(217, 119, 6, 0.5));
+    border-color: #f59e0b;
+    color: #ffffff;
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.5);
+    animation: powerplayPulse 2s infinite alternate ease-in-out;
+}
+
+@keyframes powerplayPulse {
+    0% {
+        border-color: rgba(251, 191, 36, 0.5);
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+    }
+    100% {
+        border-color: #fbbf24;
+        box-shadow: 0 0 22px rgba(245, 158, 11, 0.7);
+    }
+}
+
+.cx-sh-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sc-powerplay-compact-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(245, 158, 11, 0.16);
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    color: #fbbf24;
+    padding: 3px 9px;
+    border-radius: 9999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+    transition: all 0.2s ease;
+}
+
+.sc-powerplay-compact-pill:hover {
+    background: rgba(245, 158, 11, 0.28);
+    border-color: #fbbf24;
+    color: #fef08a;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.5);
+    transform: translateY(-1px);
+}
+
+.sc-pp-bolt-pulse {
+    color: #fbbf24;
+    font-size: 0.85rem;
+    animation: boltFlicker 1.8s infinite;
+}
+
+@keyframes boltFlicker {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(1.15); }
+}
+
+.sc-powerplay-active-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.16), rgba(217, 119, 6, 0.26), rgba(245, 158, 11, 0.16));
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    padding: 8px 16px;
+    border-radius: 9999px;
+    margin: 10px auto;
+    max-width: 90%;
+    cursor: pointer;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.25);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.sc-powerplay-active-banner:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 22px rgba(245, 158, 11, 0.45);
+}
+
+.sc-powerplay-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #fef08a;
+    background: rgba(245, 158, 11, 0.28);
+    padding: 3px 10px;
+    border-radius: 6px;
+}
+
+.sc-powerplay-target-text {
+    font-size: 0.88rem;
     color: #f1f5f9;
 }
 
+.sc-powerplay-target-text strong {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.sc-pp-restrictions-note {
+    color: #cbd5e1;
+    font-size: 0.82rem;
+}
+
+/* ==========================================================================
+   POWERPLAY CONFIGURATION MODAL (Ultra-Modern Premium Cyber Styling)
+   ========================================================================== */
+
+.sc-powerplay-modal {
+    max-width: 620px;
+    width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: #08101e;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 20px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85), 0 0 40px rgba(245, 158, 11, 0.2);
+    overflow: hidden;
+}
+
+.sc-powerplay-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(8, 16, 30, 0.8));
+    border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+    flex-shrink: 0;
+}
+
+.sc-pp-header-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.sc-pp-icon-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.4));
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    color: #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+}
+
+.sc-pp-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.sc-pp-pill-tag {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.16);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.sc-pp-live-status-pill {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.sc-pp-live-status-pill.active {
+    color: #fef08a;
+    background: rgba(245, 158, 11, 0.25);
+    border-color: rgba(251, 191, 36, 0.6);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+.sc-pp-modal-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.2px;
+}
+
+.sc-powerplay-modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 158, 11, 0.3) transparent;
+}
+
+.sc-powerplay-modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sc-powerplay-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(245, 158, 11, 0.3);
+    border-radius: 3px;
+}
+
+/* Status Hero */
+.sc-pp-status-hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    border: 1px solid;
+    transition: all 0.3s ease;
+}
+
+.sc-pp-status-hero.active {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(217, 119, 6, 0.28));
+    border-color: rgba(251, 191, 36, 0.5);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+}
+
+.sc-pp-status-hero.inactive {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.sc-pp-status-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    flex-shrink: 0;
+}
+
+.sc-pp-status-text {
+    flex: 1;
+}
+
+.sc-pp-status-label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+}
+
+.sc-pp-status-state {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: #ffffff;
+    display: block;
+}
+
+.sc-pp-status-hero.active .sc-pp-status-state {
+    color: #fbbf24;
+}
+
+.sc-pp-status-sub {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    margin: 3px 0 0 0;
+    line-height: 1.4;
+}
+
+.sc-pp-hero-toggle-btn {
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    white-space: nowrap;
+}
+
+.sc-pp-hero-toggle-btn:hover {
+    background: rgba(245, 158, 11, 0.35);
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+}
+
+.sc-pp-hero-toggle-btn.active {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.45);
+    color: #f87171;
+}
+
+.sc-pp-hero-toggle-btn.active:hover {
+    background: rgba(239, 68, 68, 0.28);
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
+}
+
+/* Sections */
+.sc-pp-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sc-pp-section-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sc-pp-section-label span {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.sc-pp-section-label small {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+/* Type Grid */
+.sc-pp-type-selector {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.sc-pp-type-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.sc-pp-type-card:hover {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.3);
+    transform: translateY(-1px);
+}
+
+.sc-pp-type-card.selected {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.28));
+    border-color: #fbbf24;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+}
+
+.sc-pp-tc-top {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.sc-pp-tc-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.sc-pp-type-card.selected .sc-pp-tc-name {
+    color: #fbbf24;
+}
+
+.sc-pp-tc-check {
+    color: #fbbf24;
+    font-size: 1.1rem;
+}
+
+.sc-pp-tc-desc {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.35;
+}
+
+/* Bottom Input Cards */
+.sc-pp-input-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: border-color 0.2s;
+}
+
+.sc-pp-input-card:focus-within {
+    border-color: rgba(245, 158, 11, 0.45);
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.15);
+}
+
+.sc-pp-input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.sc-pp-input-field-wrap {
+    display: flex;
+    align-items: center;
+    background: #050b14;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: all 0.2s;
+}
+
+.sc-pp-input-field-wrap:focus-within {
+    border-color: #fbbf24;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+.sc-pp-input-prefix {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    height: 38px;
+    white-space: nowrap;
+}
+
+.sc-pp-rule-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #050b14;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 0 12px;
+    height: 40px;
+    transition: all 0.2s;
+}
+
+.sc-pp-rule-input-wrap:focus-within {
+    border-color: #fbbf24;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+.sc-pp-rule-icon {
+    color: #fbbf24;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.sc-pp-text-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    font-family: inherit;
+    width: 120px;
+}
+
+.sc-pp-text-input.full {
+    width: 100%;
+    padding: 8px 0;
+}
+
+.sc-pp-text-input::placeholder {
+    color: #64748b;
+    font-weight: 400;
+}
+
+/* Preset Chips */
+.sc-pp-preset-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sc-pp-preset-group.rule-presets {
+    gap: 6px;
+}
+
+.sc-pp-chip {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.sc-pp-chip:hover {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+}
+
+.sc-pp-chip.active {
+    background: rgba(245, 158, 11, 0.22);
+    border-color: #fbbf24;
+    color: #fef08a;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.sc-pp-chip.rule {
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+/* Bottom Modal Footer */
+.sc-powerplay-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px;
+    background: #050b14;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.sc-pp-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sc-pp-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sc-pp-btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.sc-pp-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
+}
+
+.sc-pp-btn-cancel {
+    padding: 9px 18px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.sc-pp-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #f1f5f9;
+}
+
+.sc-pp-btn-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+    border: 1px solid #fbbf24;
+    color: #041019;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(245, 158, 11, 0.4);
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.sc-pp-btn-confirm:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(245, 158, 11, 0.6);
+}
+
+/* Light Theme Overrides for Powerplay Modal */
+[data-theme="light"] .sc-powerplay-modal {
+    background: #ffffff;
+    border: 1px solid rgba(217, 119, 6, 0.35);
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.15), 0 0 35px rgba(245, 158, 11, 0.1);
+}
+
+[data-theme="light"] .sc-powerplay-modal-header {
+    background: linear-gradient(180deg, #fef3c7, #ffffff);
+    border-bottom: 1px solid #fde68a;
+}
+
+[data-theme="light"] .sc-pp-modal-title {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-pp-status-hero.inactive {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sc-pp-status-state {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-pp-status-sub {
+    color: #475569;
+}
+
+[data-theme="light"] .sc-pp-section-label span {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-pp-type-card {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sc-pp-tc-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-pp-input-card {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sc-pp-input-field-wrap,
+[data-theme="light"] .sc-pp-rule-input-wrap {
+    background: #ffffff;
+    border-color: #cbd5e1;
+}
+
+[data-theme="light"] .sc-pp-text-input {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-pp-chip {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .sc-powerplay-modal-footer {
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-pp-btn-cancel {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+/* Light Mode Powerplay Active Indicators & High-Contrast Colors */
+[data-theme="light"] .sc-powerplay-compact-pill {
+    background: #fef3c7;
+    border: 1px solid #d97706;
+    color: #92400e;
+    box-shadow: 0 1px 4px rgba(217, 119, 6, 0.2);
+}
+
+[data-theme="light"] .sc-powerplay-compact-pill:hover {
+    background: #fde68a;
+    border-color: #b45309;
+    color: #78350f;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3);
+}
+
+[data-theme="light"] .sc-powerplay-compact-pill .sc-pp-bolt-pulse {
+    color: #d97706;
+}
+
+[data-theme="light"] .sc-action-btn.powerplay {
+    background: #fffbeb;
+    border-color: #d97706;
+    color: #92400e;
+}
+
+[data-theme="light"] .sc-action-btn.powerplay:hover {
+    background: #fef3c7;
+    border-color: #b45309;
+    color: #78350f;
+}
+
+[data-theme="light"] .sc-action-btn.powerplay.active-powerplay {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    border-color: #92400e;
+    color: #ffffff;
+    box-shadow: 0 3px 12px rgba(217, 119, 6, 0.35);
+}
+
+[data-theme="light"] .sc-pp-status-hero.active {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-color: #d97706;
+}
+
+[data-theme="light"] .sc-pp-status-hero.active .sc-pp-status-state {
+    color: #92400e;
+}
+
+[data-theme="light"] .sc-pp-status-hero.active .sc-pp-status-sub {
+    color: #78350f;
+}
+
+[data-theme="light"] .sc-pp-status-icon.active {
+    background: rgba(217, 119, 6, 0.15);
+    color: #d97706;
+}
+
+/* ==========================================================================
+   MATCH ADJUSTMENTS, BENCHMARKS & DLS MODAL (DARK & LIGHT THEMES)
+   ========================================================================== */
+
+/* Outer Modal Container */
+.sc-dls-modal {
+    max-width: 680px;
+    width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: #0b1329;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(14, 165, 233, 0.15);
+    border-radius: 18px;
+    padding: 0;
+    overflow: hidden;
+    color: #f1f5f9;
+}
+
+/* Header */
 .sc-dls-modal-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    padding-bottom: 16px;
-    margin-bottom: 18px;
+    padding: 20px 24px 16px 24px;
+    margin-bottom: 0;
+    background: rgba(15, 23, 42, 0.5);
+    flex-shrink: 0;
+}
+
+.sc-dls-title-group {
+    flex: 1;
+    min-width: 0;
 }
 
 .sc-dls-pill-tag {
@@ -4849,6 +5650,7 @@
     letter-spacing: 0.8px;
     color: #38bdf8;
     background: rgba(14, 165, 233, 0.18);
+    border: 1px solid rgba(56, 189, 248, 0.3);
     padding: 3px 9px;
     border-radius: 9999px;
     display: inline-block;
@@ -4857,7 +5659,7 @@
 
 .sc-dls-modal-header h3 {
     margin: 0;
-    font-size: 1.35rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: #ffffff;
     display: flex;
@@ -4867,7 +5669,8 @@
 
 .sc-dls-cloud-icon {
     color: #38bdf8;
-    font-size: 1.5rem;
+    font-size: 1.45rem;
+    flex-shrink: 0;
 }
 
 .sc-dls-modal-header p {
@@ -4901,38 +5704,41 @@
 /* Tab Navigation */
 .sc-dls-tabs-nav {
     display: flex;
-    gap: 8px;
-    padding: 0 24px;
+    gap: 6px;
+    padding: 8px 24px 0 24px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(15, 23, 42, 0.35);
+    background: rgba(11, 19, 41, 0.95);
     overflow-x: auto;
+    flex-shrink: 0;
 }
 
 .sc-dls-tab-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
     color: #94a3b8;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.2s ease;
-    position: relative;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
 }
 
 .sc-dls-tab-btn:hover {
     color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .sc-dls-tab-btn.active {
     color: #38bdf8;
     border-bottom-color: #38bdf8;
-    background: rgba(56, 189, 248, 0.05);
+    background: rgba(56, 189, 248, 0.08);
 }
 
 .sc-tab-active-dot {
@@ -4948,17 +5754,18 @@
     box-shadow: 0 0 8px #fbbf24;
 }
 
-/* Tournament Rules Quick Link Strip */
+/* Tournament Quick Link Strip */
 .sc-dls-tourney-link-strip {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 8px 24px;
+    padding: 9px 24px;
     background: rgba(14, 165, 233, 0.08);
     border-bottom: 1px solid rgba(14, 165, 233, 0.18);
     font-size: 0.8rem;
     color: rgba(226, 232, 240, 0.85);
+    flex-shrink: 0;
 }
 
 .sc-dls-tourney-info {
@@ -5015,6 +5822,19 @@
     }
 }
 
+/* Modal Body & Scrolling Area */
+.sc-dls-modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.sc-dls-tab-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
 /* Context Strip */
 .sc-dls-context-strip {
     display: grid;
@@ -5047,16 +5867,20 @@
     font-weight: 700;
 }
 
+.sc-dls-ctx-item .ctx-val.highlight {
+    color: #38bdf8;
+}
+
 /* Field Groups */
 .sc-dls-field-group {
-    margin-bottom: 18px;
+    margin-bottom: 0;
 }
 
 .sc-dls-field-label {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #f1f5f9;
     margin-bottom: 8px;
@@ -5170,7 +5994,6 @@
     border: 1px solid rgba(56, 189, 248, 0.25);
     border-radius: 14px;
     padding: 14px 16px;
-    margin-bottom: 18px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -5332,7 +6155,6 @@
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 12px;
     padding: 12px 16px;
-    margin-bottom: 18px;
 }
 
 .sc-dls-checkbox-label {
@@ -5440,6 +6262,35 @@
     border-color: rgba(16, 185, 129, 0.35);
 }
 
+/* Active DLS Banner */
+.sc-dls-active-banner {
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sc-dls-warn-icon {
+    color: #38bdf8;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.sc-dls-banner-text strong {
+    display: block;
+    color: #f1f5f9;
+    font-size: 0.84rem;
+}
+
+.sc-dls-target-text {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #38bdf8;
+}
+
 /* Broadcast Message Input */
 .sc-dls-input-broadcast {
     width: 100%;
@@ -5461,7 +6312,7 @@
 
 /* Par Sheet Matrix Accordion & Table */
 .sc-dls-par-sheet-section {
-    margin-top: 18px;
+    margin-top: 6px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding-top: 14px;
 }
@@ -5472,7 +6323,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 9px 14px;
+    padding: 10px 14px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
@@ -5518,7 +6369,6 @@
 }
 
 .sc-dls-table-scroll {
-    max-height: 240px;
     overflow-y: auto;
     border-radius: 8px;
 }
@@ -5557,82 +6407,11 @@
     background: rgba(15, 23, 42, 0.5);
 }
 
-/* Light Theme Overrides */
-[data-theme="light"] .sc-dls-t1-interruption-card {
-    background: #f8fafc;
-    border-color: #e2e8f0;
-}
-
-[data-theme="light"] .sc-dls-checkbox-text strong {
-    color: #0f172a;
-}
-
-[data-theme="light"] .sc-dls-subfield label {
-    color: #475569;
-}
-
-[data-theme="light"] .sc-dls-input-broadcast {
-    background: #ffffff;
-    border-color: #cbd5e1;
-    color: #0f172a;
-}
-
-[data-theme="light"] .sc-dls-par-table-wrap {
-    background: #f8fafc;
-    border-color: #e2e8f0;
-}
-
-[data-theme="light"] .sc-dls-matrix-table th {
-    background: #f1f5f9;
-    color: #0284c7;
-    border-bottom-color: #cbd5e1;
-}
-
-[data-theme="light"] .sc-dls-matrix-table td {
-    color: #334155;
-    border-bottom-color: #f1f5f9;
-}
-
-[data-theme="light"] .sc-dls-matrix-table td.ov-col {
-    background: #f1f5f9;
-    color: #0284c7;
-}
-
-/* Footer */
-.sc-dls-modal-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 18px;
-    margin-top: 6px;
-}
-
-.sc-dls-btn-reset {
-    padding: 10px 18px;
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #f87171;
-    border-radius: 10px;
-    font-size: 0.88rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-right: auto;
-}
-
-.sc-dls-btn-reset:hover {
-    background: rgba(239, 68, 68, 0.25);
-    border-color: #ef4444;
-    color: #ffffff;
-}
-
 /* Rate inputs & Benchmarks Grid */
 .sc-rate-benchmark-row {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
     flex-wrap: wrap;
 }
 
@@ -5653,13 +6432,12 @@
     color: #94a3b8;
 }
 
-/* Preview Card */
+/* Spectator Preview Card */
 .sc-proj-preview-card {
     background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(15, 23, 42, 0.75));
     border: 1px solid rgba(56, 189, 248, 0.25);
     border-radius: 12px;
     padding: 12px 16px;
-    margin-bottom: 18px;
 }
 
 .sc-proj-preview-header {
@@ -5689,6 +6467,10 @@
 
 .sc-preview-row .lbl {
     color: #94a3b8;
+}
+
+.sc-preview-row strong {
+    color: #ffffff;
 }
 
 .sc-preview-pills {
@@ -5762,7 +6544,24 @@
     color: #94a3b8;
 }
 
-/* Quota auto calc button */
+/* Tab 3 Specials & Bowler Quota */
+.sc-dls-overs-badge {
+    background: rgba(14, 165, 233, 0.2);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.sc-dls-overs-input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .sc-quota-calc-btn {
     background: rgba(56, 189, 248, 0.12);
     border: 1px solid rgba(56, 189, 248, 0.3);
@@ -5792,54 +6591,539 @@
     margin-top: 2px;
 }
 
-/* Light Theme Support */
+/* Modal Footer */
+.sc-dls-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 16px 24px;
+    background: rgba(15, 23, 42, 0.5);
+    flex-shrink: 0;
+}
+
+.sc-dls-btn-reset {
+    padding: 10px 18px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #f87171;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-right: auto;
+}
+
+.sc-dls-btn-reset:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #ffffff;
+}
+
+/* ==========================================================================
+   LIGHT THEME SUPPORT FOR MATCH & DLS MODAL
+   ========================================================================== */
+
 [data-theme="light"] .sc-dls-modal {
     background: #ffffff;
-    border-color: rgba(14, 165, 233, 0.3);
-    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.15);
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.18), 0 0 35px rgba(2, 132, 199, 0.08);
     color: #0f172a;
+}
+
+[data-theme="light"] .sc-dls-modal-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-dls-pill-tag {
+    color: #0369a1;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
 }
 
 [data-theme="light"] .sc-dls-modal-header h3 {
     color: #0f172a;
 }
 
+[data-theme="light"] .sc-dls-cloud-icon {
+    color: #0284c7;
+}
+
 [data-theme="light"] .sc-dls-modal-header p {
     color: #64748b;
 }
 
+[data-theme="light"] .sc-dls-close-btn {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-close-btn:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #ef4444;
+}
+
+/* Tabs Navigation Light Mode */
+[data-theme="light"] .sc-dls-tabs-nav {
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-dls-tab-btn {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-tab-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="light"] .sc-dls-tab-btn.active {
+    color: #0284c7;
+    border-bottom-color: #0284c7;
+    background: #ffffff;
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .sc-tab-active-dot {
+    background: #0284c7;
+    box-shadow: 0 0 6px rgba(2, 132, 199, 0.5);
+}
+
+[data-theme="light"] .sc-tab-active-dot.special {
+    background: #f59e0b;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+/* Tournament Quick Link Strip Light Mode */
+[data-theme="light"] .sc-dls-tourney-link-strip {
+    background: #f0f9ff;
+    border-bottom: 1px solid #bae6fd;
+    color: #0369a1;
+}
+
+[data-theme="light"] .sc-dls-tourney-info svg {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-tourney-tab-link {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-tourney-tab-link:hover {
+    color: #0369a1;
+}
+
+[data-theme="light"] .sc-btn-load-tourney {
+    background: #ffffff;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+}
+
+[data-theme="light"] .sc-btn-load-tourney:hover {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+/* Context Strip Light Mode */
 [data-theme="light"] .sc-dls-context-strip {
     background: #f8fafc;
-    border-color: #e2e8f0;
+    border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-dls-ctx-item .ctx-label {
+    color: #64748b;
 }
 
 [data-theme="light"] .sc-dls-ctx-item .ctx-val {
     color: #0f172a;
 }
 
-[data-theme="light"] .sc-dls-input-number,
-[data-theme="light"] .sc-dls-input-target {
-    background: #f8fafc;
-    border-color: #cbd5e1;
+[data-theme="light"] .sc-dls-ctx-item .ctx-val.highlight {
+    color: #0284c7;
+}
+
+/* Field Labels & Inputs Light Mode */
+[data-theme="light"] .sc-dls-field-label {
     color: #0f172a;
 }
 
-[data-theme="light"] .sc-dls-calc-card {
-    background: #f0f9ff;
+[data-theme="light"] .sc-dls-field-hint {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-overs-unit {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-input-number {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-dls-input-number:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+[data-theme="light"] .sc-dls-btn-recalc {
+    background: #e0f2fe;
     border-color: #bae6fd;
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-dls-btn-recalc:hover {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+/* Chips Light Mode */
+[data-theme="light"] .sc-dls-chips-title {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-chip {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+}
+
+[data-theme="light"] .sc-dls-chip:hover {
+    background: #e0f2fe;
+    border-color: #bae6fd;
+    color: #0369a1;
+}
+
+[data-theme="light"] .sc-dls-chip.active {
+    background: #e0f2fe;
+    border: 1px solid #0284c7;
+    color: #0284c7;
+    font-weight: 700;
+}
+
+/* Calculation Card Light Mode */
+[data-theme="light"] .sc-dls-calc-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .sc-dls-calc-header {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-stat-col .stat-label {
+    color: #64748b;
 }
 
 [data-theme="light"] .sc-dls-stat-col .stat-val {
     color: #0f172a;
 }
 
+[data-theme="light"] .sc-dls-stat-col .stat-val.highlight {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-dls-scaled-tag {
+    color: #0369a1;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+}
+
+[data-theme="light"] .sc-dls-scaled-tag.scaled-up,
+[data-theme="light"] .sc-dls-standard-tag {
+    color: #047857;
+    background: #d1fae5;
+    border: 1px solid #a7f3d0;
+}
+
+/* Target Input & Badges Light Mode */
+[data-theme="light"] .sc-dls-manual-badge {
+    color: #b45309;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+}
+
+[data-theme="light"] .sc-dls-input-target {
+    background: #ffffff;
+    border: 2px solid #0284c7;
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-dls-input-target:focus {
+    border-color: #0369a1;
+    box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="light"] .sc-dls-target-subtext {
+    color: #475569;
+}
+
+[data-theme="light"] .sc-dls-target-subtext strong {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-dls-icon-inline {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-dls-benchmark-badge,
+[data-theme="light"] .sc-dls-overs-badge {
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+}
+
+[data-theme="light"] .sc-dls-input-number.benchmark-num {
+    color: #0284c7;
+}
+
+/* 1st Innings Interruption Card Light Mode */
+[data-theme="light"] .sc-dls-t1-interruption-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-dls-checkbox-text strong {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-dls-checkbox-text small {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-dls-t1-subinputs {
+    border-top: 1px dashed #cbd5e1;
+}
+
+[data-theme="light"] .sc-dls-subfield label {
+    color: #475569;
+}
+
+/* Banners Light Mode */
+[data-theme="light"] .sc-dls-rule-banner.warning {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+}
+
+[data-theme="light"] .sc-dls-rule-banner.warning strong {
+    color: #78350f;
+}
+
+[data-theme="light"] .sc-dls-rule-banner.warning .rule-icon {
+    color: #d97706;
+}
+
+[data-theme="light"] .sc-dls-rule-banner.success {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+}
+
+[data-theme="light"] .sc-dls-rule-banner.success .rule-icon {
+    color: #059669;
+}
+
 [data-theme="light"] .sc-dls-active-banner {
-    background: linear-gradient(90deg, rgba(224, 242, 254, 0.8), rgba(186, 230, 253, 0.9), rgba(224, 242, 254, 0.8));
-    border-color: #38bdf8;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+}
+
+[data-theme="light"] .sc-dls-active-banner .sc-dls-warn-icon {
+    color: #d97706;
+}
+
+[data-theme="light"] .sc-dls-banner-text strong {
+    color: #78350f;
 }
 
 [data-theme="light"] .sc-dls-target-text {
+    color: #b45309;
+}
+
+[data-theme="light"] .sc-dls-input-broadcast {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-dls-input-broadcast:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* Matrix Par Table Light Mode */
+[data-theme="light"] .sc-dls-btn-par-toggle {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .sc-dls-btn-par-toggle:hover,
+[data-theme="light"] .sc-dls-btn-par-toggle.active {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-dls-par-table-wrap {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-dls-table-note {
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-dls-table-note svg {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-dls-matrix-table th {
+    background: #f1f5f9;
+    color: #0284c7;
+    border-bottom: 2px solid #cbd5e1;
+}
+
+[data-theme="light"] .sc-dls-matrix-table td {
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+[data-theme="light"] .sc-dls-matrix-table tr:hover td {
+    background: #f0f9ff;
+}
+
+[data-theme="light"] .sc-dls-matrix-table td.ov-col {
+    background: #f1f5f9;
+    color: #0284c7;
+}
+
+/* Rate inputs & Benchmarks Grid Light Mode */
+[data-theme="light"] .sc-rate-input-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+}
+
+[data-theme="light"] .sc-rate-tag {
+    color: #64748b;
+}
+
+/* Spectator Preview Card Light Mode */
+[data-theme="light"] .sc-proj-preview-card {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+}
+
+[data-theme="light"] .sc-proj-preview-header {
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-preview-row {
+    color: #334155;
+}
+
+[data-theme="light"] .sc-preview-row .lbl {
+    color: #64748b;
+}
+
+[data-theme="light"] .sc-preview-row strong {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-proj-pill-demo {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+}
+
+[data-theme="light"] .sc-proj-pill-demo.crr {
+    border-color: #7dd3fc;
+    background: #e0f2fe;
     color: #0369a1;
+}
+
+[data-theme="light"] .sc-proj-pill-demo strong {
+    color: #0284c7;
+}
+
+/* Toggle settings box Light Mode */
+[data-theme="light"] .sc-toggle-setting-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sc-setting-desc strong {
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-setting-desc span {
+    color: #64748b;
+}
+
+/* Bowler Quota button Light Mode */
+[data-theme="light"] .sc-quota-calc-btn {
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0284c7;
+}
+
+[data-theme="light"] .sc-quota-calc-btn:hover {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+}
+
+/* Modal Footer & Buttons Light Mode */
+[data-theme="light"] .sc-dls-modal-footer {
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+[data-theme="light"] .sc-dls-btn-reset {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+}
+
+[data-theme="light"] .sc-dls-btn-reset:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #ffffff;
+}
+
+[data-theme="light"] .sc-dls-modal .cx-btn-secondary {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .sc-dls-modal .cx-btn-secondary:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+[data-theme="light"] .sc-dls-modal .cx-btn-confirm.primary {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .sc-dls-modal .cx-btn-confirm.primary:hover {
+    background: linear-gradient(135deg, #0369a1, #075985);
+    box-shadow: 0 6px 18px rgba(2, 132, 199, 0.4);
 }
 
 /* Extras Summary Bar in Admin Batting Scorecard */
@@ -6510,7 +7794,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 250px;
     overflow-y: auto;
 }
 

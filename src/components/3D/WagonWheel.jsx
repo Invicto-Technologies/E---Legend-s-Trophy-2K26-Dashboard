@@ -42,7 +42,8 @@ const describeArc = (x, y, radius, startAngle, endAngle) => {
 
 const getRunColor = (runs, isWicket = false) => {
     if (isWicket) return '#ef4444'; // Red
-    switch (runs) {
+    const r = Number(runs);
+    switch (r) {
         case 6: return '#a855f7'; // Purple
         case 4: return '#00f0ff'; // Cyan
         case 3: return '#f59e0b'; // Amber
@@ -79,9 +80,10 @@ const WagonWheel = ({
     });
 
     const filteredShots = scoringShots.filter(s => {
+        const r = Number(s.runs);
         if (filterType === 'all') return true;
-        if (filterType === 'singles') return s.runs === 1 || s.runs === 2 || s.runs === 3;
-        if (filterType === 'boundaries') return s.runs === 4 || s.runs === 6;
+        if (filterType === 'singles') return r === 1 || r === 2 || r === 3;
+        if (filterType === 'boundaries') return r === 4 || r === 6;
         return true;
     });
 
@@ -232,9 +234,10 @@ const WagonWheel = ({
                             angle = ((matched.angleStart + matched.angleEnd) / 2) + spreadOffset;
                         }
 
-                        const distanceRatio = shot.runs >= 6 ? 1.0 : shot.runs === 4 ? 0.92 : shot.runs === 3 ? 0.75 : shot.runs === 2 ? 0.58 : 0.42;
+                        const shotRunNum = Number(shot.runs);
+                        const distanceRatio = shotRunNum >= 6 ? 1.0 : shotRunNum === 4 ? 0.92 : shotRunNum === 3 ? 0.75 : shotRunNum === 2 ? 0.58 : 0.42;
                         const targetPos = polarToCartesian(center, center, outerRadius * distanceRatio, angle);
-                        const color = getRunColor(shot.runs, shot.isWicket);
+                        const color = getRunColor(shotRunNum, shot.isWicket);
 
                         return (
                             <g key={idx} className="wagon-shot-trajectory">
@@ -244,14 +247,14 @@ const WagonWheel = ({
                                     x2={targetPos.x}
                                     y2={targetPos.y}
                                     stroke={color}
-                                    strokeWidth={shot.runs >= 4 ? '2.5' : '1.5'}
+                                    strokeWidth={shotRunNum >= 4 ? '2.5' : '1.5'}
                                     strokeOpacity={0.85}
-                                    filter={shot.runs >= 4 ? 'url(#glow)' : undefined}
+                                    filter={shotRunNum >= 4 ? 'url(#glow)' : undefined}
                                 />
                                 <circle
                                     cx={targetPos.x}
                                     cy={targetPos.y}
-                                    r={shot.runs === 6 ? 4.5 : shot.runs === 4 ? 3.8 : 2.5}
+                                    r={shotRunNum === 6 ? 4.5 : shotRunNum === 4 ? 3.8 : 2.5}
                                     fill={color}
                                 />
                             </g>

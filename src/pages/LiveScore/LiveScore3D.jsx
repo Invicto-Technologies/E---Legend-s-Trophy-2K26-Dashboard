@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import WagonWheel from '../../components/3D/WagonWheel';
 import ThreeStadiumRadarScene from '../../components/3D/ThreeStadiumRadarScene';
@@ -10,7 +10,9 @@ import {
     subscribeMatch,
     subscribeTeams,
     subscribeActiveTournament,
-    resolveTournamentLabels
+    resolveTournamentLabels,
+    getTournamentEdition,
+    resolveTournamentKey
 } from '../../services/rtdbService';
 import {
     MdPieChart,
@@ -33,12 +35,21 @@ import { GiCricketBat } from 'react-icons/gi';
 import { MdSportsBaseball } from 'react-icons/md';
 import { FaCrown } from 'react-icons/fa';
 import { calculateDlsParScore } from '../../utils/dlsEngine';
+import ScoreComparisonChart from '../../components/common/ScoreComparisonChart/ScoreComparisonChart';
 import { generateSmartCommentary } from '../../utils/commentaryEngine';
 import PageLoader from '../../components/common/PageLoader/PageLoader';
+import useVoiceCommentary from '../../hooks/useVoiceCommentary';
+import VoiceCommentaryBar from '../../components/common/VoiceCommentary/VoiceCommentaryBar';
+import VoiceDeskModal from '../../components/common/VoiceCommentary/VoiceDeskModal';
 import './LiveScore3D.css';
 
 const LiveScore3D = () => {
     const { matchTitle: routeMatchTitle } = useParams();
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const rawTourneyQuery = searchParams.get('tourney') || searchParams.get('tournament') || '';
+    const queryTourneyId = rawTourneyQuery ? resolveTournamentKey(rawTourneyQuery) : '';
+
     const [liveData, setLiveData] = useState(null);
     const [activeMatchTitle, setActiveMatchTitle] = useState(routeMatchTitle || '');
     const [matchData, setMatchData] = useState(null);
@@ -50,22 +61,32 @@ const LiveScore3D = () => {
     const [showWagonWheel, setShowWagonWheel] = useState(false);
     const [selectedBatsmanForWagon, setSelectedBatsmanForWagon] = useState(null);
     const [selectedOverFilter, setSelectedOverFilter] = useState('all');
+    const [showVoiceDesk, setShowVoiceDesk] = useState(false);
 
-    // 1. Subscribe to Active Tournament
+    // 1. Subscribe to Tournament (Scoped if tourney query param exists, else active)
     useEffect(() => {
-        const unsubTourney = subscribeActiveTournament((tourney) => {
-            setActiveTournament(tourney);
-        });
-        return () => unsubTourney();
-    }, []);
+        if (queryTourneyId) {
+            getTournamentEdition(queryTourneyId).then(t => {
+                if (t?.info) setActiveTournament(t.info);
+                else setActiveTournament({ id: queryTourneyId, name: queryTourneyId });
+            }).catch(() => {
+                setActiveTournament({ id: queryTourneyId, name: queryTourneyId });
+            });
+        } else {
+            const unsubTourney = subscribeActiveTournament((tourney) => {
+                setActiveTournament(tourney);
+            });
+            return () => unsubTourney();
+        }
+    }, [queryTourneyId]);
 
     // 2. Subscribe to Teams for official logos and crests
     useEffect(() => {
         const unsubTeams = subscribeTeams((teamsMap) => {
             setTeams(teamsMap || {});
-        });
+        }, queryTourneyId || undefined);
         return () => unsubTeams();
-    }, []);
+    }, [queryTourneyId]);
 
     // 3a. Sync route title into activeMatchTitle if passed via URL
     useEffect(() => {
@@ -85,9 +106,9 @@ const LiveScore3D = () => {
                 const target = rawTarget ? String(rawTarget).replace(/^\//, '').split('/').pop() : '';
                 setActiveMatchTitle(target || '');
             }
-        });
+        }, queryTourneyId || undefined);
         return () => unsubLive();
-    }, [routeMatchTitle]);
+    }, [routeMatchTitle, queryTourneyId]);
 
     // 4. Subscribe to the specific match if a route title or active live match exists
     useEffect(() => {
@@ -100,10 +121,10 @@ const LiveScore3D = () => {
         const unsubMatch = subscribeMatch(targetTitle, (data) => {
             setMatchData(data);
             setIsLoading(false);
-        });
+        }, queryTourneyId || undefined);
 
         return () => unsubMatch();
-    }, [routeMatchTitle, activeMatchTitle]);
+    }, [routeMatchTitle, activeMatchTitle, queryTourneyId]);
 
     // 5. Reset over filter when user selects a different innings
     useEffect(() => {
@@ -310,119 +331,7 @@ const LiveScore3D = () => {
         return { type: 'run', label: commItem?.ball ? String(commItem.ball).slice(-1) : '•' };
     };
 
-    // Loading State
-    if (isLoading) {
-        return (
-            <PageLoader
-                message="Connecting to Live Match Telemetry..."
-                subtitle="Streaming ball-by-ball scorecards, radar stats & live commentary"
-                tournamentName={labels.fullName || "E-Legends Trophy 2K26"}
-            />
-        );
-    }
 
-    // 3D STANDBY VIEW: When viewing /live and no match is currently in progress
-    if (!routeMatchTitle && !isLive) {
-        return (
-            <div className="livescore-3d-page livescore-standby-screen">
-                {/* 3D Animated Stadium Radar Standby Card - Two Column Layout */}
-                <main className="ls-standby-hero-section">
-                    <div className="ls-container">
-                        <div className="no-live-standby-card-3d">
-                            {/* Left Column: 3D Animated Stadium Radar */}
-                            <div className="standby-col-animation">
-                                <div className="standby-animation-header">
-                                    <span className="standby-radar-ping" />
-                                    <span>RADAR TELEMETRY</span>
-                                </div>
-                                <div className="standby-3d-canvas-wrap">
-                                    <ThreeStadiumRadarScene height="100%" />
-                                </div>
-                            </div>
-
-                            {/* Right Column: Content & Quick Navigation */}
-                            <div className="standby-col-content">
-                                <div className="standby-badge">
-                                    <span className="standby-radar-ping" />
-                                    <span>{labels.fullName.toUpperCase()} • TELEMETRY ACTIVE</span>
-                                </div>
-
-                                <h1 className="standby-title">No Live Match Currently in Progress</h1>
-
-                                <p className="standby-desc">
-                                    The match day floodlights and stadium telemetry are in standby mode for {labels.fullName}.
-                                    Live ball-by-ball scoring, interactive wagon wheels, and radar metrics will automatically stream here the moment match officials signal play.
-                                </p>
-
-                                <div className="standby-telemetry-chips">
-                                    <div className="telemetry-chip">
-                                        <span className="tc-dot pulse" />
-                                        <span>Radar: <strong>Online &amp; Listening</strong></span>
-                                    </div>
-                                    <div className="telemetry-chip">
-                                        <span className="tc-dot" />
-                                        <span>Active Tournament: <strong>{labels.editionCode}</strong></span>
-                                    </div>
-                                    <div className="telemetry-chip">
-                                        <span className="tc-dot" />
-                                        <span>Venue: <strong>Faculty Grounds, Kilinochchi</strong></span>
-                                    </div>
-                                </div>
-
-                                <div className="standby-actions-grid">
-                                    <Link to="/fixtures" className="cx-btn-primary">
-                                        <MdCalendarToday /> View Match Fixtures
-                                    </Link>
-                                    <Link to="/rankings" className="cx-btn-glass">
-                                        <MdTimeline /> View Standings
-                                    </Link>
-                                    <Link to="/history" className="cx-btn-glass">
-                                        <MdEmojiEvents /> Tournament Archive
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-
-                <footer className="standby-bottom-bar">
-                    <div className="ls-container standby-bottom-inner">
-                        <span>© {labels.year} {labels.fullName}. All rights reserved.</span>
-                        <div className="standby-bottom-links">
-                            <Link to="/home">Home</Link>
-                            <Link to="/fixtures">Fixtures</Link>
-                            <Link to="/rankings">Rankings</Link>
-                            <Link to="/history">History</Link>
-                        </div>
-                    </div>
-                </footer>
-            </div>
-        );
-    }
-
-    // Match Not Found State
-    if (routeMatchTitle && !matchData) {
-        return (
-            <div className="livescore-3d-page">
-                <div className="ls-container">
-                    <div className="match-not-found-card">
-                        <MdSportsCricket className="mnf-icon" />
-                        <h2>Scorecard Not Found</h2>
-                        <p>No recorded scorecard was found for match "{routeMatchTitle}" in {labels.fullName}.</p>
-                        <div className="mnf-actions">
-                            <Link to="/fixtures" className="cx-btn-primary">
-                                Browse Tournament Fixtures
-                            </Link>
-                            <Link to="/history" className="cx-btn-glass">
-                                Explore Past Results
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-                <Footer />
-            </div>
-        );
-    }
 
     const { common = {}, team1 = {}, team2 = {} } = matchData || {};
 
@@ -511,6 +420,8 @@ const LiveScore3D = () => {
     const secondBatTeamData = secondBatTeamKey === 'team1' ? team1 : team2;
     const firstBatName = firstBatTeamData.name || (firstBatTeamKey === 'team1' ? t1Name : t2Name);
     const secondBatName = secondBatTeamData.name || (secondBatTeamKey === 'team1' ? t1Name : t2Name);
+    const firstBatLogo = firstBatTeamKey === 'team1' ? t1Logo : t2Logo;
+    const secondBatLogo = secondBatTeamKey === 'team1' ? t1Logo : t2Logo;
 
     const firstBatRuns = firstBatTeamKey === 'team1' ? t1Score : t2Score;
     const firstBatWickets = firstBatTeamKey === 'team1' ? t1Wickets : t2Wickets;
@@ -586,14 +497,14 @@ const LiveScore3D = () => {
     const activeQuotaOvers = isChasing && isDls ? effectiveOvers : overLimit;
     const activeBallsRemaining = Math.max(0, (activeQuotaOvers * 6) - activeBatBalls);
 
-    // Only compute projected score after at least 1 over (6 legal balls) has been bowled
-    const projAtCrr = (showProjectedScore && activeBatBalls >= 6)
+    // Only compute projected score after at least 5 overs (30 legal balls) have been bowled
+    const projAtCrr = (showProjectedScore && activeBatBalls >= 30)
         ? Math.round(activeBatRuns + (activeBatCrr * (activeBallsRemaining / 6)))
         : null;
-    const projAtRateA = (showProjectedScore && activeBatBalls >= 6)
+    const projAtRateA = (showProjectedScore && activeBatBalls >= 30)
         ? Math.round(activeBatRuns + (rateA * (activeBallsRemaining / 6)))
         : null;
-    const projAtRateB = (showProjectedScore && activeBatBalls >= 6)
+    const projAtRateB = (showProjectedScore && activeBatBalls >= 30)
         ? Math.round(activeBatRuns + (rateB * (activeBallsRemaining / 6)))
         : null;
 
@@ -1015,25 +926,71 @@ const LiveScore3D = () => {
         ? rawLiveBowlersList
         : resolveTeamSquad(liveBowlingTeam, liveBowlTeamName);
 
+    // Live Match Status Text: Toss result for 1st innings; target equation for 2nd innings
+    const liveStatusText = (() => {
+        if (common.customBannerText && !common.customBannerText.toLowerCase().includes('undone')) {
+            return common.customBannerText;
+        }
+        if (isChasing || activeInningsNumber === 2) {
+            if (targetScore > 0) {
+                if (runsNeeded <= 0) {
+                    return `${liveBatTeamName} reached target`;
+                }
+                const ballWord = ballsRemaining === 1 ? 'ball' : 'balls';
+                if (ballsRemaining <= 0) {
+                    return `Target ${targetScore} • Need ${runsNeeded} runs`;
+                }
+                return `Target ${targetScore} • Need ${runsNeeded} runs by ${ballsRemaining} ${ballWord}`;
+            }
+            return `${liveBatTeamName} chasing in 2nd innings`;
+        }
+
+        // 1st innings: show toss results
+        const winner = common.tossWinner || common.toss?.winner;
+        const decision = common.tossDecision || common.toss?.decision;
+        if (winner && decision) {
+            return `${winner} won toss & elected to ${decision} first`;
+        }
+        if (common.tossResult && !common.tossResult.toLowerCase().includes('undone')) {
+            return common.tossResult;
+        }
+        if (common.status &&
+            !common.status.toLowerCase().includes('undone') &&
+            (common.status.toLowerCase().includes('toss') || common.status.toLowerCase().includes('elected'))) {
+            return common.status;
+        }
+        return `${liveBatTeamName} elected to bat first`;
+    })();
+
     // Active Batsmen & Bowler at the crease (Always live, never affected by tabs)
     const notOutLiveBatters = liveBattersList.filter(p => !isPlayerDismissedLive(p, liveBattingTeam));
+
+    const totalBallsBowledLive = Number(liveBattingTeam.totalBalls || 0);
+    const totalWicketsLive = Number(liveBattingTeam.totalWickets || 0);
+    const isUnstartedInnings = totalBallsBowledLive === 0 && totalWicketsLive === 0;
 
     let activeStriker = null;
     if (liveBattingTeam.ballFaceBatsman?.id != null && !isPlayerDismissedLive(liveBattingTeam.ballFaceBatsman, liveBattingTeam)) {
         activeStriker = liveBattingTeam.ballFaceBatsman;
-    } else {
+    } else if (isUnstartedInnings) {
         activeStriker = notOutLiveBatters.find(p => p.status === 'striker' || p.status === 'batting')
             || notOutLiveBatters[0]
-            || { name: 'Striker', runs: 0, balls: 0 };
+            || { id: null, name: 'Striker', runs: 0, balls: 0 };
+    } else {
+        // Wicket fallen or batter pending: DO NOT auto-choose next batter. Wait for admin selection!
+        activeStriker = { id: null, name: 'Incoming Batsman...', runs: 0, balls: 0, isPending: true };
     }
 
     let activeNonStriker = null;
     if (liveBattingTeam.otherSideBatsman?.id != null && !isPlayerDismissedLive(liveBattingTeam.otherSideBatsman, liveBattingTeam) && String(liveBattingTeam.otherSideBatsman.id) !== String(activeStriker?.id)) {
         activeNonStriker = liveBattingTeam.otherSideBatsman;
-    } else {
+    } else if (isUnstartedInnings) {
         activeNonStriker = notOutLiveBatters.find(p => (p.status === 'non-striker' || p.status === 'batting') && String(p.id) !== String(activeStriker?.id))
             || notOutLiveBatters.find(p => String(p.id) !== String(activeStriker?.id))
-            || { name: 'Non-Striker', runs: 0, balls: 0 };
+            || { id: null, name: 'Non-Striker', runs: 0, balls: 0 };
+    } else {
+        // Wicket fallen or batter pending: DO NOT auto-choose next batter. Wait for admin selection!
+        activeNonStriker = { id: null, name: 'Incoming Batsman...', runs: 0, balls: 0, isPending: true };
     }
     const rawActiveBowler = liveBowlingTeam.bowler || liveBowlersList[0] || { name: 'Active Bowler', overs: 0, runs: 0, wickets: 0 };
     const liveBowlSquadAll = resolveTeamSquad(liveBowlingTeam, liveBowlTeamName);
@@ -1168,9 +1125,18 @@ const LiveScore3D = () => {
         ? commentaryList.filter((c) => getDeliveryOverNum(c) === Number(selectedOverFilter))
         : commentaryList;
 
-    // Live crease recent deliveries (always represents active live innings)
-    const liveInningsDeliveries = allCommentaryList.filter(c => isDeliveryForBattingTeam(c, liveBattingTeamKey));
-    const recentDeliveries = (liveInningsDeliveries.length > 0 ? liveInningsDeliveries : allCommentaryList).slice(0, 8).reverse();
+    // Current page (active innings tab) full deliveries, sorted chronologically from first ball to latest ball
+    const pageDeliveries = [...commentaryList].sort((a, b) => {
+        const scoreA = parseDeliveryScore(a) || (Number(a._id) || 0);
+        const scoreB = parseDeliveryScore(b) || (Number(b._id) || 0);
+        return scoreA - scoreB;
+    });
+
+    // Current page (active innings tab) deliveries of the current/latest over only (sorted chronologically)
+    const currentOverNum = availableOvers.length > 0 ? availableOvers[availableOvers.length - 1] : null;
+    const currentOverDeliveries = currentOverNum !== null
+        ? pageDeliveries.filter((c) => getDeliveryOverNum(c) === currentOverNum)
+        : [];
 
     // Top Performers for Concluded Matches
     const allBatters = [
@@ -1191,7 +1157,55 @@ const LiveScore3D = () => {
             const b = selectedBatsmanForWagon;
             const shots = [];
 
-            // 1. Prioritize ball-by-ball shots from commentary for this batsman (exact delivery accuracy)
+            // 1. Primary Source: Exact recorded delivery shots list on player profile (persistent across entire innings)
+            if (Array.isArray(b.shotList) && b.shotList.length > 0) {
+                const validShots = b.shotList.filter(s => s && (s.zone || s.wagonZone) && Number(s.runs) > 0);
+                if (validShots.length > 0) {
+                    return validShots.map((s, idx) => ({
+                        zone: s.zone || s.wagonZone,
+                        runs: Number(s.runs),
+                        ball: s.ball,
+                        over: s.over,
+                        ballId: idx
+                    }));
+                }
+            }
+
+            // 2. Secondary Source: Aggregate zone object (b.shots) with exact individual shot runs (shotRuns array)
+            if (b.shots && Object.keys(b.shots).length > 0) {
+                if (Array.isArray(b.shots)) {
+                    const validShots = b.shots.filter(s => s && (s.zone || s.wagonZone) && Number(s.runs) > 0);
+                    if (validShots.length > 0) return validShots;
+                } else {
+                    Object.entries(b.shots).forEach(([zoneName, zoneData]) => {
+                        if (Array.isArray(zoneData?.shotRuns) && zoneData.shotRuns.length > 0) {
+                            zoneData.shotRuns.forEach((r, rIdx) => {
+                                if (Number(r) > 0) {
+                                    shots.push({
+                                        zone: zoneName,
+                                        runs: Number(r),
+                                        ballId: `${zoneName}-${rIdx}`
+                                    });
+                                }
+                            });
+                        } else {
+                            const count = zoneData?.count || 0;
+                            const totalRuns = zoneData?.runs || 0;
+                            const avgRuns = count > 0 ? Math.max(1, Math.round(totalRuns / count)) : 1;
+                            for (let i = 0; i < count; i++) {
+                                shots.push({
+                                    zone: zoneName,
+                                    runs: avgRuns,
+                                    ballId: `${zoneName}-${i}`
+                                });
+                            }
+                        }
+                    });
+                    if (shots.length > 0) return shots;
+                }
+            }
+
+            // 3. Tertiary Source: Ball-by-ball shots from commentary for this batsman
             const batterCommentary = commentaryList.filter(c =>
                 c.batsman && b.name &&
                 c.batsman.trim().toLowerCase() === b.name.trim().toLowerCase() &&
@@ -1206,27 +1220,7 @@ const LiveScore3D = () => {
                 }));
             }
 
-            // 2. If no commentary shots with wagonZone, use b.shots
-            if (b.shots && Object.keys(b.shots).length > 0) {
-                if (Array.isArray(b.shots)) {
-                    return b.shots.filter(s => Number(s.runs) > 0);
-                } else {
-                    Object.entries(b.shots).forEach(([zoneName, zoneData]) => {
-                        const count = zoneData?.count || 0;
-                        const totalRuns = zoneData?.runs || 0;
-                        const avgRuns = count > 0 ? Math.max(1, Math.round(totalRuns / count)) : 1;
-                        for (let i = 0; i < count; i++) {
-                            shots.push({
-                                zone: zoneName,
-                                runs: avgRuns
-                            });
-                        }
-                    });
-                    if (shots.length > 0) return shots;
-                }
-            }
-
-            // Fallback: Synthesize shots from player's recorded boundaries & runs
+            // 4. Fallback: Synthesize shots from player's recorded boundaries & runs (for legacy matches without zone marking)
             const sixes = b.boundaries?.sixes ?? b.sixes ?? 0;
             const fours = b.boundaries?.fours ?? b.fours ?? 0;
             const singles = b.boundaries?.singles || Math.max(0, (b.runs || 0) - (sixes * 6 + fours * 4));
@@ -1237,6 +1231,159 @@ const LiveScore3D = () => {
             return shots;
         })()
     ) : [];
+
+    // Voice Commentary integration (Called unconditionally at top level adhering to React Rules of Hooks)
+    const latestDeliveryForVoice = allCommentaryList[0] || null;
+    const voiceMatchContext = {
+        t1Name: firstBatName,
+        t2Name: secondBatName,
+        activeInnings: activeInningsNumber,
+        target: targetScore || 0,
+        runsNeeded: isChasing ? runsNeeded : 0,
+        ballsRemaining: isChasing ? ballsRemaining : activeBallsRemaining,
+        crr: activeBatCrr || t1Crr || 0,
+        striker: activeStriker,
+        nonStriker: activeNonStriker,
+        bowler: activeBowler,
+        wickets: isFirstInningsActive ? firstBatWickets : currentChaseWickets,
+        overs: isFirstInningsActive ? firstBatOvers : currentChaseOvers,
+        runs: isFirstInningsActive ? firstBatRuns : currentChaseScore,
+        finished: isCurrentMatchFinished,
+        result: common.result || matchData?.result || '',
+        winner: common.winner || matchData?.winner || '',
+        matchStatus: isCurrentMatchFinished ? 'concluded' : (isLive ? 'live' : 'standby'),
+        powerplay: common.powerplay || null,
+        dls: dlsData,
+        battingTeamName: liveBatTeamName,
+        bowlingTeamName: liveBowlTeamName,
+        lastAction: common.lastAction || matchData?.common?.lastAction || ''
+    };
+    const voiceState = useVoiceCommentary({
+        latestDelivery: isCurrentMatchFinished ? null : latestDeliveryForVoice,
+        matchContext: voiceMatchContext,
+        enabledDefault: false
+    });
+
+    // Ensure voice commentary does not run or speak if the match is completed
+    useEffect(() => {
+        if (isCurrentMatchFinished && voiceState?.stopSpeaking) {
+            voiceState.stopSpeaking();
+        }
+    }, [isCurrentMatchFinished, voiceState]);
+
+    // Loading State (Evaluated after all hooks run unconditionally)
+    if (isLoading) {
+        return (
+            <PageLoader
+                message="Connecting to Live Match Telemetry..."
+                subtitle="Streaming ball-by-ball scorecards, radar stats & live commentary"
+                tournamentName={labels.fullName || "E-Legends Trophy 2K26"}
+            />
+        );
+    }
+
+    // 3D STANDBY VIEW: When viewing /live and no match is currently in progress
+    if (!routeMatchTitle && !isLive) {
+        return (
+            <div className="livescore-3d-page livescore-standby-screen">
+                {/* 3D Animated Stadium Radar Standby Card - Two Column Layout */}
+                <main className="ls-standby-hero-section">
+                    <div className="ls-container">
+                        <div className="no-live-standby-card-3d">
+                            {/* Left Column: 3D Animated Stadium Radar */}
+                            <div className="standby-col-animation">
+                                <div className="standby-animation-header">
+                                    <span className="standby-radar-ping" />
+                                    <span>RADAR TELEMETRY</span>
+                                </div>
+                                <div className="standby-3d-canvas-wrap">
+                                    <ThreeStadiumRadarScene height="100%" />
+                                </div>
+                            </div>
+
+                            {/* Right Column: Content & Quick Navigation */}
+                            <div className="standby-col-content">
+                                <div className="standby-badge">
+                                    <span className="standby-radar-ping" />
+                                    <span>{labels.fullName.toUpperCase()} • TELEMETRY ACTIVE</span>
+                                </div>
+
+                                <h1 className="standby-title">No Live Match Currently in Progress</h1>
+
+                                <p className="standby-desc">
+                                    The match day floodlights and stadium telemetry are in standby mode for {labels.fullName}.
+                                    Live ball-by-ball scoring, interactive wagon wheels, and radar metrics will automatically stream here the moment match officials signal play.
+                                </p>
+
+                                <div className="standby-telemetry-chips">
+                                    <div className="telemetry-chip">
+                                        <span className="tc-dot pulse" />
+                                        <span>Radar: <strong>Online &amp; Listening</strong></span>
+                                    </div>
+                                    <div className="telemetry-chip">
+                                        <span className="tc-dot" />
+                                        <span>Active Tournament: <strong>{labels.editionCode}</strong></span>
+                                    </div>
+                                    <div className="telemetry-chip">
+                                        <span className="tc-dot" />
+                                        <span>Venue: <strong>Faculty Grounds, Kilinochchi</strong></span>
+                                    </div>
+                                </div>
+
+                                <div className="standby-actions-grid">
+                                    <Link to="/fixtures" className="cx-btn-primary">
+                                        <MdCalendarToday /> View Match Fixtures
+                                    </Link>
+                                    <Link to="/rankings" className="cx-btn-glass">
+                                        <MdTimeline /> View Standings
+                                    </Link>
+                                    <Link to="/history" className="cx-btn-glass">
+                                        <MdEmojiEvents /> Tournament Archive
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <footer className="standby-bottom-bar">
+                    <div className="ls-container standby-bottom-inner">
+                        <span>© {labels.year} {labels.fullName}. All rights reserved.</span>
+                        <div className="standby-bottom-links">
+                            <Link to="/home">Home</Link>
+                            <Link to="/fixtures">Fixtures</Link>
+                            <Link to="/rankings">Rankings</Link>
+                            <Link to="/history">History</Link>
+                        </div>
+                    </div>
+                </footer>
+            </div>
+        );
+    }
+
+    // Match Not Found State
+    if (routeMatchTitle && !matchData) {
+        return (
+            <div className="livescore-3d-page">
+                <div className="ls-container">
+                    <div className="match-not-found-card">
+                        <MdSportsCricket className="mnf-icon" />
+                        <h2>Scorecard Not Found</h2>
+                        <p>No recorded scorecard was found for match "{routeMatchTitle}" in {labels.fullName}.</p>
+                        <div className="mnf-actions">
+                            <Link to="/fixtures" className="cx-btn-primary">
+                                Browse Tournament Fixtures
+                            </Link>
+                            <Link to="/history" className="cx-btn-glass">
+                                Explore Past Results
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+                <Footer />
+            </div>
+        );
+    }
 
     return (
         <div className="livescore-3d-page">
@@ -1257,6 +1404,17 @@ const LiveScore3D = () => {
                             </span>
                         )}
                     </div>
+                    {/* Voice Commentary Control in Top Bar - Active matches only */}
+                    {!isCurrentMatchFinished && (
+                        <div className="ls-top-voice-wrap">
+                            <VoiceCommentaryBar
+                                voiceState={voiceState}
+                                variant="compact"
+                                showDeskButton={true}
+                                onOpenDesk={() => setShowVoiceDesk(true)}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -1351,7 +1509,7 @@ const LiveScore3D = () => {
                                                         </span>
                                                     ) : (
                                                         <span className="status-live">
-                                                            {common.customBannerText || common.status || 'Live Match In Progress'}
+                                                            {liveStatusText}
                                                         </span>
                                                     )}
                                                 </div>
@@ -1567,27 +1725,6 @@ const LiveScore3D = () => {
                                                     )}
                                                 </div>
                                             </div>
-
-                                            {/* Recent Deliveries Strip */}
-                                            {recentDeliveries.length > 0 && (
-                                                <div className="recent-balls-bar">
-                                                    <span className="rbb-title">Recent Balls:</span>
-                                                    <div className="rbb-tokens">
-                                                        {recentDeliveries.map((c, idx) => {
-                                                            const meta = getDeliveryMeta(c);
-                                                            return (
-                                                                <span
-                                                                    key={idx}
-                                                                    className={`delivery-token ${meta.type} len-${String(meta.label).length}`}
-                                                                    title={`Ball ${c.ball || idx + 1}: ${c.commentary || c.text || ''}`}
-                                                                >
-                                                                    {meta.label}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
                                         </>
                                     ) : (
                                         /* Concluded Match Top Performers Showcase */
@@ -1621,6 +1758,26 @@ const LiveScore3D = () => {
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Current Over Full Balls Stats Strip (Only current over ball icons) */}
+                                    {currentOverDeliveries.length > 0 && (
+                                        <div className="recent-balls-bar" title={`Current Over (Over ${currentOverNum}) Balls`}>
+                                            <div className="rbb-tokens">
+                                                {currentOverDeliveries.map((c, idx) => {
+                                                    const meta = getDeliveryMeta(c);
+                                                    return (
+                                                        <span
+                                                            key={c._id || c.id || idx}
+                                                            className={`delivery-token ${meta.type} len-${String(meta.label).length}`}
+                                                            title={`Ball ${c.over || c.ball || idx + 1}: ${c.commentary || c.text || ''}`}
+                                                        >
+                                                            {meta.label}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </section>
                         </div>
@@ -1635,13 +1792,25 @@ const LiveScore3D = () => {
                                 className={`hub-tab-btn ${activeHubTab === 'scorecard' ? 'active' : ''}`}
                                 onClick={() => setActiveHubTab('scorecard')}
                             >
-                                <MdFormatListNumbered /> Scorecard
+                                <MdFormatListNumbered />
+                                <span className="hub-tab-text-full">Scorecard</span>
+                                <span className="hub-tab-text-short">Scorecard</span>
                             </button>
                             <button
                                 className={`hub-tab-btn ${activeHubTab === 'info' ? 'active' : ''}`}
                                 onClick={() => setActiveHubTab('info')}
                             >
-                                <MdInfo /> Match Info &amp; Rosters
+                                <MdInfo />
+                                <span className="hub-tab-text-full">Match Info &amp; Rosters</span>
+                                <span className="hub-tab-text-short">Match Info</span>
+                            </button>
+                            <button
+                                className={`hub-tab-btn ${activeHubTab === 'chart' ? 'active' : ''}`}
+                                onClick={() => setActiveHubTab('chart')}
+                            >
+                                <MdTimeline />
+                                <span className="hub-tab-text-full">Over-by-Over Chart</span>
+                                <span className="hub-tab-text-short">Over Chart</span>
                             </button>
                         </div>
 
@@ -2021,6 +2190,18 @@ const LiveScore3D = () => {
                                                 </span>
                                             </div>
 
+                                            {/* Dedicated Voice Commentary Bar in Feed - Active matches only */}
+                                            {!isCurrentMatchFinished && (
+                                                <div className="comm-feed-voice-wrap" style={{ marginBottom: '16px' }}>
+                                                    <VoiceCommentaryBar
+                                                        voiceState={voiceState}
+                                                        variant="feed"
+                                                        showDeskButton={true}
+                                                        onOpenDesk={() => setShowVoiceDesk(true)}
+                                                    />
+                                                </div>
+                                            )}
+
                                             {/* Over Filter Bar: Custom Entry Over Number OR All Overs Option */}
                                             <div className="comm-over-filter-bar">
                                                 <div className="comm-filter-controls">
@@ -2261,6 +2442,31 @@ const LiveScore3D = () => {
                                 </div>
                             </div>
                         )}
+
+                        {/* TAB 3: OVER-BY-OVER PROGRESSION CHART */}
+                        {activeHubTab === 'chart' && (
+                            <div className="hub-tab-pane">
+                                <ScoreComparisonChart
+                                    matchData={matchData}
+                                    team1={firstBatTeamData}
+                                    team2={secondBatTeamData}
+                                    t1Name={firstBatName}
+                                    t2Name={secondBatName}
+                                    t1Score={firstBatRuns}
+                                    t2Score={secondBatRuns}
+                                    t1Wickets={firstBatWickets}
+                                    t2Wickets={secondBatWickets}
+                                    t1Overs={firstBatOvers}
+                                    t2Overs={secondBatOvers}
+                                    t1Logo={firstBatLogo}
+                                    t2Logo={secondBatLogo}
+                                    firstBatTeamKey={firstBatTeamKey}
+                                    secondBatTeamKey={secondBatTeamKey}
+                                    target={targetScore}
+                                    overLimit={overLimit}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
@@ -2282,12 +2488,21 @@ const LiveScore3D = () => {
                         <WagonWheel
                             shots={wagonShots}
                             batsmanName={selectedBatsmanForWagon?.name}
-                            batsmanHand={selectedBatsmanForWagon?.hand || 'Right Hand'}
+                            batsmanHand={selectedBatsmanForWagon?.hand || selectedBatsmanForWagon?.battingStyle || selectedBatsmanForWagon?.batStyle || 'Right Hand'}
                             size={340}
                         />
                     </div>
                 </div>,
                 document.body
+            )}
+
+            {/* Voice Mixing Desk Modal - Active matches only */}
+            {!isCurrentMatchFinished && (
+                <VoiceDeskModal
+                    isOpen={showVoiceDesk}
+                    onClose={() => setShowVoiceDesk(false)}
+                    voiceState={voiceState}
+                />
             )}
 
             <Footer />

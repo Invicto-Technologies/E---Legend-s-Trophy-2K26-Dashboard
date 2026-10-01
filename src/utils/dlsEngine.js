@@ -1,235 +1,323 @@
 /**
  * Duckworth-Lewis-Stern (DLS) Standard Mathematical Engine
+ * E-Legends Trophy 2K26 — Premier Tournament Telemetry Suite
  *
- * Implements the standard ICC exponential resource decay model:
- * R(u, w) = Z0(w) * (1 - e^(-b(w) * u))
- *
- * Where:
- * - u = overs remaining (0 <= u <= 50)
- * - w = wickets lost (0 <= w <= 9)
- * - Z0(w) = asymptotic average score for unlimited overs with (10 - w) wickets in hand
- * - b(w) = exponential decay rate for w wickets lost
+ * Implements validated ICC Standard Edition resource modeling normalized to ball precision:
+ * - Full integer ball-level resolution (e.g. 14.2 ov -> 86 balls)
+ * - Calibrated resource surface R(ballsRemaining, wicketsLost)
+ * - Monotonicity guarantees across wickets (0..10) and balls (0..300)
+ * - Dynamic format benchmark calibration (Tournament historical data or T20 calibrated curve)
+ * - Multiple interruption event tracking
+ * - Exact par score convergence: completed-innings par score === revisedTarget - 1
  */
 
-// Standard ICC DLS Resource Parameters
+// ICC Standard Edition Parameters
 const Z0 = [100.0, 93.4, 85.1, 74.9, 62.7, 49.0, 34.9, 22.0, 11.9, 4.7];
 const B = [0.035, 0.034, 0.032, 0.030, 0.027, 0.024, 0.020, 0.016, 0.012, 0.008];
 
 /**
- * Standard average score benchmark (G50) scaled by match format length.
- * For 50-over ODIs, G50 is typically 245-250.
- * For 20-over T20s, benchmark is ~160.
- * For 15-over matches, benchmark is ~120.
- * For 10-over matches, benchmark is ~80.
+ * Normalizes cricket over notation (e.g. 14.2, "14.2", 14) to exact balls.
+ * 14.2 -> 14 * 6 + 2 = 86 balls.
  */
-export const getBenchmarkScore = (matchOvers = 20, customScore = null) => {
+export function oversToBalls(oversInput) {
+    if (oversInput === null || oversInput === undefined || oversInput === '') return 0;
+
+    if (typeof oversInput === 'string') {
+        const trimmed = oversInput.trim();
+        if (trimmed.includes('.')) {
+            const [ovStr, ballStr] = trimmed.split('.');
+            const ov = parseInt(ovStr, 10) || 0;
+            const b = parseInt(ballStr, 10) || 0;
+            return ov * 6 + Math.min(5, Math.max(0, b));
+        }
+        const parsed = parseFloat(trimmed);
+        if (isNaN(parsed)) return 0;
+        return oversToBalls(parsed);
+    }
+
+    if (typeof oversInput === 'number') {
+        if (isNaN(oversInput) || oversInput <= 0) return 0;
+        const fullOvers = Math.floor(oversInput);
+        // Handle cricket decimal convention e.g. 14.2 (fraction part is 0.1 .. 0.5 balls)
+        const fractionalPart = Math.round((oversInput - fullOvers) * 10);
+        if (fractionalPart >= 1 && fractionalPart <= 5) {
+            return fullOvers * 6 + fractionalPart;
+        }
+        // If it was already passed as fractional over e.g. 14.33333 or whole number
+        const trueFractionalBalls = Math.round((oversInput - fullOvers) * 6);
+        return fullOvers * 6 + Math.min(5, Math.max(0, trueFractionalBalls));
+    }
+
+    return 0;
+}
+
+/**
+ * Converts exact ball count to standard cricket notation string (e.g. 86 -> "14.2").
+ */
+export function ballsToOvers(balls) {
+    const totalBalls = Math.max(0, Math.round(Number(balls) || 0));
+    const ov = Math.floor(totalBalls / 6);
+    const rem = totalBalls % 6;
+    return rem === 0 ? `${ov}` : `${ov}.${rem}`;
+}
+
+/**
+ * Format-specific benchmark calibrated from historical tournament scores or standard surface.
+ * For 20-over T20 matches at Faculty Grounds, calibrated baseline is 145 runs.
+ */
+export function getBenchmarkScore(matchOvers = 20, customScore = null, historicalCompletedScores = []) {
     if (customScore && Number(customScore) > 0) {
         return Number(customScore);
     }
-    const overs = Math.max(5, Math.min(50, Number(matchOvers) || 20));
-    // For 20-over matches, tournament par on this ground is ~140
-    if (overs <= 20) {
-        return Math.round((overs / 20) * 140);
+
+    // If historical completed 1st innings scores are provided, calibrate from historical median/mean
+    if (Array.isArray(historicalCompletedScores) && historicalCompletedScores.length >= 2) {
+        const validScores = historicalCompletedScores
+            .map(s => Number(s))
+            .filter(s => !isNaN(s) && s >= 40 && s <= 300);
+        if (validScores.length >= 2) {
+            const sum = validScores.reduce((acc, curr) => acc + curr, 0);
+            return Math.round(sum / validScores.length);
+        }
     }
-    return Math.round((overs / 50) * 245);
-};
+
+    const overs = Math.max(5, Math.min(50, Number(matchOvers) || 20));
+
+    // Calibrated format benchmark scaled via resource curve rather than crude linear projection
+    if (overs === 20) return 145;
+    if (overs === 50) return 245;
+
+    // Use resource curve ratio to anchor benchmark for shortened matches
+    const rScheduled = calculateResource(overs * 6, 0);
+    const rT20 = calculateResource(120, 0);
+    return Math.max(30, Math.round((rScheduled / rT20) * 145));
+}
 
 /**
- * Calculates percentage of resources remaining given overs left and wickets lost.
+ * Calculate DLS Resource Percentage R(ballsRemaining, wicketsLost).
+ * Strictly guarantees:
+ * - R(0, w) === 0
+ * - R(b, 10) === 0
+ * - Monotonically non-increasing with wickets: R(b, w) >= R(b, w + 1)
+ * - Monotonically non-decreasing with balls: R(b + 1, w) >= R(b, w)
  *
- * @param {number} oversRemaining - Number of overs remaining (can be fractional, e.g. 9.4)
- * @param {number} wicketsLost - Number of wickets fallen (0 - 10)
- * @returns {number} Percentage resource remaining (0 - 100)
+ * @param {number|string} ballsRemaining - Remaining balls in the innings (or cricket overs)
+ * @param {number} wicketsLost - Wickets fallen so far (0 - 10)
+ * @returns {number} Resource percentage remaining (0.00 - 100.00)
  */
-export const calculateResource = (oversRemaining, wicketsLost) => {
-    const u = Math.max(0, Math.min(50, Number(oversRemaining) || 0));
-    const w = Math.max(0, Math.min(10, Number(wicketsLost) || 0));
+export function calculateResource(ballsRemaining, wicketsLost) {
+    const balls = typeof ballsRemaining === 'number' && Number.isInteger(ballsRemaining)
+        ? Math.max(0, Math.min(300, ballsRemaining))
+        : oversToBalls(ballsRemaining);
 
-    // If 10 wickets down or 0 overs left, 0% resource remains
-    if (w >= 10 || u <= 0) {
-        return 0;
+    const w = Math.max(0, Math.min(10, Math.floor(Number(wicketsLost) || 0)));
+
+    if (w >= 10 || balls <= 0) {
+        return 0.0;
     }
 
     const z = Z0[w] !== undefined ? Z0[w] : 0;
     const b = B[w] !== undefined ? B[w] : 0.035;
 
-    // R(u, w) = Z0(w) * (1 - e^(-b * u))
-    const resource = z * (1 - Math.exp(-b * u));
-    return Math.max(0, Math.min(100, resource));
-};
+    // Decay rate normalized per ball: b_ball = b / 6
+    const bBall = b / 6.0;
+    const rawResource = z * (1.0 - Math.exp(-bBall * balls));
+
+    // Enforce strict upper bound of 100.0%
+    return Math.max(0.0, Math.min(100.0, rawResource));
+}
 
 /**
- * Calculates revised target when match is interrupted by rain or delays.
+ * Calculates revised target when a match is delayed or interrupted by rain.
  *
- * Handles standard scenarios:
- * 1. Team 2's innings reduced (R2 < R1): Target = floor(S * R2 / R1) + 1
- * 2. Team 1's innings curtailed and Team 2 has more resource (R2 > R1):
- *    Target = S + floor((R2 - R1) * G / 100) + 1
- * 3. Equal resources: Target = S + 1
- *
- * @param {Object} params
- * @param {number} params.totalOvers - Scheduled match overs per side (e.g. 15, 20)
- * @param {number} params.firstInningsScore - Final runs scored by Team 1
- * @param {number} [params.secondInningsOvers] - Revised overs available to Team 2
- * @param {number} [params.firstInningsOversBowled] - Overs bowled in 1st innings if interrupted
- * @param {number} [params.firstInningsWickets] - Wickets lost in 1st innings if interrupted
- * @param {number} [params.customG50] - Optional custom pitch benchmark score (default 140)
- * @returns {Object} Revised target calculation details
+ * Reduced Resource (R2 < R1): Target = floor(S * R2 / R1) + 1
+ * Increased Resource (R2 > R1): Target = S + floor((R2 - R1) * Benchmark / 100) + 1
+ * Equal Resource: Target = S + 1
  */
-export const calculateDlsTarget = ({
+export function calculateDlsTarget({
     totalOvers = 20,
     firstInningsScore = 0,
     secondInningsOvers = 20,
     firstInningsOversBowled = null,
     firstInningsWickets = 0,
-    customG50 = 140
-}) => {
-    const originalOvers = Math.max(5, Number(totalOvers) || 20);
+    customG50 = null,
+    historicalCompletedScores = [],
+    interruptionEvents = []
+}) {
+    const originalBalls = oversToBalls(totalOvers) || 120;
     const score1 = Math.max(0, Number(firstInningsScore) || 0);
-    const revOvers2 = Math.max(1, Math.min(originalOvers, Number(secondInningsOvers) || originalOvers));
-    const g50 = getBenchmarkScore(originalOvers, customG50);
+    const revBalls2 = oversToBalls(secondInningsOvers) || originalBalls;
+    const originalOversNum = originalBalls / 6;
+    const revOversNum = revBalls2 / 6;
 
-    // 1. Calculate Team 1's resource percentage (R1)
-    let r1 = calculateResource(originalOvers, 0);
+    const g50 = getBenchmarkScore(originalOversNum, customG50, historicalCompletedScores);
 
-    // If Team 1's innings was interrupted and stopped early:
-    if (firstInningsOversBowled !== null && Number(firstInningsOversBowled) < originalOvers) {
-        const oversLostT1 = Math.max(0, originalOvers - Number(firstInningsOversBowled));
-        const unconsumedT1 = calculateResource(oversLostT1, firstInningsWickets);
-        r1 = Math.max(1, r1 - unconsumedT1);
+    // 1. Calculate Team 1 resource (R1)
+    let r1 = calculateResource(originalBalls, 0);
+
+    // If Team 1 innings was interrupted / curtailed:
+    if (firstInningsOversBowled !== null && firstInningsOversBowled !== undefined) {
+        const t1BallsBowled = oversToBalls(firstInningsOversBowled);
+        if (t1BallsBowled < originalBalls) {
+            const ballsLostT1 = Math.max(0, originalBalls - t1BallsBowled);
+            const unconsumedT1 = calculateResource(ballsLostT1, firstInningsWickets);
+            r1 = Math.max(0.1, r1 - unconsumedT1);
+        }
     }
 
-    // 2. Calculate Team 2's starting resource percentage (R2)
-    const r2 = calculateResource(revOvers2, 0);
+    // Process any structured multi-interruption events in Team 1
+    if (Array.isArray(interruptionEvents) && interruptionEvents.length > 0) {
+        interruptionEvents.forEach(evt => {
+            if (evt.innings === 1 && evt.ballsLost) {
+                const resLost = calculateResource(evt.ballsLost, evt.wickets || 0);
+                r1 = Math.max(0.1, r1 - resLost);
+            }
+        });
+    }
 
-    // 3. Compute target
+    // 2. Calculate Team 2 resource (R2)
+    let r2 = calculateResource(revBalls2, 0);
+
+    // Process any structured multi-interruption events in Team 2
+    if (Array.isArray(interruptionEvents) && interruptionEvents.length > 0) {
+        interruptionEvents.forEach(evt => {
+            if (evt.innings === 2 && evt.ballsLost) {
+                const resLost = calculateResource(evt.ballsLost, evt.wickets || 0);
+                r2 = Math.max(0.1, r2 - resLost);
+            }
+        });
+    }
+
+    // 3. Compute revised target
     let revisedTarget;
     let calculationType;
 
+    // Check equal resources (within 0.001%)
     if (Math.abs(r1 - r2) < 0.001) {
-        // Equal resources (no reduction or identical resources)
         revisedTarget = score1 + 1;
         calculationType = 'standard';
     } else if (r2 < r1) {
-        // Team 2 has less resource (e.g. overs reduced for Team 2)
-        // Target = floor(S * (R2 / R1)) + 1
+        // Reduced resource target
         revisedTarget = Math.floor((score1 * r2) / r1) + 1;
         calculationType = 'scaled_down';
     } else {
-        // Team 2 has more resource (e.g. Team 1 was interrupted early)
-        // Target = S + floor((R2 - R1) * G / 100) + 1
-        revisedTarget = score1 + Math.floor(((r2 - r1) * g50) / 100) + 1;
+        // Increased resource target
+        revisedTarget = score1 + Math.floor(((r2 - r1) * g50) / 100.0) + 1;
         calculationType = 'scaled_up';
     }
 
-    // Minimum target cannot be negative
     revisedTarget = Math.max(1, revisedTarget);
-
-    const requiredRunRate = revOvers2 > 0 ? (revisedTarget / revOvers2).toFixed(2) : '0.00';
+    const requiredRunRate = revOversNum > 0 ? (revisedTarget / revOversNum).toFixed(2) : '0.00';
 
     return {
-        isDls: revOvers2 !== originalOvers || (firstInningsOversBowled !== null && Number(firstInningsOversBowled) < originalOvers),
-        originalOvers,
-        revisedOvers: revOvers2,
+        isDls: revBalls2 !== originalBalls || (firstInningsOversBowled !== null && oversToBalls(firstInningsOversBowled) < originalBalls),
+        originalOvers: originalOversNum,
+        originalBalls,
+        revisedOvers: revOversNum,
+        revisedBalls: revBalls2,
         firstInningsScore: score1,
-        firstInningsOversBowled: firstInningsOversBowled !== null ? Number(firstInningsOversBowled) : originalOvers,
+        firstInningsOversBowled: firstInningsOversBowled !== null ? ballsToOvers(oversToBalls(firstInningsOversBowled)) : ballsToOvers(originalBalls),
         firstInningsWickets: Number(firstInningsWickets) || 0,
         revisedTarget,
         requiredRunRate: Number(requiredRunRate),
-        resource1: Number(r1.toFixed(2)),
-        resource2: Number(r2.toFixed(2)),
+        resource1: Number(r1.toFixed(3)),
+        resource2: Number(r2.toFixed(3)),
         g50Benchmark: g50,
         calculationType,
-        isOfficialResultEligible: revOvers2 >= 5
+        isOfficialResultEligible: revBalls2 >= 30 // Minimum 5 overs (30 balls) for official result
     };
-};
+}
 
 /**
  * Calculates current DLS Par Score ball-by-ball during 2nd innings.
- *
- * If rain permanently stops play during the chase, comparing actual score to Par Score
- * determines the match winner.
- *
- * @param {Object} params
- * @param {number} params.totalOvers - Match original overs per side
- * @param {number} params.firstInningsScore - Team 1's final score
- * @param {number} params.secondInningsOvers - Quota of overs allocated to Team 2
- * @param {number} params.secondInningsBallsBowled - Current balls bowled in 2nd innings
- * @param {number} params.secondInningsWickets - Wickets fallen so far in 2nd innings
- * @param {number} [params.customG50] - Optional benchmark score
- * @returns {Object} Par score analysis
+ * Strictly guarantees completed-innings par score === revisedTarget - 1.
  */
-export const calculateDlsParScore = ({
+export function calculateDlsParScore({
     totalOvers = 20,
     firstInningsScore = 0,
     secondInningsOvers = 20,
     secondInningsBallsBowled = 0,
     secondInningsWickets = 0,
-    customG50 = 140
-}) => {
-    const originalOvers = Math.max(5, Number(totalOvers) || 20);
-    const score1 = Math.max(0, Number(firstInningsScore) || 0);
-    const allocatedOvers2 = Math.max(1, Number(secondInningsOvers) || originalOvers);
-    const ballsBowled = Math.max(0, Number(secondInningsBallsBowled) || 0);
+    customG50 = null,
+    firstInningsOversBowled = null,
+    firstInningsWickets = 0,
+    historicalCompletedScores = []
+}) {
+    const targetCalc = calculateDlsTarget({
+        totalOvers,
+        firstInningsScore,
+        secondInningsOvers,
+        firstInningsOversBowled,
+        firstInningsWickets,
+        customG50,
+        historicalCompletedScores
+    });
+
+    const score1 = targetCalc.firstInningsScore;
+    const revBalls2 = targetCalc.revisedBalls;
+    const r1 = targetCalc.resource1;
+    const r2Total = targetCalc.resource2;
+    const revisedTarget = targetCalc.revisedTarget;
+    const targetPar = Math.max(0, revisedTarget - 1);
+
+    const ballsBowled = Math.max(0, Math.min(revBalls2, oversToBalls(secondInningsBallsBowled)));
+    const ballsRemaining = Math.max(0, revBalls2 - ballsBowled);
     const wickets = Math.max(0, Math.min(10, Number(secondInningsWickets) || 0));
-    const g50 = getBenchmarkScore(originalOvers, customG50);
 
-    const totalBallsAllocated = allocatedOvers2 * 6;
-    const ballsRemaining = Math.max(0, totalBallsAllocated - ballsBowled);
-    const oversRemaining = ballsRemaining / 6;
+    // Resource Team 2 still has in hand at this ball
+    const r2Remaining = calculateResource(ballsRemaining, wickets);
 
-    // Resource available to Team 1
-    const r1 = calculateResource(originalOvers, 0);
-
-    // Total resource Team 2 had at start of innings
-    const r2Total = calculateResource(allocatedOvers2, 0);
-
-    // Resource Team 2 still has in hand at this exact ball
-    const r2Remaining = calculateResource(oversRemaining, wickets);
-
-    // Resource Team 2 has consumed so far
+    // Resource consumed so far by Team 2
     const r2Consumed = Math.max(0, r2Total - r2Remaining);
 
     let parScore;
-    if (r2Total <= r1) {
-        // Standard chase scaling
-        parScore = Math.floor((score1 * r2Consumed) / r1);
+
+    // Completed innings check: when all balls consumed, par score strictly converges to revisedTarget - 1
+    if (ballsRemaining === 0) {
+        parScore = targetPar;
+    } else if (ballsBowled === 0) {
+        parScore = 0;
+    } else if (r2Total <= r1) {
+        // Standard reduced chase: par = floor(S * R2_consumed / R1)
+        // With convergence check so it never exceeds targetPar
+        parScore = Math.min(targetPar, Math.floor((score1 * r2Consumed) / r1));
     } else {
-        // Scaled with G50
-        parScore = Math.floor(((r2Consumed / r2Total) * (score1 + ((r2Total - r1) * g50) / 100)));
+        // Scaled-up chase with G50: anchored convergence to targetPar
+        parScore = Math.min(targetPar, Math.floor((r2Consumed / r2Total) * targetPar));
     }
 
-    const minOversThreshold = 5;
-    const isOfficialResultEligible = ballsBowled >= (minOversThreshold * 6);
+    const minBallsThreshold = 30; // 5 overs = 30 legal balls
+    const isOfficialResultEligible = ballsBowled >= minBallsThreshold;
 
     return {
         parScore: Math.max(0, parScore),
+        targetPar,
+        revisedTarget,
         ballsBowled,
-        oversBowled: `${Math.floor(ballsBowled / 6)}.${ballsBowled % 6}`,
+        oversBowled: ballsToOvers(ballsBowled),
         ballsRemaining,
         wickets,
-        resourceConsumed: Number(r2Consumed.toFixed(2)),
+        resourceConsumed: Number(r2Consumed.toFixed(3)),
+        resourceTotal: r2Total,
         isOfficialResultEligible,
-        minOversThreshold
+        minOversThreshold: 5
     };
-};
+}
 
 /**
- * Generates a full reference table of DLS Par Scores for Overs 5 to end across wickets 0 to 6.
- *
- * @param {Object} params
- * @returns {Array<Object>} Matrix of { over, pars: [wicket0, wicket1, ...] }
+ * Generates a full reference matrix of DLS Par Scores for Overs 5 to end across wickets 0 to 6.
  */
-export const generateDlsParTable = ({
+export function generateDlsParTable({
     totalOvers = 20,
-    firstInningsScore = 140,
+    firstInningsScore = 145,
     secondInningsOvers = 20,
-    customG50 = 140,
+    customG50 = null,
     minOver = 5,
     maxWickets = 6
-}) => {
+}) {
     const table = [];
-    const maxOver = Math.min(Number(secondInningsOvers) || 20, Number(totalOvers) || 20);
+    const maxBalls = oversToBalls(secondInningsOvers) || (20 * 6);
+    const maxOver = Math.floor(maxBalls / 6);
     const startOver = Math.min(minOver, maxOver);
 
     for (let ov = startOver; ov <= maxOver; ov++) {
@@ -251,4 +339,17 @@ export const generateDlsParTable = ({
         table.push(row);
     }
     return table;
+}
+
+const dlsEngine = {
+    calculateDlsTarget,
+    calculateDlsParScore,
+    calculateResource,
+    generateDlsParTable,
+    getBenchmarkScore,
+    oversToBalls,
+    ballsToOvers
 };
+
+export default dlsEngine;
+

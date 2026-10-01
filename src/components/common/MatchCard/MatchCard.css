@@ -490,6 +490,7 @@
 }
 
 .pmc-pin-icon {
+    padding-top: 3px;
     color: var(--accent-cyan);
     font-size: 0.95rem;
     flex-shrink: 0;

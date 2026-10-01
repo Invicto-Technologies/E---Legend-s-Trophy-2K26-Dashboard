@@ -154,6 +154,55 @@ export const parseMatchDateTime = (m) => {
     return !isNaN(numId) ? (baseUnscheduled + (numId % 1000000)) : baseUnscheduled + 50000000;
 };
 
+/**
+ * Determine which team batted 1st in the match
+ */
+export const getFirstBattingTeamName = (match, t1Name, t2Name) => {
+    if (!match) return t1Name;
+    const t1Clean = (t1Name || '').trim().toLowerCase();
+    const t2Clean = (t2Name || '').trim().toLowerCase();
+
+    // 1. Direct string: firstBattingTeam or common.firstBattingTeam
+    const fbt = String(match.firstBattingTeam || match.common?.firstBattingTeam || '').trim().toLowerCase();
+    if (fbt) {
+        if (t1Clean && fbt === t1Clean) return t1Name;
+        if (t2Clean && fbt === t2Clean) return t2Name;
+    }
+
+    // 2. Numeric: firstBat or common.firstBat
+    const fb = match.firstBat ?? match.common?.firstBat;
+    if (fb === 1) return t1Name;
+    if (fb === 2) return t2Name;
+
+    // 3. Toss winner & decision
+    const tw = String(match.tossWinner || match.common?.tossWinner || '').trim().toLowerCase();
+    const td = String(match.tossDecision || match.common?.tossDecision || '').trim().toLowerCase();
+    if (tw && td) {
+        const choseBat = td.includes('bat');
+        if (t1Clean && tw === t1Clean) return choseBat ? t1Name : t2Name;
+        if (t2Clean && tw === t2Clean) return choseBat ? t2Name : t1Name;
+    }
+
+    // 4. Result text inference:
+    // "won by X wickets" -> winning team chased (batted 2nd) -> other team batted 1st
+    // "won by X runs" -> winning team defended (batted 1st) -> winning team batted 1st
+    const res = String(match.result || match.common?.result || '').trim().toLowerCase();
+    if (res) {
+        const wonByWickets = res.includes('wicket') || res.includes('wkt');
+        const wonByRuns = res.includes('run');
+
+        if (wonByWickets) {
+            if (t1Clean && res.includes(t1Clean)) return t2Name;
+            if (t2Clean && res.includes(t2Clean)) return t1Name;
+        } else if (wonByRuns) {
+            if (t1Clean && res.includes(t1Clean)) return t1Name;
+            if (t2Clean && res.includes(t2Clean)) return t2Name;
+        }
+    }
+
+    return t1Name;
+};
+
 const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveData = null }) => {
     if (!match) return null;
 
@@ -183,16 +232,33 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
     const t1Logo = t1Obj.logo || t1Obj.logoUrl || t1Obj.crest || '';
     const t2Logo = t2Obj.logo || t2Obj.logoUrl || t2Obj.crest || '';
 
-    // Parse team scores if available
+    // Parse team scores reliably
+    const extractTeamScore = (fullScore, teamName) => {
+        if (!fullScore || !teamName) return '';
+        const parts = String(fullScore).split(' • ');
+        for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed.toLowerCase().includes(teamName.toLowerCase())) {
+                const regex = new RegExp(`^${teamName}\\s*`, 'i');
+                return trimmed.replace(regex, '').trim();
+            }
+        }
+        return '';
+    };
+
     let t1Score = '';
     let t2Score = '';
     if (finished && match.score && match.score !== 'Scheduled') {
-        const scoreParts = match.score.split(' • ');
-        if (scoreParts.length === 2) {
-            t1Score = scoreParts[0].replace(t1Name, '').trim();
-            t2Score = scoreParts[1].replace(t2Name, '').trim();
-        } else {
-            t1Score = match.score;
+        t1Score = extractTeamScore(match.score, t1Name);
+        t2Score = extractTeamScore(match.score, t2Name);
+        if (!t1Score && !t2Score) {
+            const scoreParts = match.score.split(' • ');
+            if (scoreParts.length === 2) {
+                t1Score = scoreParts[0].trim();
+                t2Score = scoreParts[1].trim();
+            } else {
+                t1Score = match.score;
+            }
         }
     }
 
@@ -200,6 +266,22 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
     const res = (match.result || '').toLowerCase();
     const t1Won = finished && t1Name !== 'TBD' && res.includes(t1Name.toLowerCase()) && res.includes('won');
     const t2Won = finished && t2Name !== 'TBD' && res.includes(t2Name.toLowerCase()) && res.includes('won');
+
+    // Determine 1st innings team (Top Row) and 2nd innings team (Bottom Row)
+    const firstBatTeamName = getFirstBattingTeamName(match, t1Name, t2Name);
+    const isT1FirstBat = t2Name === 'TBD' || firstBatTeamName.toLowerCase() === t1Name.toLowerCase();
+
+    // Top row = 1st innings team
+    const topTeamName = isT1FirstBat ? t1Name : t2Name;
+    const topTeamLogo = isT1FirstBat ? t1Logo : t2Logo;
+    const topTeamScore = isT1FirstBat ? t1Score : t2Score;
+    const topTeamWon = isT1FirstBat ? t1Won : t2Won;
+
+    // Bottom row = 2nd innings team
+    const bottomTeamName = isT1FirstBat ? t2Name : t1Name;
+    const bottomTeamLogo = isT1FirstBat ? t2Logo : t1Logo;
+    const bottomTeamScore = isT1FirstBat ? t2Score : t1Score;
+    const bottomTeamWon = isT1FirstBat ? t2Won : t1Won;
 
     const isSpecial = Boolean(
         match.isSpecial ||
@@ -212,12 +294,7 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
             {/* Card Header Bar */}
             <div className="pmc-top-bar">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span className="pmc-stage-badge">{match.title ? `${match.title} Match` : 'Match'}</span>
-                    {isSpecial && (
-                        <span className="pmc-special-badge" title="Special match: Does not affect tournament standings or draw points">
-                            ⭐ SPECIAL
-                        </span>
-                    )}
+                    <span className={isSpecial ? "pmc-special-badge" : "pmc-stage-badge"}>{match.title ? `${match.title} Match` : 'Match'}</span>
                 </div>
                 <div className="pmc-top-right">
                     <span className={`pmc-status-pill ${finished ? 'completed' : 'scheduled'}`}>
@@ -243,22 +320,22 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
 
             {finished ? (
                 <>
-                    {/* Concluded Match Scoreboard Grid (2 rows for runs/wickets/overs) */}
+                    {/* Concluded Match Scoreboard Grid (1st innings team in top row, 2nd innings team in bottom row) */}
                     <div className="pmc-competitors">
-                        {/* Team 1 Row */}
-                        <div className={`pmc-team-row ${t1Won ? 'winner' : ''}`}>
+                        {/* 1st Innings Team Row (Top) */}
+                        <div className={`pmc-team-row ${topTeamWon ? 'winner' : ''}`}>
                             <div className="pmc-team-identity">
-                                {t1Logo ? (
-                                    <img src={t1Logo} alt={t1Name} className="pmc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
+                                {topTeamLogo ? (
+                                    <img src={topTeamLogo} alt={topTeamName} className="pmc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
                                 ) : (
-                                    <div className="pmc-team-avatar-fallback">{t1Name.substring(0, 3)}</div>
+                                    <div className="pmc-team-avatar-fallback">{topTeamName.substring(0, 3)}</div>
                                 )}
-                                <span className="pmc-team-name">{t1Name}</span>
-                                {t1Won && <MdEmojiEvents className="pmc-winner-trophy" title="Winner" />}
+                                <span className="pmc-team-name">{topTeamName}</span>
+                                {topTeamWon && <MdEmojiEvents className="pmc-winner-trophy" title="Winner" />}
                             </div>
                             <div className="pmc-team-score-block">
-                                {t1Score ? (
-                                    <span className="pmc-score-text">{t1Score}</span>
+                                {topTeamScore ? (
+                                    <span className="pmc-score-text">{topTeamScore}</span>
                                 ) : (
                                     <span className="pmc-score-pending">-</span>
                                 )}
@@ -271,20 +348,20 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
                             <span className="pmc-vs-line" />
                         </div>
 
-                        {/* Team 2 Row */}
-                        <div className={`pmc-team-row ${t2Won ? 'winner' : ''}`}>
+                        {/* 2nd Innings Team Row (Bottom) */}
+                        <div className={`pmc-team-row ${bottomTeamWon ? 'winner' : ''}`}>
                             <div className="pmc-team-identity">
-                                {t2Logo ? (
-                                    <img src={t2Logo} alt={t2Name} className="pmc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
+                                {bottomTeamLogo ? (
+                                    <img src={bottomTeamLogo} alt={bottomTeamName} className="pmc-team-crest" onError={(e) => { e.target.style.display = 'none'; }} />
                                 ) : (
-                                    <div className="pmc-team-avatar-fallback">{t2Name.substring(0, 3)}</div>
+                                    <div className="pmc-team-avatar-fallback">{bottomTeamName.substring(0, 3)}</div>
                                 )}
-                                <span className="pmc-team-name">{t2Name}</span>
-                                {t2Won && <MdEmojiEvents className="pmc-winner-trophy" title="Winner" />}
+                                <span className="pmc-team-name">{bottomTeamName}</span>
+                                {bottomTeamWon && <MdEmojiEvents className="pmc-winner-trophy" title="Winner" />}
                             </div>
                             <div className="pmc-team-score-block">
-                                {t2Score ? (
-                                    <span className="pmc-score-text">{t2Score}</span>
+                                {bottomTeamScore ? (
+                                    <span className="pmc-score-text">{bottomTeamScore}</span>
                                 ) : (
                                     <span className="pmc-score-pending">-</span>
                                 )}
@@ -313,9 +390,15 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
                                 <MdSportsCricket /> {match.overs}
                             </div>
                         )}
-                        <Link to={`/match/${match.title || match.id}`} className="pmc-action-link">
-                            Scorecard
-                        </Link>
+                        {(() => {
+                            const targetTourney = match.tournamentId || match.editionId || match.tourneyId || (match.matchPath ? match.matchPath.split('/')[1] : null);
+                            const scorecardUrl = `/match/${encodeURIComponent(match.title || match.id)}${targetTourney ? `?tourney=${encodeURIComponent(targetTourney)}` : ''}`;
+                            return (
+                                <Link to={scorecardUrl} className="pmc-action-link">
+                                    Scorecard
+                                </Link>
+                            );
+                        })()}
                     </div>
                 </>
             ) : (
@@ -352,8 +435,7 @@ const MatchCard = ({ match, teamsMap = {}, teamsData = {}, className = '', liveD
                     {/* Space-Saving Upcoming Info Bar (Venue & Format, NO match center button) */}
                     <div className="pmc-upcoming-footer">
                         <span className="pmc-upcoming-venue" title={match.venue || 'Faculty Cricket Grounds'}>
-                            <MdLocationOn className="pmc-pin-icon" />
-                            <span>{match.venue || 'Faculty Cricket Grounds'}</span>
+                            <span><MdLocationOn className="pmc-pin-icon" /> {match.venue || 'Faculty Cricket Grounds'}</span>
                         </span>
                         <span className="pmc-upcoming-format">
                             <MdSportsCricket className="pmc-cricket-icon" /> T20 Format
