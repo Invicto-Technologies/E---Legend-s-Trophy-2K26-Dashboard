@@ -14,7 +14,7 @@ import {
     subscribeLiveData,
     buildPlayersRoster,
     buildInitialMatchPayload,
-    deleteMatchData,
+    deleteDuplicateRootMatchNode,
     deleteMatchCompletely
 } from '../../../services/rtdbService';
 import {
@@ -422,11 +422,17 @@ const DrawManagement = () => {
                     };
                 });
 
-                // Update Firebase FixturesData
-                await updateFixturesData({
+                // Update Firebase FixturesData (keep finishedMatches and published/draft in sync)
+                const fixturesPayload = {
                     finishedMatches: finishedMatchesMap,
                     updatedAt: new Date().toISOString()
-                }, selectedTournamentId);
+                };
+                if (fixturesStatus === 1) {
+                    fixturesPayload.publishedMatches = finishedMatchesMap;
+                } else {
+                    fixturesPayload.draftMatches = finishedMatchesMap;
+                }
+                await updateFixturesData(fixturesPayload, selectedTournamentId);
 
                 // Also update match root node in RTDB with full rosters
                 const cleanTitle = finalMatch.title.replace(/^\//, '');
@@ -460,9 +466,11 @@ const DrawManagement = () => {
                     'overBallsTypes': {}
                 };
                 await updateMatchData(cleanTitle, matchUpdates, selectedTournamentId);
-                if (finalMatch.id && String(finalMatch.id) !== cleanTitle) {
+
+                // Clean up duplicate root node if present — NEVER touch FixturesData!
+                if (finalMatch.id && String(finalMatch.id) !== cleanTitle && /^\d+$/.test(String(finalMatch.id))) {
                     try {
-                        await deleteMatchData(String(finalMatch.id), selectedTournamentId);
+                        await deleteDuplicateRootMatchNode(String(finalMatch.id), selectedTournamentId);
                     } catch (cleanupErr) {
                         console.warn('Could not clean up duplicate numeric finalist node:', cleanupErr);
                     }
@@ -720,10 +728,16 @@ const DrawManagement = () => {
                         team2: m.team2 || t2,
                     };
                 });
-                await updateFixturesData({
+                const fixturesPayload = {
                     finishedMatches: finishedMatchesMap,
                     updatedAt: new Date().toISOString()
-                }, selectedTournamentId);
+                };
+                if (fixturesStatus === 1) {
+                    fixturesPayload.publishedMatches = finishedMatchesMap;
+                } else {
+                    fixturesPayload.draftMatches = finishedMatchesMap;
+                }
+                await updateFixturesData(fixturesPayload, selectedTournamentId);
 
                 const targetMatch = updatedMatches.find(m => m.id === matchId);
                 if (targetMatch) {
@@ -743,7 +757,7 @@ const DrawManagement = () => {
                     await updateMatchData(clean, updates, selectedTournamentId);
                     if (targetMatch.id && String(targetMatch.id) !== clean && /^\d+$/.test(String(targetMatch.id))) {
                         try {
-                            await deleteMatchData(String(targetMatch.id), selectedTournamentId);
+                            await deleteDuplicateRootMatchNode(String(targetMatch.id), selectedTournamentId);
                         } catch (cleanupErr) {
                             console.warn(`Could not clean up legacy numeric node [${targetMatch.id}]:`, cleanupErr);
                         }
@@ -1155,7 +1169,7 @@ const DrawManagement = () => {
             // NEVER delete if match is currently live!
             if (!isLive && m.id && String(m.id) !== clean && /^\d+$/.test(String(m.id))) {
                 try {
-                    await deleteMatchData(String(m.id), selectedTournamentId);
+                    await deleteDuplicateRootMatchNode(String(m.id), selectedTournamentId);
                 } catch (cleanupErr) {
                     console.warn(`Could not clean up legacy numeric node [${m.id}]:`, cleanupErr);
                 }

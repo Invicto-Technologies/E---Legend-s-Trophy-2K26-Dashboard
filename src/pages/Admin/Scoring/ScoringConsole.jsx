@@ -2276,11 +2276,10 @@ const ScoringConsole = () => {
                                             <span className="selector-caption">Published Draw Match</span>
                                             <span
                                                 className={`selected-tourney-name ${!selectedMatchTitle ? 'is-placeholder' : ''}`}
-                                                title={selectedFixture ? `${selectedFixture.title}: ${selectedFixture.teams || `${selectedFixture.team1} vs ${selectedFixture.team2}`}` : 'Select Match from Published Draw'}
                                             >
                                                 {selectedFixture
                                                     ? `${selectedFixture.title}: ${selectedFixture.teams || `${selectedFixture.team1} vs ${selectedFixture.team2}`}`
-                                                    : 'Select Match from Published Draw'}
+                                                    : 'Select Match from Draw'}
                                             </span>
                                         </div>
                                         <MdKeyboardArrowDown className={`select-dropdown-arrow ${isMatchDropdownOpen ? 'rotated' : ''}`} />

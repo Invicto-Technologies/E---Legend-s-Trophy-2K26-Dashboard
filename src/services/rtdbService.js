@@ -1117,6 +1117,22 @@ export const deleteMatchData = async (matchKey, customTourneyId) => {
     return deleteMatchCompletely(matchKey, customTourneyId);
 };
 
+/**
+ * Remove only a duplicate or legacy root match node in Tournaments/${targetKey}/${nodeKey}
+ * NEVER touches FixturesData (finishedMatches, publishedMatches, draftMatches).
+ */
+export const deleteDuplicateRootMatchNode = async (nodeKey, customTourneyId) => {
+    if (!nodeKey) return;
+    const targetKey = resolveTournamentKey(customTourneyId || currentActiveTournamentId);
+    const clean = decodeURIComponent(String(nodeKey || '')).replace(/^\//, '').split('/').pop().trim();
+    if (!clean) return;
+    try {
+        await remove(ref(database, `Tournaments/${targetKey}/${clean}`));
+    } catch (err) {
+        console.warn(`Could not remove duplicate root node Tournaments/${targetKey}/${clean}:`, err);
+    }
+};
+
 /* ==========================================================================
    FIXTURES & SCHEDULES (Scoped to active tournament)
    ========================================================================== */

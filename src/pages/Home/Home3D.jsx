@@ -456,6 +456,35 @@ const Home3D = () => {
         }
     }
 
+    // Top Stories & Highlights Slider Ref & Handlers
+    const storiesSliderRef = useRef(null);
+
+    const handleStorySlideLeft = () => {
+        if (storiesSliderRef.current) {
+            const container = storiesSliderRef.current;
+            const card = container.querySelector('.story-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 380;
+            if (container.scrollLeft <= 20) {
+                container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+            } else {
+                container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
+    const handleStorySlideRight = () => {
+        if (storiesSliderRef.current) {
+            const container = storiesSliderRef.current;
+            const card = container.querySelector('.story-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 380;
+            if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 25) {
+                container.scrollTo({ left: 0, behavior: 'smooth' });
+            } else {
+                container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
     // Horizontal slider scroll handlers & continuous slow auto-scrolling loop
     const gallerySliderRef = useRef(null);
     const [isGalleryPaused, setIsGalleryPaused] = useState(false);
@@ -923,53 +952,80 @@ const Home3D = () => {
                             </div>
                         </div>
 
-                        <div className="stories-grid">
-                            {stories.slice(0, 3).map((story) => {
-                                const storyText = story.description || story.content || '';
-                                const rawImg = (story.ImageURL || story.imageUrl || story.image || story.coverImage || '').trim();
-                                const storyImg = rawImg || stadiumBgUrl;
-                                const isLongStory = storyText.length > 100;
+                        <div className="stories-slider-viewport">
+                            {stories.length > 3 && (
+                                <button
+                                    type="button"
+                                    className="gallery-slider-floating-arrow prev stories-slider-floating-arrow"
+                                    onClick={handleStorySlideLeft}
+                                    aria-label="Previous stories"
+                                >
+                                    <MdChevronLeft />
+                                </button>
+                            )}
 
-                                return (
-                                    <TiltCard
-                                        key={story.id}
-                                        className={`story-card has-cover-image transparent-art-bg cricket-watermark-art ${isLongStory ? 'has-read-more' : ''}`}
-                                        maxTilt={8}
-                                        onClick={() => setActiveStoryModal(story)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div className="story-card-cover-wrap">
-                                            <img
-                                                src={storyImg}
-                                                alt={story.topic || 'Story Cover'}
-                                                className="story-card-cover-img"
-                                                loading="lazy"
-                                                onError={(e) => {
-                                                    e.currentTarget.onerror = null;
-                                                    e.currentTarget.src = stadiumBgUrl;
-                                                }}
-                                            />
-                                            <div className="story-card-cover-gradient" />
-                                        </div>
-                                        <div className="story-card-content">
-                                            <div className="story-card-top">
-                                                <span className="story-time">{story.time}</span>
+                            <div
+                                ref={storiesSliderRef}
+                                className={`stories-slider-track ${stories.length <= 3 ? 'centered' : ''}`}
+                                role="region"
+                                aria-label="Top Stories and Highlights Slider"
+                            >
+                                {stories.map((story) => {
+                                    const storyText = story.description || story.content || '';
+                                    const rawImg = (story.ImageURL || story.imageUrl || story.image || story.coverImage || '').trim();
+                                    const storyImg = rawImg || stadiumBgUrl;
+                                    const isLongStory = storyText.length > 100;
+
+                                    return (
+                                        <TiltCard
+                                            key={story.id || story._id || `${story.topic}-${story.time}`}
+                                            className={`story-card has-cover-image transparent-art-bg cricket-watermark-art ${isLongStory ? 'has-read-more' : ''}`}
+                                            maxTilt={8}
+                                            onClick={() => setActiveStoryModal(story)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="story-card-cover-wrap">
+                                                <img
+                                                    src={storyImg}
+                                                    alt={story.topic || 'Story Cover'}
+                                                    className="story-card-cover-img"
+                                                    loading="lazy"
+                                                    onError={(e) => {
+                                                        e.currentTarget.onerror = null;
+                                                        e.currentTarget.src = stadiumBgUrl;
+                                                    }}
+                                                />
+                                                <div className="story-card-cover-gradient" />
                                             </div>
-                                            <h4 className="story-topic">{story.topic}</h4>
-                                            <p className="story-desc">
-                                                {isLongStory
-                                                    ? `${storyText.substring(0, 100)}...`
-                                                    : storyText}
-                                            </p>
-                                            {isLongStory && (
+                                            <div className="story-card-content">
+                                                <div className="story-card-top">
+                                                    <span className="story-time">{story.time}</span>
+                                                </div>
+                                                <h4 className="story-topic">{story.topic}</h4>
+                                                <p className="story-desc">
+                                                    {isLongStory
+                                                        ? `${storyText.substring(0, 100)}...`
+                                                        : storyText}
+                                                </p>
                                                 <span className="read-more-btn">
                                                     Read Story <MdArrowForward />
                                                 </span>
-                                            )}
-                                        </div>
-                                    </TiltCard>
-                                );
-                            })}
+                                            </div>
+                                        </TiltCard>
+                                    );
+                                })}
+                            </div>
+
+                            {stories.length > 3 && (
+                                <button
+                                    type="button"
+                                    className="gallery-slider-floating-arrow next stories-slider-floating-arrow"
+                                    onClick={handleStorySlideRight}
+                                    aria-label="Next stories"
+                                >
+                                    <MdChevronRight />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </section>
