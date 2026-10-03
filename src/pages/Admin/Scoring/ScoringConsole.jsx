@@ -3326,14 +3326,6 @@ const ScoringConsole = () => {
             }
             updated.commentary[commTimestamp] = commEntry;
 
-            // ── Keep only the last 5 commentary entries in RTDB ─────────────────────
-            // Prevents unlimited growth and keeps the database lean on the free plan.
-            const allCommKeys = Object.keys(updated.commentary).map(Number).sort((a, b) => a - b);
-            if (allCommKeys.length > 5) {
-                const toRemove = allCommKeys.slice(0, allCommKeys.length - 5);
-                toRemove.forEach(k => { delete updated.commentary[k]; });
-            }
-
             // Maintain overBallsTypes in common for live over timeline (Flutter & Web)
             let ballToken = String(runs);
             if (isWicket) {
