@@ -2566,7 +2566,7 @@ const ScoringConsole = () => {
         ? Object.values(matchData.commentary).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
         : [];
 
-    // Helper to extract 1-indexed over number from delivery
+    // Helper to the extract 1-indexed over number from delivery
     const getCommDeliveryOverNum = (comm) => {
         const raw = comm?.over ?? comm?.ball;
         if (raw === undefined || raw === null || raw === '') return null;
