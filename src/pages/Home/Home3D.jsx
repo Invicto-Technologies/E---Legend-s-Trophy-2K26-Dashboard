@@ -230,8 +230,8 @@ const Home3D = () => {
                     const pmTitle = String(pm.title || pm.name || '').trim().toLowerCase();
                     const pmTeams = String(pm.teams || '').trim().toLowerCase();
                     return (fId && pmId && fId === pmId) ||
-                           (fTitle && pmTitle && fTitle === pmTitle) ||
-                           (fTeams && pmTeams && fTeams === pmTeams);
+                        (fTitle && pmTitle && fTitle === pmTitle) ||
+                        (fTeams && pmTeams && fTeams === pmTeams);
                 });
 
                 if (matchKey) {
@@ -456,6 +456,76 @@ const Home3D = () => {
         }
     }
 
+    // Slider active tracking for mobile indicators & bottom controls
+    const [upcomingActiveIdx, setUpcomingActiveIdx] = useState(0);
+    const [completedActiveIdx, setCompletedActiveIdx] = useState(0);
+    const [storiesActiveIdx, setStoriesActiveIdx] = useState(0);
+    const [galleryActiveIdx, setGalleryActiveIdx] = useState(0);
+
+    const scrollToSlide = (ref, index) => {
+        if (!ref.current) return;
+        const container = ref.current;
+        const card = container.querySelector('.fixtures-slider-item') ||
+            container.querySelector('.story-card') ||
+            container.querySelector('.gallery-slider-card') ||
+            container.children[0];
+        if (!card) return;
+        const gap = parseFloat(window.getComputedStyle(container).gap) || 20;
+        const itemWidth = card.offsetWidth + gap;
+        container.scrollTo({ left: index * itemWidth, behavior: 'smooth' });
+    };
+
+    const updateActiveIndexOnScroll = (ref, total, setIdx) => {
+        if (!ref.current || total <= 0) return;
+        const container = ref.current;
+        const card = container.querySelector('.fixtures-slider-item') ||
+            container.querySelector('.story-card') ||
+            container.querySelector('.gallery-slider-card') ||
+            container.children[0];
+        if (!card || card.offsetWidth <= 0) return;
+        const gap = parseFloat(window.getComputedStyle(container).gap) || 20;
+        const itemWidth = card.offsetWidth + gap;
+        const rawIdx = Math.round(container.scrollLeft / itemWidth);
+        const idx = Math.max(0, Math.min(rawIdx, total - 1));
+        setIdx(idx);
+    };
+
+    const updateGalleryActiveOnScroll = (ref, total, setIdx) => {
+        if (!ref.current || total <= 0) return;
+        const container = ref.current;
+        const card = container.querySelector('.gallery-slider-card') || container.children[0];
+        if (!card || card.offsetWidth <= 0) return;
+        const gap = parseFloat(window.getComputedStyle(container).gap) || 20;
+        const itemWidth = card.offsetWidth + gap;
+        const rawIdx = Math.round(container.scrollLeft / itemWidth);
+        const idx = ((rawIdx % total) + total) % total;
+        setIdx(idx);
+    };
+
+    const renderMobileIndicators = (activeIdx, total, sliderRef) => {
+        const maxDots = Math.min(total, 6);
+        return (
+            <div className="mobile-slider-indicators">
+                <div className="mobile-slider-dots">
+                    {Array.from({ length: maxDots }).map((_, dIdx) => (
+                        <button
+                            key={dIdx}
+                            type="button"
+                            className={`mobile-slider-dot ${dIdx === (activeIdx % maxDots) ? 'active' : ''}`}
+                            onClick={() => scrollToSlide(sliderRef, dIdx)}
+                            aria-label={`Slide ${dIdx + 1}`}
+                        />
+                    ))}
+                </div>
+                <span className="mobile-slider-count-badge">
+                    <span className="current">{activeIdx + 1}</span>
+                    <span className="sep">/</span>
+                    <span className="total">{total}</span>
+                </span>
+            </div>
+        );
+    };
+
     // Top Stories & Highlights Slider Ref & Handlers
     const storiesSliderRef = useRef(null);
 
@@ -485,6 +555,62 @@ const Home3D = () => {
         }
     };
 
+    // Horizontal slider scroll handlers for Upcoming and Completed Fixtures
+    const upcomingSliderRef = useRef(null);
+    const completedSliderRef = useRef(null);
+
+    const handleUpcomingSlideLeft = () => {
+        if (upcomingSliderRef.current) {
+            const container = upcomingSliderRef.current;
+            const card = container.querySelector('.fixtures-slider-item') || container.querySelector('.pro-match-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 380;
+            if (container.scrollLeft <= 20) {
+                container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+            } else {
+                container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
+    const handleUpcomingSlideRight = () => {
+        if (upcomingSliderRef.current) {
+            const container = upcomingSliderRef.current;
+            const card = container.querySelector('.fixtures-slider-item') || container.querySelector('.pro-match-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 380;
+            if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 25) {
+                container.scrollTo({ left: 0, behavior: 'smooth' });
+            } else {
+                container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
+    const handleCompletedSlideLeft = () => {
+        if (completedSliderRef.current) {
+            const container = completedSliderRef.current;
+            const card = container.querySelector('.fixtures-slider-item') || container.querySelector('.pro-match-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 380;
+            if (container.scrollLeft <= 20) {
+                container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+            } else {
+                container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
+    const handleCompletedSlideRight = () => {
+        if (completedSliderRef.current) {
+            const container = completedSliderRef.current;
+            const card = container.querySelector('.fixtures-slider-item') || container.querySelector('.pro-match-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 380;
+            if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 25) {
+                container.scrollTo({ left: 0, behavior: 'smooth' });
+            } else {
+                container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            }
+        }
+    };
+
     // Horizontal slider scroll handlers & continuous slow auto-scrolling loop
     const gallerySliderRef = useRef(null);
     const [isGalleryPaused, setIsGalleryPaused] = useState(false);
@@ -500,7 +626,9 @@ const Home3D = () => {
     const handleSlideLeft = () => {
         if (gallerySliderRef.current) {
             setIsGalleryPaused(true);
-            gallerySliderRef.current.scrollBy({ left: -360, behavior: 'smooth' });
+            const card = gallerySliderRef.current.querySelector('.gallery-slider-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 360;
+            gallerySliderRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
             if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
             pauseTimeoutRef.current = setTimeout(() => {
                 if (gallerySliderRef.current) {
@@ -514,7 +642,9 @@ const Home3D = () => {
     const handleSlideRight = () => {
         if (gallerySliderRef.current) {
             setIsGalleryPaused(true);
-            gallerySliderRef.current.scrollBy({ left: 360, behavior: 'smooth' });
+            const card = gallerySliderRef.current.querySelector('.gallery-slider-card');
+            const scrollAmount = card ? card.offsetWidth + 24 : 360;
+            gallerySliderRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
             if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
             pauseTimeoutRef.current = setTimeout(() => {
                 if (gallerySliderRef.current) {
@@ -701,8 +831,7 @@ const Home3D = () => {
 
                             {activeTournament?.venue && (
                                 <div className="countdown-venue-row">
-                                    <MdLocationOn className="venue-icon" />
-                                    <span>{activeTournament.venue}</span>
+                                    <span><MdLocationOn className="venue-icon" />{activeTournament.venue}</span>
                                 </div>
                             )}
                         </div>
@@ -881,10 +1010,61 @@ const Home3D = () => {
                             )}
                         </div>
                         {upcomingMatches.length > 0 ? (
-                            <div className="results-grid">
-                                {upcomingMatches.slice(0, 4).map((match, idx) => (
-                                    <MatchCard key={match.id || `up-${idx}`} match={match} teamsMap={teams} />
-                                ))}
+                            <div className="fixtures-slider-viewport">
+                                {upcomingMatches.length > 3 && (
+                                    <button
+                                        type="button"
+                                        className="gallery-slider-floating-arrow prev fixtures-slider-floating-arrow desktop-floating-arrow"
+                                        onClick={handleUpcomingSlideLeft}
+                                        aria-label="Previous upcoming matches"
+                                    >
+                                        <MdChevronLeft />
+                                    </button>
+                                )}
+                                <div
+                                    ref={upcomingSliderRef}
+                                    className={`fixtures-slider-track ${upcomingMatches.length <= 3 ? 'centered' : ''}`}
+                                    role="region"
+                                    aria-label="Upcoming Matches Slider"
+                                    onScroll={() => updateActiveIndexOnScroll(upcomingSliderRef, upcomingMatches.length, setUpcomingActiveIdx)}
+                                >
+                                    {upcomingMatches.map((match, idx) => (
+                                        <div className="fixtures-slider-item" key={match.id || `up-${idx}`}>
+                                            <MatchCard match={match} teamsMap={teams} />
+                                        </div>
+                                    ))}
+                                </div>
+                                {upcomingMatches.length > 3 && (
+                                    <button
+                                        type="button"
+                                        className="gallery-slider-floating-arrow next fixtures-slider-floating-arrow desktop-floating-arrow"
+                                        onClick={handleUpcomingSlideRight}
+                                        aria-label="Next upcoming matches"
+                                    >
+                                        <MdChevronRight />
+                                    </button>
+                                )}
+                                {upcomingMatches.length > 1 && (
+                                    <div className="mobile-slider-bottom-controls">
+                                        <button
+                                            type="button"
+                                            className="mobile-slider-arrow prev"
+                                            onClick={handleUpcomingSlideLeft}
+                                            aria-label="Previous upcoming match"
+                                        >
+                                            <MdChevronLeft />
+                                        </button>
+                                        {renderMobileIndicators(upcomingActiveIdx, upcomingMatches.length, upcomingSliderRef)}
+                                        <button
+                                            type="button"
+                                            className="mobile-slider-arrow next"
+                                            onClick={handleUpcomingSlideRight}
+                                            aria-label="Next upcoming match"
+                                        >
+                                            <MdChevronRight />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="home-matches-empty-state transparent-art-bg cricket-watermark-art">
@@ -915,10 +1095,61 @@ const Home3D = () => {
                             )}
                         </div>
                         {completedMatches.length > 0 ? (
-                            <div className="results-grid">
-                                {[...completedMatches].reverse().slice(0, 4).map((match, idx) => (
-                                    <MatchCard key={match.id || `comp-${idx}`} match={match} teamsMap={teams} />
-                                ))}
+                            <div className="fixtures-slider-viewport">
+                                {completedMatches.length > 3 && (
+                                    <button
+                                        type="button"
+                                        className="gallery-slider-floating-arrow prev fixtures-slider-floating-arrow desktop-floating-arrow"
+                                        onClick={handleCompletedSlideLeft}
+                                        aria-label="Previous concluded matches"
+                                    >
+                                        <MdChevronLeft />
+                                    </button>
+                                )}
+                                <div
+                                    ref={completedSliderRef}
+                                    className={`fixtures-slider-track ${completedMatches.length <= 3 ? 'centered' : ''}`}
+                                    role="region"
+                                    aria-label="Concluded Matches Slider"
+                                    onScroll={() => updateActiveIndexOnScroll(completedSliderRef, completedMatches.length, setCompletedActiveIdx)}
+                                >
+                                    {[...completedMatches].reverse().map((match, idx) => (
+                                        <div className="fixtures-slider-item" key={match.id || `comp-${idx}`}>
+                                            <MatchCard match={match} teamsMap={teams} />
+                                        </div>
+                                    ))}
+                                </div>
+                                {completedMatches.length > 3 && (
+                                    <button
+                                        type="button"
+                                        className="gallery-slider-floating-arrow next fixtures-slider-floating-arrow desktop-floating-arrow"
+                                        onClick={handleCompletedSlideRight}
+                                        aria-label="Next concluded matches"
+                                    >
+                                        <MdChevronRight />
+                                    </button>
+                                )}
+                                {completedMatches.length > 1 && (
+                                    <div className="mobile-slider-bottom-controls">
+                                        <button
+                                            type="button"
+                                            className="mobile-slider-arrow prev"
+                                            onClick={handleCompletedSlideLeft}
+                                            aria-label="Previous concluded match"
+                                        >
+                                            <MdChevronLeft />
+                                        </button>
+                                        {renderMobileIndicators(completedActiveIdx, completedMatches.length, completedSliderRef)}
+                                        <button
+                                            type="button"
+                                            className="mobile-slider-arrow next"
+                                            onClick={handleCompletedSlideRight}
+                                            aria-label="Next concluded match"
+                                        >
+                                            <MdChevronRight />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="home-matches-empty-state transparent-art-bg cricket-watermark-art">
@@ -956,7 +1187,7 @@ const Home3D = () => {
                             {stories.length > 3 && (
                                 <button
                                     type="button"
-                                    className="gallery-slider-floating-arrow prev stories-slider-floating-arrow"
+                                    className="gallery-slider-floating-arrow prev stories-slider-floating-arrow desktop-floating-arrow"
                                     onClick={handleStorySlideLeft}
                                     aria-label="Previous stories"
                                 >
@@ -969,6 +1200,7 @@ const Home3D = () => {
                                 className={`stories-slider-track ${stories.length <= 3 ? 'centered' : ''}`}
                                 role="region"
                                 aria-label="Top Stories and Highlights Slider"
+                                onScroll={() => updateActiveIndexOnScroll(storiesSliderRef, stories.length, setStoriesActiveIdx)}
                             >
                                 {stories.map((story) => {
                                     const storyText = story.description || story.content || '';
@@ -1019,12 +1251,34 @@ const Home3D = () => {
                             {stories.length > 3 && (
                                 <button
                                     type="button"
-                                    className="gallery-slider-floating-arrow next stories-slider-floating-arrow"
+                                    className="gallery-slider-floating-arrow next stories-slider-floating-arrow desktop-floating-arrow"
                                     onClick={handleStorySlideRight}
                                     aria-label="Next stories"
                                 >
                                     <MdChevronRight />
                                 </button>
+                            )}
+
+                            {stories.length > 1 && (
+                                <div className="mobile-slider-bottom-controls">
+                                    <button
+                                        type="button"
+                                        className="mobile-slider-arrow prev"
+                                        onClick={handleStorySlideLeft}
+                                        aria-label="Previous story"
+                                    >
+                                        <MdChevronLeft />
+                                    </button>
+                                    {renderMobileIndicators(storiesActiveIdx, stories.length, storiesSliderRef)}
+                                    <button
+                                        type="button"
+                                        className="mobile-slider-arrow next"
+                                        onClick={handleStorySlideRight}
+                                        aria-label="Next story"
+                                    >
+                                        <MdChevronRight />
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -1139,7 +1393,7 @@ const Home3D = () => {
                         >
                             <button
                                 type="button"
-                                className="gallery-slider-floating-arrow prev"
+                                className="gallery-slider-floating-arrow prev desktop-floating-arrow"
                                 onClick={handleSlideLeft}
                                 aria-label="Scroll left"
                             >
@@ -1155,6 +1409,7 @@ const Home3D = () => {
                                     if (isGalleryPausedRef.current && gallerySliderRef.current) {
                                         scrollPosRef.current = gallerySliderRef.current.scrollLeft;
                                     }
+                                    updateGalleryActiveOnScroll(gallerySliderRef, filteredHomePhotos.length, setGalleryActiveIdx);
                                 }}
                             >
                                 {displayHomePhotos.map((photo, idx) => {
@@ -1206,12 +1461,34 @@ const Home3D = () => {
 
                             <button
                                 type="button"
-                                className="gallery-slider-floating-arrow next"
+                                className="gallery-slider-floating-arrow next desktop-floating-arrow"
                                 onClick={handleSlideRight}
                                 aria-label="Scroll right"
                             >
                                 <MdChevronRight />
                             </button>
+
+                            {filteredHomePhotos.length > 1 && (
+                                <div className="mobile-slider-bottom-controls">
+                                    <button
+                                        type="button"
+                                        className="mobile-slider-arrow prev"
+                                        onClick={handleSlideLeft}
+                                        aria-label="Previous gallery photo"
+                                    >
+                                        <MdChevronLeft />
+                                    </button>
+                                    {renderMobileIndicators(galleryActiveIdx, filteredHomePhotos.length, gallerySliderRef)}
+                                    <button
+                                        type="button"
+                                        className="mobile-slider-arrow next"
+                                        onClick={handleSlideRight}
+                                        aria-label="Next gallery photo"
+                                    >
+                                        <MdChevronRight />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

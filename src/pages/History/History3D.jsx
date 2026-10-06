@@ -36,7 +36,7 @@ const History3D = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [tournamentIndex, setTournamentIndex] = useState([]);
     const [activeTourney, setActiveTourney] = useState(null);
-    const [selectedEditionId, setSelectedEditionId] = useState(routeEditionId || '2K25');
+    const [selectedEditionId, setSelectedEditionId] = useState(routeEditionId || "E-Legend's Trophy 2K25");
     const [editionData, setEditionData] = useState(null);
     const [activeTab, setActiveTab] = useState('matches'); // 'matches' | 'standings' | 'leaderboards' | 'stories'
     const [activeScorecardModal, setActiveScorecardModal] = useState(null);
@@ -72,10 +72,16 @@ const History3D = () => {
         )
     );
 
-    // Filter out the active tournament (and on public production, filter out private test/dev editions)
-    const historyTournaments = (tournamentIndex || []).filter((ed) => {
+    // Helper to identify development / test editions
+    const isDevEdition = (ed) => {
+        if (!ed) return false;
         const status = (ed.status || '').toLowerCase();
-        const isTest = status === 'testing' || status === 'development' || status === 'draft' || Boolean(ed.isTest);
+        return status === 'testing' || status === 'development' || status === 'draft' || Boolean(ed.isTest);
+    };
+
+    // Filter out the active tournament (and on public production, filter out private test/dev editions)
+    const rawHistoryTournaments = (tournamentIndex || []).filter((ed) => {
+        const isTest = isDevEdition(ed);
 
         // Hide test tournaments on production, but show on localhost
         if (!isLocalhost && isTest) {
@@ -89,29 +95,32 @@ const History3D = () => {
         return !isMatchingActive;
     });
 
+    // Sort tournaments: official (non-dev) first in descending year order, then dev editions
+    const historyTournaments = [...rawHistoryTournaments].sort((a, b) => {
+        const isDevA = isDevEdition(a);
+        const isDevB = isDevEdition(b);
+        if (isDevA !== isDevB) return isDevA ? 1 : -1;
+        const yearA = parseInt(a.year || String(a.editionId || a.id).match(/\d+/)?.[0] || '0', 10);
+        const yearB = parseInt(b.year || String(b.editionId || b.id).match(/\d+/)?.[0] || '0', 10);
+        return yearB - yearA;
+    });
+
+    // Find latest official (non-dev) tournament
+    const latestOfficialTournament = historyTournaments.find((t) => !isDevEdition(t)) || historyTournaments[0];
+    const latestOfficialId = latestOfficialTournament?.id;
+
     // Ensure selectedEditionId defaults to a valid historical tournament (allows direct URL preview for any edition)
+    // When navigating to /history without routeEditionId, ALWAYS default to latest official (non-dev) tournament
     useEffect(() => {
         if (routeEditionId) {
             setSelectedEditionId(routeEditionId);
             return;
         }
 
-        if (historyTournaments.length > 0) {
-            const currentIsValid = historyTournaments.some(
-                (t) => t.id === selectedEditionId ||
-                    t.editionId === selectedEditionId ||
-                    resolveTournamentKey(t.id) === resolveTournamentKey(selectedEditionId)
-            );
-            if (!currentIsValid) {
-                const defaultEd = historyTournaments.find(
-                    (i) => i.id === "E-Legend's Trophy 2K25" || i.id === '2K25' || i.name?.includes('2K25')
-                ) || historyTournaments[0];
-                if (defaultEd) {
-                    setSelectedEditionId(defaultEd.id);
-                }
-            }
+        if (latestOfficialId) {
+            setSelectedEditionId(latestOfficialId);
         }
-    }, [historyTournaments, selectedEditionId, routeEditionId]);
+    }, [routeEditionId, latestOfficialId]);
 
     // 3. Subscribe to selected tournament edition data
     useEffect(() => {
@@ -464,8 +473,8 @@ const History3D = () => {
                     </div>
 
                     {/* Champion & Awards Showcase for Completed Tournament */}
-                    {info.status === 'completed' && (
-                        <div className="hall-of-fame-grid">
+                    {(info.status === 'completed' || info.champion) && (
+                        <div className={`hall-of-fame-grid ${(!awards || awards.length === 0) ? 'no-awards-grid' : ''}`}>
                             {/* 3D Champion Pedestal */}
                             <TiltCard className="champion-card-hero" maxTilt={8}>
                                 <div className="champ-crown-glow" />
@@ -506,33 +515,35 @@ const History3D = () => {
                             </TiltCard>
 
                             {/* Honors & Awards Cards */}
-                            <div className="awards-column">
-                                <h3 className="awards-col-title">
-                                    <MdStars /> Series Honors & Awards
-                                </h3>
-                                <div className="awards-grid">
-                                    {awards.map((award, idx) => (
-                                        <div key={idx} className="award-item-card">
-                                            <div className="award-icon-box">
-                                                {award.icon === 'trophy' && <MdEmojiEvents className="gold" />}
-                                                {award.icon === 'medal' && <MdMilitaryTech className="silver" />}
-                                                {award.icon === 'star' && <MdStars className="cyan" />}
-                                                {award.icon === 'bat' && <MdSportsCricket className="gold" />}
-                                                {award.icon === 'ball' && <MdSportsCricket className="purple" />}
-                                                {!['trophy', 'medal', 'star', 'bat', 'ball'].includes(award.icon) && <MdStars />}
+                            {awards && awards.length > 0 && (
+                                <div className="awards-column">
+                                    <h3 className="awards-col-title">
+                                        <MdStars /> Series Honors & Awards
+                                    </h3>
+                                    <div className="awards-grid">
+                                        {awards.map((award, idx) => (
+                                            <div key={idx} className="award-item-card">
+                                                <div className="award-icon-box">
+                                                    {award.icon === 'trophy' && <MdEmojiEvents className="gold" />}
+                                                    {award.icon === 'medal' && <MdMilitaryTech className="silver" />}
+                                                    {award.icon === 'star' && <MdStars className="cyan" />}
+                                                    {award.icon === 'bat' && <MdSportsCricket className="gold" />}
+                                                    {award.icon === 'ball' && <MdSportsCricket className="purple" />}
+                                                    {!['trophy', 'medal', 'star', 'bat', 'ball'].includes(award.icon) && <MdStars />}
+                                                </div>
+                                                <div className="award-item-details">
+                                                    <span className="award-name">{award.title}</span>
+                                                    <h4 className="award-winner">
+                                                        {award.recipient} {award.team ? `(${award.team})` : ''}
+                                                    </h4>
+                                                    <span className="award-stat">{award.stat || award.note}</span>
+                                                </div>
+                                                {award.tag && <span className="award-pill-tag">{award.tag}</span>}
                                             </div>
-                                            <div className="award-item-details">
-                                                <span className="award-name">{award.title}</span>
-                                                <h4 className="award-winner">
-                                                    {award.recipient} {award.team ? `(${award.team})` : ''}
-                                                </h4>
-                                                <span className="award-stat">{award.stat || award.note}</span>
-                                            </div>
-                                            {award.tag && <span className="award-pill-tag">{award.tag}</span>}
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
 
@@ -550,12 +561,14 @@ const History3D = () => {
                         >
                             <MdFormatListNumbered /> Final Standings
                         </button>
-                        <button
-                            className={`h-subtab-btn ${activeTab === 'leaderboards' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('leaderboards')}
-                        >
-                            <MdPerson /> Player Leaderboards
-                        </button>
+                        {(batters.length > 0 || bowlers.length > 0) && (
+                            <button
+                                className={`h-subtab-btn ${activeTab === 'leaderboards' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('leaderboards')}
+                            >
+                                <MdPerson /> Player Leaderboards
+                            </button>
+                        )}
                         {stories.length > 0 && (
                             <button
                                 className={`h-subtab-btn ${activeTab === 'stories' ? 'active' : ''}`}
@@ -608,7 +621,8 @@ const History3D = () => {
                                             (match.score && String(match.score).includes('/'))
                                         );
 
-                                        const shouldOpenInUserLive = isDevHost && isCurrentEditionTest;
+                                        const hasFullScorecard = !editionData?.isSimpleScorecardOnly && !match?.isSimpleScorecardOnly && match?.hasFullScorecard !== false;
+                                        const shouldOpenInUserLive = isDevHost && isCurrentEditionTest && hasFullScorecard;
                                         const userLiveUrl = `/match/${encodeURIComponent(matchTargetId)}?tourney=${encodeURIComponent(selectedEditionId)}`;
 
                                         // Extract team names
@@ -704,33 +718,35 @@ const History3D = () => {
                                                     </div>
                                                 )}
 
-                                                {shouldOpenInUserLive ? (
-                                                    <Link
-                                                        to={userLiveUrl}
-                                                        className={`hm-view-scorecard-btn ${isMatchLive ? 'is-live-btn' : 'is-test-live-btn'}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        {isMatchLive ? (
-                                                            <>
-                                                                <span className="live-pulse-dot" /> Open Live Scoreboard <MdArrowForward />
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                Open in User Live Score Page <MdArrowForward />
-                                                            </>
-                                                        )}
-                                                    </Link>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        className="hm-view-scorecard-btn"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setActiveScorecardModal(match);
-                                                        }}
-                                                    >
-                                                        View Full Scorecard <MdArrowForward />
-                                                    </button>
+                                                {hasFullScorecard && (
+                                                    shouldOpenInUserLive ? (
+                                                        <Link
+                                                            to={userLiveUrl}
+                                                            className={`hm-view-scorecard-btn ${isMatchLive ? 'is-live-btn' : 'is-test-live-btn'}`}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            {isMatchLive ? (
+                                                                <>
+                                                                    <span className="live-pulse-dot" /> Open Live Scoreboard <MdArrowForward />
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    Open in User Live Score Page <MdArrowForward />
+                                                                </>
+                                                            )}
+                                                        </Link>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="hm-view-scorecard-btn"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveScorecardModal(match);
+                                                            }}
+                                                        >
+                                                            View Full Scorecard <MdArrowForward />
+                                                        </button>
+                                                    )
                                                 )}
                                             </TiltCard>
                                         );
@@ -767,7 +783,7 @@ const History3D = () => {
                                                             idx + 1
                                                         )}
                                                     </td>
-                                                    <td className="team-cell">
+                                                    <td className="team-cell-history">
                                                         <strong>{row.team}</strong>
                                                         {idx === 0 && <span className="winner-badge">CHAMPION</span>}
                                                     </td>
@@ -936,6 +952,13 @@ const History3D = () => {
                 return createPortal(
                     <div className="scorecard-modal-overlay" onClick={() => setActiveScorecardModal(null)}>
                         <div className="scorecard-modal-card" onClick={(e) => e.stopPropagation()}>
+                            {/* Decorative Ambient Background Elements */}
+                            <div className="sm-watermark-icon" aria-hidden="true">
+                                <MdSportsCricket />
+                            </div>
+                            <div className="sm-glow-orb sm-glow-top" aria-hidden="true" />
+                            <div className="sm-glow-orb sm-glow-bottom" aria-hidden="true" />
+
                             <button className="scorecard-modal-close" onClick={() => setActiveScorecardModal(null)}>
                                 <MdClose />
                             </button>
@@ -1002,11 +1025,11 @@ const History3D = () => {
                                             <tr>
                                                 <th>Batter</th>
                                                 <th>Dismissal</th>
-                                                <th>R</th>
-                                                <th>B</th>
-                                                <th>4s</th>
-                                                <th>6s</th>
-                                                <th>SR</th>
+                                                <th style={{ textAlign: 'center' }}>R</th>
+                                                <th style={{ textAlign: 'center' }}>B</th>
+                                                <th style={{ textAlign: 'center' }}>4s</th>
+                                                <th style={{ textAlign: 'center' }}>6s</th>
+                                                <th style={{ textAlign: 'right' }}>SR</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1017,11 +1040,11 @@ const History3D = () => {
                                                         <small>{p?.role || 'Batter'}</small>
                                                     </td>
                                                     <td className="sm-dismissal">{p?.status || p?.dismissal || 'not out'}</td>
-                                                    <td className="sm-runs-cell">{p?.runs ?? 0}</td>
-                                                    <td>{p?.balls ?? 0}</td>
-                                                    <td>{p?.boundaries?.fours ?? 0}</td>
-                                                    <td>{p?.boundaries?.sixes ?? 0}</td>
-                                                    <td className="sm-sr-cell">
+                                                    <td className="sm-runs-cell" style={{ textAlign: 'center' }}>{p?.runs ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}>{p?.balls ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}>{p?.boundaries?.fours ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}>{p?.boundaries?.sixes ?? 0}</td>
+                                                    <td className="sm-sr-cell" style={{ textAlign: 'right' }}>
                                                         {p?.strikeRate ?? (p?.balls ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0')}
                                                     </td>
                                                 </tr>
@@ -1041,12 +1064,11 @@ const History3D = () => {
                                                 <thead>
                                                     <tr>
                                                         <th>Bowler</th>
-                                                        <th>O</th>
-                                                        <th>M</th>
-                                                        <th>R</th>
-                                                        <th>W</th>
-                                                        <th>Econ</th>
-                                                        <th>Dots</th>
+                                                        <th style={{ textAlign: 'center' }}>O</th>
+                                                        <th style={{ textAlign: 'center' }}>M</th>
+                                                        <th style={{ textAlign: 'center' }}>R</th>
+                                                        <th style={{ textAlign: 'center' }}>W</th>
+                                                        <th style={{ textAlign: 'right' }}>Econ</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1056,14 +1078,13 @@ const History3D = () => {
                                                                 <strong>{b?.name || `Bowler ${i + 1}`}</strong>
                                                                 <small>{b?.role || 'Bowler'}</small>
                                                             </td>
-                                                            <td>{b?.overs ?? 0}</td>
-                                                            <td>{b?.maidens ?? 0}</td>
-                                                            <td className="sm-runs-cell">{b?.runs ?? 0}</td>
-                                                            <td className="sm-wickets-cell">{b?.wickets ?? 0}</td>
-                                                            <td className="sm-econ-cell">
+                                                            <td style={{ textAlign: 'center' }}>{b?.overs ?? 0}</td>
+                                                            <td style={{ textAlign: 'center' }}>{b?.maidens ?? 0}</td>
+                                                            <td className="sm-runs-cell" style={{ textAlign: 'center' }}>{b?.runs ?? 0}</td>
+                                                            <td className="sm-wickets-cell" style={{ textAlign: 'center' }}>{b?.wickets ?? 0}</td>
+                                                            <td className="sm-econ-cell" style={{ textAlign: 'right' }}>
                                                                 {b?.economy ?? (b?.overs ? (b.runs / Math.max(0.1, b.overs)).toFixed(2) : '0.00')}
                                                             </td>
-                                                            <td>{b?.dots ?? b?.dotBalls ?? '-'}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1094,11 +1115,11 @@ const History3D = () => {
                                             <tr>
                                                 <th>Batter</th>
                                                 <th>Dismissal</th>
-                                                <th>R</th>
-                                                <th>B</th>
-                                                <th>4s</th>
-                                                <th>6s</th>
-                                                <th>SR</th>
+                                                <th style={{ textAlign: 'center' }}>R</th>
+                                                <th style={{ textAlign: 'center' }}>B</th>
+                                                <th style={{ textAlign: 'center' }}>4s</th>
+                                                <th style={{ textAlign: 'center' }}>6s</th>
+                                                <th style={{ textAlign: 'right' }}>SR</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1109,11 +1130,11 @@ const History3D = () => {
                                                         <small>{p?.role || 'Batter'}</small>
                                                     </td>
                                                     <td className="sm-dismissal">{p?.status || p?.dismissal || 'not out'}</td>
-                                                    <td className="sm-runs-cell">{p?.runs ?? 0}</td>
-                                                    <td>{p?.balls ?? 0}</td>
-                                                    <td>{p?.boundaries?.fours ?? 0}</td>
-                                                    <td>{p?.boundaries?.sixes ?? 0}</td>
-                                                    <td className="sm-sr-cell">
+                                                    <td className="sm-runs-cell" style={{ textAlign: 'center' }}>{p?.runs ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}>{p?.balls ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}>{p?.boundaries?.fours ?? 0}</td>
+                                                    <td style={{ textAlign: 'center' }}>{p?.boundaries?.sixes ?? 0}</td>
+                                                    <td className="sm-sr-cell" style={{ textAlign: 'right' }}>
                                                         {p?.strikeRate ?? (p?.balls ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0')}
                                                     </td>
                                                 </tr>
@@ -1133,12 +1154,11 @@ const History3D = () => {
                                                 <thead>
                                                     <tr>
                                                         <th>Bowler</th>
-                                                        <th>O</th>
-                                                        <th>M</th>
-                                                        <th>R</th>
-                                                        <th>W</th>
-                                                        <th>Econ</th>
-                                                        <th>Dots</th>
+                                                        <th style={{ textAlign: 'center' }}>O</th>
+                                                        <th style={{ textAlign: 'center' }}>M</th>
+                                                        <th style={{ textAlign: 'center' }}>R</th>
+                                                        <th style={{ textAlign: 'center' }}>W</th>
+                                                        <th style={{ textAlign: 'right' }}>Econ</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1148,14 +1168,13 @@ const History3D = () => {
                                                                 <strong>{b?.name || `Bowler ${i + 1}`}</strong>
                                                                 <small>{b?.role || 'Bowler'}</small>
                                                             </td>
-                                                            <td>{b?.overs ?? 0}</td>
-                                                            <td>{b?.maidens ?? 0}</td>
+                                                            <td style={{ textAlign: 'center' }}>{b?.overs ?? 0}</td>
+                                                            <td style={{ textAlign: 'center' }}>{b?.maidens ?? 0}</td>
                                                             <td className="sm-runs-cell">{b?.runs ?? 0}</td>
-                                                            <td className="sm-wickets-cell">{b?.wickets ?? 0}</td>
-                                                            <td className="sm-econ-cell">
+                                                            <td className="sm-wickets-cell" style={{ textAlign: 'center' }}>{b?.wickets ?? 0}</td>
+                                                            <td className="sm-econ-cell" style={{ textAlign: 'right' }}>
                                                                 {b?.economy ?? (b?.overs ? (b.runs / Math.max(0.1, b.overs)).toFixed(2) : '0.00')}
                                                             </td>
-                                                            <td>{b?.dots ?? b?.dotBalls ?? '-'}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

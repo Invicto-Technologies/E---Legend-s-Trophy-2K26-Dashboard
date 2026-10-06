@@ -1027,7 +1027,60 @@ const LiveScore3D = () => {
         });
     const fallOfWickets = Object.values(tabBattingTeam.fallOfWickets || {}).filter(Boolean);
     const currentPartnership = tabBattingTeam.currentPartnership;
-    const partnershipsList = Object.values(tabBattingTeam.partnerships || {}).filter(Boolean);
+
+    // Partnerships List: For completed matches, show current unbroken stand at the end of the history list
+    const basePartnershipsList = Object.values(tabBattingTeam.partnerships || {}).filter(Boolean);
+    const partnershipsList = (() => {
+        if (!isCurrentMatchFinished || !currentPartnership?.batsman1) {
+            return basePartnershipsList;
+        }
+
+        // If team is all out (10 wickets fell and all are recorded in history), no unbroken stand
+        if (Number(tabBattingTeam.totalWickets) >= 10 && basePartnershipsList.length >= 10) {
+            return basePartnershipsList;
+        }
+
+        // Calculate final stand stats from currentPartnership
+        const standRuns = Math.max(0, (tabBattingTeam.totalRuns || 0) - (currentPartnership.startScore || 0));
+        const standBalls = Math.max(0, (tabBattingTeam.totalBalls || 0) - (currentPartnership.startBalls || 0));
+
+        const wNum = basePartnershipsList.length + 1;
+        const wSuffix = wNum === 1 ? 'st' : wNum === 2 ? 'nd' : wNum === 3 ? 'rd' : 'th';
+
+        // Prevent duplicate if already present in basePartnershipsList
+        const alreadyExists = basePartnershipsList.some(p =>
+            p.wicketNumber === wNum ||
+            p.wicketLabel === `${wNum}${wSuffix} Wicket` ||
+            (p.isUnbroken && p.batsman1?.name === currentPartnership.batsman1?.name)
+        );
+        if (alreadyExists) return basePartnershipsList;
+
+        const b1Runs = currentPartnership.batsman1Runs || 0;
+        const b2Runs = currentPartnership.batsman2Runs || 0;
+        const standExtras = Math.max(0, standRuns - (b1Runs + b2Runs));
+        const endScore = `${tabBattingTeam.totalRuns || 0}/${tabBattingTeam.totalWickets || 0}`;
+        const oversStr = `${Math.floor(standBalls / 6)}.${standBalls % 6}`;
+
+        const unbrokenEntry = {
+            id: `unbroken_${wNum}`,
+            wicketNumber: wNum,
+            wicketLabel: `${wNum}${wSuffix} Wicket`,
+            isUnbroken: true,
+            runs: standRuns,
+            balls: standBalls,
+            overs: oversStr,
+            batsman1: currentPartnership.batsman1,
+            batsman1Runs: b1Runs,
+            batsman1Balls: currentPartnership.batsman1Balls || 0,
+            batsman2: currentPartnership.batsman2,
+            batsman2Runs: b2Runs,
+            batsman2Balls: currentPartnership.batsman2Balls || 0,
+            extras: standExtras,
+            endScore: endScore
+        };
+
+        return [...basePartnershipsList, unbrokenEntry];
+    })();
 
     // Commentary Stream: Latest delivery strictly at the top
     const parseDeliveryScore = (item) => {
@@ -1093,20 +1146,59 @@ const LiveScore3D = () => {
         ? tabBattingTeamCommentary
         : allCommentaryList.filter(c => isDeliveryForBattingTeam(c, activeInningsTab));
 
+    // Helper to format delivery over string properly (ensuring first ball uncountable extras like WD/NB show as N.1 rather than previous over last ball N)
+    const formatDeliveryOver = (c) => {
+        const raw = c?.over ?? c?.ball;
+        if (raw === undefined || raw === null || raw === '') return '';
+        const str = String(raw).trim();
+
+        const isUncountable = Boolean(
+            c?.isExtra && (
+                c.extraType === 'Wide' ||
+                c.extraType === 'No Ball' ||
+                c.extraType === 'Penalty' ||
+                String(c.extraType).toLowerCase().includes('wide') ||
+                String(c.extraType).toLowerCase().includes('no ball') ||
+                String(c.text || '').toLowerCase().includes('wide') ||
+                String(c.text || '').toLowerCase().includes('wd') ||
+                String(c.text || '').toLowerCase().includes('no ball') ||
+                String(c.text || '').toLowerCase().includes('nb')
+            )
+        );
+
+        if (isUncountable) {
+            // When recorded as an integer (e.g. "0", "1", "2") or with ".0" (e.g. "0.0", "1.0", "2.0")
+            // that integer N represents the completed overs before this ball.
+            // This delivery is ball 1 of the new over (N + 1), so format it as N.1!
+            if (!str.includes('.')) {
+                const completedOvers = parseInt(str, 10);
+                if (!isNaN(completedOvers)) {
+                    return `${completedOvers}.1`;
+                }
+            } else if (str.endsWith('.0')) {
+                const completedOvers = parseInt(str.split('.')[0], 10);
+                if (!isNaN(completedOvers)) {
+                    return `${completedOvers}.1`;
+                }
+            }
+        }
+
+        return str;
+    };
+
     // Helper to extract 1-indexed over number from delivery
     const getDeliveryOverNum = (c) => {
-        const raw = c?.over ?? c?.ball;
-        if (raw === undefined || raw === null || raw === '') return null;
-        const str = String(raw).trim();
-        if (str.includes('.')) {
-            const parts = str.split('.');
+        const formatted = formatDeliveryOver(c);
+        if (!formatted) return null;
+        if (formatted.includes('.')) {
+            const parts = formatted.split('.');
             const overPart = parseInt(parts[0], 10);
             const ballPart = parseInt(parts[1], 10);
             if (isNaN(overPart)) return null;
             if (ballPart === 0 && overPart > 0) return overPart;
             return overPart + 1;
         }
-        const num = parseInt(str, 10);
+        const num = parseInt(formatted, 10);
         return !isNaN(num) ? num : null;
     };
 
@@ -1150,6 +1242,72 @@ const LiveScore3D = () => {
         ...Object.values(team2.bowlers || {})
     ].filter(b => b && typeof b === 'object' && b.name);
     const topBowler = allBowlers.sort((a, b) => (Number(b.wickets) || 0) - (Number(a.wickets) || 0))[0];
+
+    // Accurately calculate bowler dot balls & maidens from deliveries
+    const getBowlerStats = (bowler) => {
+        if (!bowler) return { dots: 0, maidens: 0 };
+        if (bowler.dots != null && Number(bowler.dots) > 0) {
+            return {
+                dots: Number(bowler.dots),
+                maidens: Number(bowler.maidens || 0)
+            };
+        }
+
+        const targetDeliveries = (commentaryList && commentaryList.length > 0)
+            ? commentaryList
+            : allCommentaryList;
+
+        if (!Array.isArray(targetDeliveries) || targetDeliveries.length === 0) {
+            return {
+                dots: Number(bowler.dots || bowler.dotBalls || 0),
+                maidens: Number(bowler.maidens || 0)
+            };
+        }
+
+        const bName = String(bowler.name || '').trim().toLowerCase();
+        const bId = String(bowler.id || '').trim();
+
+        const bowlerDeliveries = targetDeliveries.filter(c => {
+            if (!c) return false;
+            const cBowlerId = String(c.bowlerId || '').trim();
+            if (bId && cBowlerId && bId === cBowlerId) return true;
+            const cBowler = String(c.bowler || '').trim().toLowerCase();
+            if (bName && cBowler) {
+                if (cBowler === bName) return true;
+                if (cBowler.includes(bName) || bName.includes(cBowler)) return true;
+            }
+            return false;
+        });
+
+        if (bowlerDeliveries.length === 0) {
+            return {
+                dots: Number(bowler.dots || bowler.dotBalls || 0),
+                maidens: Number(bowler.maidens || 0)
+            };
+        }
+
+        const dots = bowlerDeliveries.filter(c => {
+            const extraType = String(c.extraType || '').toLowerCase();
+            const isWideOrNb = Boolean(c.isExtra) && (
+                extraType.includes('wide') ||
+                extraType.includes('no ball') ||
+                extraType.includes('nb') ||
+                extraType.includes('wd')
+            );
+            if (isWideOrNb) return false;
+
+            const batRuns = Number(c.runs) || 0;
+            const isByeOrLegBye = extraType.includes('bye');
+            const bowlerExtraRuns = isByeOrLegBye ? 0 : (Number(c.extraRuns) || 0);
+
+            return (batRuns + bowlerExtraRuns) === 0;
+        }).length;
+
+        return {
+            dots,
+            maidens: Number(bowler.maidens || 0)
+        };
+    };
 
     // Extract or synthesize Wagon Wheel shots from recorded player shots / boundaries
     const wagonShots = selectedBatsmanForWagon ? (
@@ -1769,7 +1927,7 @@ const LiveScore3D = () => {
                                                         <span
                                                             key={c._id || c.id || idx}
                                                             className={`delivery-token ${meta.type} len-${String(meta.label).length}`}
-                                                            title={`Ball ${c.over || c.ball || idx + 1}: ${c.commentary || c.text || ''}`}
+                                                            title={`Ball ${formatDeliveryOver(c) || c.ball || idx + 1}: ${c.commentary || c.text || ''}`}
                                                         >
                                                             {meta.label}
                                                         </span>
@@ -1973,8 +2131,8 @@ const LiveScore3D = () => {
                                                     </h3>
                                                 </div>
 
-                                                {/* Live Current Partnership (Active Batter Stand) */}
-                                                {currentPartnership?.batsman1 && (
+                                                {/* Live Current Partnership (Active Batter Stand) - only for active live matches */}
+                                                {!isCurrentMatchFinished && currentPartnership?.batsman1 && (
                                                     <div className="current-partnership-card">
                                                         <div className="cpb-meta-top">
                                                             <div className="cpb-badge-wrap">
@@ -2076,7 +2234,6 @@ const LiveScore3D = () => {
                                                                         <tr key={p.id || idx} className={p?.isUnbroken ? 'unbroken-partnership-row' : ''}>
                                                                             <td className="wkt-cell" style={{ textAlign: 'left' }}>
                                                                                 <strong>{p.wicketLabel || `${p.wicketNumber || idx + 1}${idx === 0 ? 'st' : idx === 1 ? 'nd' : idx === 2 ? 'rd' : 'th'} Wicket`}</strong>
-                                                                                {p?.isUnbroken && <span className="unbroken-badge">Not Out</span>}
                                                                             </td>
                                                                             <td className="runs-cell" style={{ textAlign: 'center' }}>
                                                                                 <span className="part-runs-bold">{p.runs}</span> <span className="text-muted">({p.balls}b)</span>
@@ -2131,27 +2288,30 @@ const LiveScore3D = () => {
                                                     </thead>
                                                     <tbody>
                                                         {bowlersList.length > 0 ? (
-                                                            bowlersList.map((b, idx) => (
-                                                                <tr key={b.id || idx}>
-                                                                    <td className="player-name-cell bowler-name-cell">
-                                                                        <div className="table-player-cell-inner">
-                                                                            {renderPlayerAvatar(b, currentBowlTeamName, 'xs')}
-                                                                            <div className="p-cell-wrap">
-                                                                                <strong>{b.name}</strong>
-                                                                                {b.bowlingStyle && (
-                                                                                    <span className="bowler-style-sub">{b.bowlingStyle}</span>
-                                                                                )}
+                                                            bowlersList.map((b, idx) => {
+                                                                const bStats = getBowlerStats(b);
+                                                                return (
+                                                                    <tr key={b.id || idx}>
+                                                                        <td className="player-name-cell bowler-name-cell">
+                                                                            <div className="table-player-cell-inner">
+                                                                                {renderPlayerAvatar(b, currentBowlTeamName, 'xs')}
+                                                                                <div className="p-cell-wrap">
+                                                                                    <strong>{b.name}</strong>
+                                                                                    {b.bowlingStyle && (
+                                                                                        <span className="bowler-style-sub">{b.bowlingStyle}</span>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.overs ?? 0}</td>
-                                                                    <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.maidens ?? 0}</td>
-                                                                    <td className="bowl-stat-cell runs-cell" style={{ textAlign: 'center' }}>{b.runs ?? 0}</td>
-                                                                    <td className="bowl-stat-cell wicket-highlight" style={{ textAlign: 'center' }}>{b.wickets ?? 0}</td>
-                                                                    <td className="bowl-stat-cell econ-cell" style={{ textAlign: 'center' }}>{b.economy ?? (b.overs ? (b.runs / b.overs).toFixed(2) : '0.00')}</td>
-                                                                    <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.dots ?? 0}</td>
-                                                                </tr>
-                                                            ))
+                                                                        </td>
+                                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.overs ?? 0}</td>
+                                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{b.maidens ?? bStats.maidens ?? 0}</td>
+                                                                        <td className="bowl-stat-cell runs-cell" style={{ textAlign: 'center' }}>{b.runs ?? 0}</td>
+                                                                        <td className="bowl-stat-cell wicket-highlight" style={{ textAlign: 'center' }}>{b.wickets ?? 0}</td>
+                                                                        <td className="bowl-stat-cell econ-cell" style={{ textAlign: 'center' }}>{b.economy ?? (b.overs ? (b.runs / b.overs).toFixed(2) : '0.00')}</td>
+                                                                        <td className="bowl-stat-cell" style={{ textAlign: 'center' }}>{bStats.dots}</td>
+                                                                    </tr>
+                                                                );
+                                                            })
                                                         ) : (
                                                             <tr>
                                                                 <td colSpan="7" className="text-center-muted">No bowling stats recorded yet.</td>
@@ -2269,7 +2429,7 @@ const LiveScore3D = () => {
                                                                     <span className={`comm-ball-token ${meta.type} len-${String(meta.label).length}`}>
                                                                         {meta.label}
                                                                     </span>
-                                                                    <span className="comm-ov-num">{c.over || c.ball || `${idx + 1}`}</span>
+                                                                    <span className="comm-ov-num">{formatDeliveryOver(c) || c.ball || `${idx + 1}`}</span>
                                                                 </div>
                                                                 <div className="comm-text-col">
                                                                     <p className="comm-message">{broadcastCommentary}</p>

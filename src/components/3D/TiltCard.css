@@ -1,16 +1,17 @@
 .tilt-card-wrapper {
     position: relative;
     transform-style: preserve-3d;
-    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s ease;
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
     border-radius: 18px;
-    overflow: hidden;
+    overflow: visible;
     will-change: transform;
     cursor: pointer;
 }
 
 .tilt-card-wrapper:hover {
-    box-shadow: 0 20px 40px -15px rgba(0, 240, 255, 0.25),
-        0 0 25px 0 rgba(0, 240, 255, 0.15);
+    box-shadow: 0 22px 48px -12px rgba(0, 240, 255, 0.28),
+        0 0 30px 0 rgba(0, 240, 255, 0.18);
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .tilt-card-inner {
@@ -30,6 +31,20 @@
     bottom: 0;
     pointer-events: none;
     z-index: 3;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.4s ease;
     mix-blend-mode: screen;
+}
+
+/* Mobile responsive: disable all tilt & hover effects */
+@media (max-width: 768px), (hover: none) {
+    .tilt-card-wrapper,
+    .tilt-card-wrapper:hover {
+        transform: none !important;
+        box-shadow: none !important;
+        transition: none !important;
+    }
+
+    .tilt-card-glare {
+        display: none !important;
+    }
 }

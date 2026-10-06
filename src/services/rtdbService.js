@@ -82,6 +82,11 @@ export const resolveTournamentKey = (id) => {
         return "E-Legend's Trophy 2K25";
     }
 
+    // Direct mapping for 2023 tournament
+    if (str === "E-Legend's Trophy 2K23" || str === '2K23' || str === '2023') {
+        return "E-Legend's Trophy 2K23";
+    }
+
     if (knownTournamentKeys.has(str)) return str;
 
     // Check if stripped or full exists
@@ -95,6 +100,7 @@ export const resolveTournamentKey = (id) => {
         if (yearNorm === '2K01') return '2K01';
         if (yearNorm === '2K26') return "E-Legend's Trophy 2K26";
         if (yearNorm === '2K25') return "E-Legend's Trophy 2K25";
+        if (yearNorm === '2K23') return "E-Legend's Trophy 2K23";
         if (knownTournamentKeys.has(yearNorm)) return yearNorm;
     }
 

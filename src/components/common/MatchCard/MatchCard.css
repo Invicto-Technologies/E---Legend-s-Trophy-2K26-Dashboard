@@ -12,15 +12,16 @@
     flex-direction: column;
     height: 100%;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     backdrop-filter: blur(14px);
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease, background 0.4s ease;
 }
 
 .pro-match-card:hover {
     border-color: var(--bg-card-border-hover);
     box-shadow: var(--card-hover-shadow);
-    transform: translateY(-3px);
+    transform: translateY(-4px);
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
 }
 
 .pro-match-card.is-completed {
@@ -54,6 +55,7 @@
     background: radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.22), transparent 75%);
     pointer-events: none;
     z-index: 0;
+    border-radius: 20px 20px 0 0;
 }
 
 /* Header Top Bar */
@@ -661,6 +663,35 @@
    MOBILE RESPONSIVE TWEAKS FOR MATCH CARDS
    ========================================================================== */
 @media (max-width: 768px) {
+    /* Disable all card hover effects in mobile responsive */
+    .pro-match-card,
+    .pro-match-card:hover,
+    .pro-match-card.is-special-match,
+    .pro-match-card.is-special-match:hover {
+        transform: none !important;
+        transition: none !important;
+    }
+
+    .pro-match-card:hover {
+        border-color: var(--bg-card-border) !important;
+        box-shadow: var(--card-shadow) !important;
+    }
+
+    .pro-match-card.is-special-match:hover {
+        border-color: rgba(56, 189, 248, 0.45) !important;
+        box-shadow: 0 10px 32px rgba(14, 165, 233, 0.16), 0 0 25px rgba(59, 130, 246, 0.12) !important;
+    }
+
+    [data-theme="light"] .pro-match-card:hover {
+        border-color: var(--bg-card-border) !important;
+        box-shadow: var(--card-shadow) !important;
+    }
+
+    [data-theme="light"] .pro-match-card.is-special-match:hover {
+        border-color: rgba(2, 132, 199, 0.38) !important;
+        box-shadow: 0 12px 28px rgba(2, 132, 199, 0.15) !important;
+    }
+
     .pro-match-card {
         padding: 14px 12px 12px !important;
         gap: 10px !important;

@@ -257,11 +257,55 @@ const Rankings3D = () => {
         (activeTab === 'bowlers' && hasBowlersData) ||
         (activeTab === 'squads' && teamKeys.length > 0);
 
+    // Helper to find player photo / info from teamsData
+    const enrichPlayerWithPhoto = (player) => {
+        if (!player) return player;
+        if (player.imageUrl || player.image) return player;
+
+        const pId = String(player.id || '').trim();
+        const pName = (player.name || '').trim().toLowerCase();
+
+        // 1. Check matching team in teamsData
+        const matchedTeamKey = Object.keys(teamsData || {}).find(key => {
+            const td = teamsData[key];
+            return (
+                key.toLowerCase() === (player.team || '').toLowerCase() ||
+                (td?.name || '').toLowerCase() === (player.team || '').toLowerCase() ||
+                (player.team || '').toLowerCase().includes(key.toLowerCase()) ||
+                key.toLowerCase().includes((player.team || '').toLowerCase())
+            );
+        });
+
+        if (matchedTeamKey && teamsData[matchedTeamKey]) {
+            const team = teamsData[matchedTeamKey];
+            const p = (team.players && (pId && team.players[pId] ? team.players[pId] : Object.values(team.players).find(tp => (tp.name || '').trim().toLowerCase() === pName)))
+                || (team.extraPlayers && (pId && team.extraPlayers[pId] ? team.extraPlayers[pId] : Object.values(team.extraPlayers).find(tp => (tp.name || '').trim().toLowerCase() === pName)));
+            if (p?.imageUrl || p?.image) {
+                return { ...player, imageUrl: p.imageUrl || p.image, image: p.imageUrl || p.image };
+            }
+        }
+
+        // 2. Search across all teams in teamsData as fallback
+        for (const teamKey of Object.keys(teamsData || {})) {
+            const team = teamsData[teamKey];
+            const p = (team.players && (pId && team.players[pId] ? team.players[pId] : Object.values(team.players).find(tp => (tp.name || '').trim().toLowerCase() === pName)))
+                || (team.extraPlayers && (pId && team.extraPlayers[pId] ? team.extraPlayers[pId] : Object.values(team.extraPlayers).find(tp => (tp.name || '').trim().toLowerCase() === pName)));
+            if (p?.imageUrl || p?.image) {
+                return { ...player, imageUrl: p.imageUrl || p.image, image: p.imageUrl || p.image };
+            }
+        }
+
+        return player;
+    };
+
+    const enrichedBattersList = battersList.map(enrichPlayerWithPhoto);
+    const enrichedBowlersList = bowlersList.map(enrichPlayerWithPhoto);
+
     // Active dataset for podium & table
     const getActiveData = () => {
         if (activeTab === 'points') return enrichedPointsList;
-        if (activeTab === 'batters') return battersList;
-        return bowlersList;
+        if (activeTab === 'batters') return enrichedBattersList;
+        return enrichedBowlersList;
     };
 
     const currentList = getActiveData();
@@ -316,6 +360,67 @@ const Rankings3D = () => {
             return <span className="podium-sub-stat">Overs Bowled: {ov}</span>;
         }
         return null;
+    };
+
+    const renderPodiumAvatar = (item, rank, borderClass, rankNumClass = '') => {
+        if (!item) return null;
+
+        if (activeTab === 'points') {
+            const logoUrl = item.logo;
+            return (
+                <div className={`podium-avatar-wrap ${borderClass}`}>
+                    {logoUrl ? (
+                        <img
+                            src={logoUrl}
+                            alt={item.team || item.fullName || 'Team Logo'}
+                            className="podium-avatar-img team-logo"
+                            onError={(e) => {
+                                e.target.style.display = 'none';
+                                const fallback = e.target.parentElement?.querySelector('.podium-avatar-fallback');
+                                if (fallback) fallback.style.display = 'flex';
+                            }}
+                        />
+                    ) : null}
+                    <div
+                        className="podium-avatar-fallback"
+                        style={{ display: logoUrl ? 'none' : 'flex' }}
+                    >
+                        <span className={`podium-rank-num ${rankNumClass}`}>{rank}</span>
+                    </div>
+                </div>
+            );
+        }
+
+        // Batters and Bowlers: player picture
+        const playerImg = item.imageUrl || item.image;
+        return (
+            <div className={`podium-avatar-wrap ${borderClass}`}>
+                {playerImg ? (
+                    <img
+                        src={playerImg}
+                        alt={item.name || 'Player'}
+                        className="podium-avatar-img player-photo"
+                        onError={(e) => {
+                            e.target.style.display = 'none';
+                            const fallback = e.target.parentElement?.querySelector('.podium-avatar-fallback');
+                            if (fallback) fallback.style.display = 'flex';
+                        }}
+                    />
+                ) : null}
+                <div
+                    className="podium-avatar-fallback"
+                    style={{ display: playerImg ? 'none' : 'flex' }}
+                >
+                    {item.name ? (
+                        <span className="podium-avatar-initials">
+                            {getPlayerInitials(item.name)}
+                        </span>
+                    ) : (
+                        <span className={`podium-rank-num ${rankNumClass}`}>{rank}</span>
+                    )}
+                </div>
+            </div>
+        );
     };
 
     if (isLoading) {
@@ -755,9 +860,7 @@ const Rankings3D = () => {
                                                 <div className="podium-pedestal-rank silver-tag">
                                                     <FaMedal /> 2nd Place
                                                 </div>
-                                                <div className="podium-avatar-wrap silver-border">
-                                                    <span className="podium-rank-num">2</span>
-                                                </div>
+                                                {renderPodiumAvatar(top2, 2, 'silver-border')}
                                                 <h3 className="podium-name">{top2.name || top2.team}</h3>
                                                 <span className="podium-team-sub">{top2.name ? top2.team : 'Faculty Batch'}</span>
                                                 {renderPodiumScorePill(top2, 'silver-pill')}
@@ -777,9 +880,7 @@ const Rankings3D = () => {
                                                 <div className="podium-pedestal-rank gold-tag">
                                                     <FaMedal /> Champion
                                                 </div>
-                                                <div className="podium-avatar-wrap gold-border">
-                                                    <span className="podium-rank-num gold-text">1</span>
-                                                </div>
+                                                {renderPodiumAvatar(top1, 1, 'gold-border', 'gold-text')}
                                                 <h3 className="podium-name gold-name">{top1.name || top1.team}</h3>
                                                 <span className="podium-team-sub">{top1.name ? top1.team : 'Faculty Batch'}</span>
                                                 {renderPodiumScorePill(top1, 'gold-pill')}
@@ -796,9 +897,7 @@ const Rankings3D = () => {
                                                 <div className="podium-pedestal-rank bronze-tag">
                                                     <FaMedal /> 3rd Place
                                                 </div>
-                                                <div className="podium-avatar-wrap bronze-border">
-                                                    <span className="podium-rank-num">3</span>
-                                                </div>
+                                                {renderPodiumAvatar(top3, 3, 'bronze-border')}
                                                 <h3 className="podium-name">{top3.name || top3.team}</h3>
                                                 <span className="podium-team-sub">{top3.name ? top3.team : 'Faculty Batch'}</span>
                                                 {renderPodiumScorePill(top3, 'bronze-pill')}

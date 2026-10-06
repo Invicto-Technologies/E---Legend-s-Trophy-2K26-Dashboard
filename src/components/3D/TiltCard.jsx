@@ -17,7 +17,7 @@ const TiltCard = ({
     const [glarePos, setGlarePos] = useState({ x: 50, y: 50, opacity: 0 });
 
     const handleMouseMove = useCallback((e) => {
-        if (!cardRef.current || maxTilt === 0) return;
+        if (!cardRef.current || maxTilt === 0 || (typeof window !== 'undefined' && window.innerWidth <= 768)) return;
         const rect = cardRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -40,6 +40,7 @@ const TiltCard = ({
     }, [maxTilt, perspective, scale, glare]);
 
     const handleMouseLeave = useCallback(() => {
+        if (typeof window !== 'undefined' && window.innerWidth <= 768) return;
         setTransform(`perspective(${perspective}px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`);
         setGlarePos(prev => ({ ...prev, opacity: 0 }));
     }, [perspective]);
