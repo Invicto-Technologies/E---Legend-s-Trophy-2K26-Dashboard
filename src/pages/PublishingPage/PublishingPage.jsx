@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
+import SEOHead from '../../components/common/SEO/SEOHead';
 import {
     subscribeActiveTournament,
     incrementDownloadCount,
@@ -230,6 +231,11 @@ const PublishingPage = () => {
 
     return (
         <div className="publishing-3d-page">
+            <SEOHead
+                title="Download Official Android App | E-Legends Trophy 2K26"
+                description="Download the official E-Legends Trophy 2K26 Android app (APK). Get instant ball-by-ball notifications, live cricket scores, and tournament updates."
+                canonicalPath="/download"
+            />
             {/* Single fixed background image layer across the entire page matching Home page */}
             <div
                 className="pub-fixed-bg-layer"

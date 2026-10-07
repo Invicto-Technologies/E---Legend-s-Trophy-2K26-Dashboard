@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import ThreeCricketScene from '../../components/3D/ThreeCricketScene';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
+import SEOHead from '../../components/common/SEO/SEOHead';
 import {
     subscribeLiveData,
     subscribeFixtures,
@@ -740,6 +741,11 @@ const Home3D = () => {
 
     return (
         <div className="home-3d-page">
+            <SEOHead
+                title="E-Legends Trophy 2K26 | Official Cricket Tournament & Live Scores"
+                description="Official Live Cricket Tournament Dashboard for E-Legends Trophy 2K26. Follow real-time ball-by-ball scores, match fixtures, team squad rosters, player leaderboards, and tournament gallery."
+                canonicalPath="/"
+            />
             {/* Single fixed background image layer across the entire page (does not scroll with content) */}
             <div
                 className="home-fixed-bg-layer"

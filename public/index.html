@@ -15,7 +15,19 @@
     content="E-Legends Trophy 2K26, E-Legends Trophy, Cricket Tournament, Live Cricket Scoreboard, University Cricket, Match Fixtures, Cricket Squads, Invicto Technologies, Live Commentary, Cricket Stats, Prof Thurairajah Tournament" />
   <meta name="author" content="Invicto Technologies" />
   <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://e-legends-2k26.vercel.app/" />
+  <link rel="canonical" id="canonical-tag" href="https://e-legends-2k26.vercel.app/" />
+  <script>
+    (function () {
+      try {
+        var host = 'https://e-legends-2k26.vercel.app';
+        var path = window.location.pathname.replace(/\/+$/, '') || '';
+        var canonicalEl = document.getElementById('canonical-tag');
+        if (canonicalEl) {
+          canonicalEl.setAttribute('href', host + (path ? path : '/'));
+        }
+      } catch (e) {}
+    })();
+  </script>
 
   <!-- Google Search Console Verification Tag -->
   <meta name="google-site-verification" content="6_6eq3Wqg5U9i7GLaiyeoeXx0H2ElGxI-xg5GvmCrPQ" />

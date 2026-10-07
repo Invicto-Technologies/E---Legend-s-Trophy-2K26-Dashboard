@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
+import SEOHead from '../../components/common/SEO/SEOHead';
 import {
     subscribeTournamentIndex,
     subscribeTournamentEdition,
@@ -402,6 +403,11 @@ const History3D = () => {
 
     return (
         <div className="history-3d-page">
+            <SEOHead
+                title="Tournament History & Archives | E-Legends Trophy"
+                description="Explore the legacy, past champion teams, scorecards, and records from previous editions of the Prof. Thurairajah Memorial E-Legends Trophy."
+                canonicalPath="/history"
+            />
             {/* Hero Section */}
             <section className="history-hero">
                 <div className="history-hero-glow" />

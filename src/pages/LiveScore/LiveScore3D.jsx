@@ -5,6 +5,7 @@ import TiltCard from '../../components/3D/TiltCard';
 import WagonWheel from '../../components/3D/WagonWheel';
 import ThreeStadiumRadarScene from '../../components/3D/ThreeStadiumRadarScene';
 import Footer from '../../components/common/Footer/Footer';
+import SEOHead from '../../components/common/SEO/SEOHead';
 import {
     subscribeLiveData,
     subscribeMatch,
@@ -1444,6 +1445,11 @@ const LiveScore3D = () => {
     if (!routeMatchTitle && !isLive) {
         return (
             <div className="livescore-3d-page livescore-standby-screen">
+                <SEOHead
+                    title="Live Match Center & Scores | E-Legends Trophy 2K26"
+                    description="Follow real-time ball-by-ball cricket scores, live commentary, player stats, and match progress in the E-Legends Trophy 2K26 match center."
+                    canonicalPath="/live"
+                />
                 {/* 3D Animated Stadium Radar Standby Card - Two Column Layout */}
                 <main className="ls-standby-hero-section">
                     <div className="ls-container">
@@ -1508,7 +1514,7 @@ const LiveScore3D = () => {
                     <div className="ls-container standby-bottom-inner">
                         <span>© {labels.year} {labels.fullName}. All rights reserved.</span>
                         <div className="standby-bottom-links">
-                            <Link to="/home">Home</Link>
+                            <Link to="/">Home</Link>
                             <Link to="/fixtures">Fixtures</Link>
                             <Link to="/rankings">Rankings</Link>
                             <Link to="/history">History</Link>
@@ -1545,6 +1551,11 @@ const LiveScore3D = () => {
 
     return (
         <div className="livescore-3d-page">
+            <SEOHead
+                title={routeMatchTitle ? `${routeMatchTitle} - Live Match Scorecard | E-Legends Trophy 2K26` : "Live Cricket Scores & Commentary | E-Legends Trophy 2K26"}
+                description={`Ball-by-ball live score, commentary, and match statistics for ${routeMatchTitle || 'E-Legends Trophy 2K26'}.`}
+                canonicalPath={routeMatchTitle ? `/match/${encodeURIComponent(routeMatchTitle)}` : "/live"}
+            />
             {/* Top Navigation Breadcrumb */}
             <div className="livescore-top-bar">
                 <div className="ls-container">

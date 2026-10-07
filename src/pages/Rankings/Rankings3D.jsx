@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
+import SEOHead from '../../components/common/SEO/SEOHead';
 import {
     subscribeRankings,
     subscribeTeams,
@@ -435,6 +436,11 @@ const Rankings3D = () => {
 
     return (
         <div className={`rankings-3d-page ${!hasCurrentData ? 'rankings-no-data-page' : ''}`}>
+            <SEOHead
+                title="Points Table & Team Rankings | E-Legends Trophy 2K26"
+                description="Official points table, net run rate (NRR), standings, and player leaderboards for the E-Legends Trophy 2K26 Cricket Tournament."
+                canonicalPath="/rankings"
+            />
             {/* Header Hero Section */}
             <section className="rankings-hero">
                 <div className="rankings-container">
@@ -1125,7 +1131,7 @@ const Rankings3D = () => {
                     <div className="rankings-container rankings-bottom-inner">
                         <span>© {labels.year} {labels.fullName}. All rights reserved.</span>
                         <div className="rankings-bottom-links">
-                            <Link to="/home">Home</Link>
+                            <Link to="/">Home</Link>
                             <Link to="/fixtures">Fixtures</Link>
                             <Link to="/live">Live Score</Link>
                             <Link to="/history">History</Link>

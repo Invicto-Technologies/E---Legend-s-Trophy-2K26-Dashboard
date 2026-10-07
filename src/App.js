@@ -79,7 +79,7 @@ const AppLayout = () => {
                     <Routes>
                         {/* Public User 3D Views */}
                         <Route path="/" element={<Home3D />} />
-                        <Route path="/home" element={<Home3D />} />
+                        <Route path="/home" element={<Navigate to="/" replace />} />
                         <Route path="/fixtures" element={<Fixtures3D />} />
                         <Route path="/live" element={<LiveScore3D />} />
                         <Route path="/match/:matchTitle" element={<LiveScore3D />} />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import TiltCard from '../../components/3D/TiltCard';
 import Footer from '../../components/common/Footer/Footer';
+import SEOHead from '../../components/common/SEO/SEOHead';
 import MatchCard, { isMatchFinished, isMatchCurrentlyLive, parseMatchDateTime } from '../../components/common/MatchCard/MatchCard';
 import {
     subscribeFixtures,
@@ -202,6 +203,11 @@ const Fixtures3D = () => {
 
     return (
         <div className="fixtures-3d-page">
+            <SEOHead
+                title="Match Fixtures & Schedule | E-Legends Trophy 2K26"
+                description="View full schedule, match fixtures, group stages, playoffs, and timings for the E-Legends Trophy 2K26 Cricket Tournament."
+                canonicalPath="/fixtures"
+            />
             <div className="fixtures-hero">
                 <div className="fixtures-container">
                     <div className="fixtures-tag-badge">
